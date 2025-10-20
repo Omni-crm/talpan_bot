@@ -1,0 +1,130 @@
+from telegram.ext import CallbackQueryHandler, TypeHandler, ContextTypes, ConversationHandler, MessageHandler, filters
+from telegram import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from telegram import Update
+from geopy.geocoders import Nominatim
+from db.db import *
+from config.config import *
+from config.translations import t, get_user_lang
+from funcs.utils import *
+from funcs.bot_funcs import *
+import asyncio
+
+class EditProductStates:
+    CHOOSE_ACTION = 0
+    EDIT_STOCK_END = 1
+
+async def start_edit_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """START function of collecting data for new order."""
+    await update.callback_query.answer()
+    lang = get_user_lang(update.effective_user.id)
+
+    product_id = int(update.callback_query.data.split('_')[1])
+
+    session = Session()
+
+    product = session.query(Product).filter(Product.id==product_id).first()
+    session.close()
+
+    start_msg = await update.effective_message.edit_text(t("product_info", lang).format(product.name, product.stock), reply_markup=get_edit_product_kb(lang), parse_mode=ParseMode.HTML)
+    context.user_data["edit_product_data"] = {}
+    context.user_data["edit_product_data"]["start_msg"] = start_msg
+    context.user_data["edit_product_data"]["product"] = product
+    context.user_data["edit_product_data"]["lang"] = lang
+
+    return EditProductStates.CHOOSE_ACTION
+
+
+async def edit_product_stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.callback_query.answer()
+    lang = context.user_data["edit_product_data"]["lang"]
+
+    msg = context.user_data["edit_product_data"]["start_msg"]
+    product: Product = context.user_data["edit_product_data"]["product"]
+
+    await msg.edit_text(t("enter_new_stock", lang).format(product.name))
+
+    return EditProductStates.EDIT_STOCK_END
+
+async def edit_product_stock_end(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    lang = context.user_data["edit_product_data"]["lang"]
+    new_stock = int(update.effective_message.text[:20])
+    await update.effective_message.delete()
+
+    product: Product = context.user_data["edit_product_data"]["product"]
+
+    session = Session()
+    product = session.query(Product).filter(Product.id==product.id).first()
+
+    product.stock = new_stock
+    session.commit()
+
+
+    msg = context.user_data["edit_product_data"]["start_msg"]
+
+    await msg.edit_text(t("stock_updated", lang).format(product.name, product.stock))
+    session.close()
+
+    del context.user_data["edit_product_data"]
+
+    return ConversationHandler.END
+
+async def delete_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.callback_query.answer()
+    lang = context.user_data["edit_product_data"]["lang"]
+
+    product: Product = context.user_data["edit_product_data"]["product"]
+
+    session = Session()
+
+    session.delete(product)
+    session.flush()
+    session.commit()
+
+    session.close()
+
+    msg = context.user_data["edit_product_data"]["start_msg"]
+
+    await msg.edit_text(t("product_deleted", lang).format(product.name))
+    del context.user_data["edit_product_data"]
+
+    return ConversationHandler.END
+
+
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.callback_query.answer()
+    msg: Message = context.user_data["edit_product_data"]["start_msg"]
+    await msg.delete()
+    del context.user_data["edit_product_data"]
+
+    return ConversationHandler.END
+
+async def timeout_reached(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    msg: Message = context.user_data["edit_product_data"]["start_msg"]
+    await msg.reply_text("[Ошибка] Время ожидания истекло, попробуйте сначала.")
+    del context.user_data["edit_product_data"]
+
+    return ConversationHandler.END
+
+
+states = {
+    EditProductStates.CHOOSE_ACTION: [
+        CallbackQueryHandler(edit_product_stock, '^edit_stock$'),
+        CallbackQueryHandler(delete_product, '^delete$'),
+    ],
+    EditProductStates.EDIT_STOCK_END: [
+        MessageHandler(filters.Regex('^\d+$'), edit_product_stock_end)
+    ],
+    ConversationHandler.TIMEOUT: [TypeHandler(Update, timeout_reached)]
+}
+
+
+EDIT_PRODUCT_HANDLER = ConversationHandler(
+    entry_points=[
+        CallbackQueryHandler(start_edit_product, '^edit_*[0-9]$'),
+    ],
+    states=states,
+    fallbacks=[
+        CallbackQueryHandler(cancel, '^cancel$'),
+    ],
+    conversation_timeout=120,
+)
