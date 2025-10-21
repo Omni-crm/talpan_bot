@@ -93,7 +93,7 @@ async def timeout_reached(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 states = {
     AddStaffStates.ADD_STAFF: [
         MessageHandler(filters.Regex('^@.+$'), add_staff),
-        MessageHandler(filters.Regex('^\d+$'), add_staff),
+        MessageHandler(filters.Regex(r'^\d+$'), add_staff),
     ],
     ConversationHandler.TIMEOUT: [TypeHandler(Update, timeout_reached)]
 }

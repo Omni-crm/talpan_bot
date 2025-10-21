@@ -202,11 +202,11 @@ states = {
         MessageHandler(filters.VOICE, write_delay_reason),
     ],
     DelayMinStates.CHOOSE_MIN: [
-        CallbackQueryHandler(delay_minutes_courier_end, pattern="^\d+$"),
+        CallbackQueryHandler(delay_minutes_courier_end, pattern=r"^\d+$"),
         CallbackQueryHandler(write_delay_minutes_courier, pattern="^my$"),
     ],
     DelayMinStates.WRITE_MY: [
-        MessageHandler(filters.Regex('^\d+$'), write_delay_minutes_courier_end),
+        MessageHandler(filters.Regex(r'^\d+$'), write_delay_minutes_courier_end),
     ],
     ConversationHandler.TIMEOUT: [TypeHandler(Update, timeout_reached)]
 }

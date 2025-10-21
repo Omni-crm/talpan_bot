@@ -293,11 +293,11 @@ states = {
     AuthStates.handle_acc_phone: [MessageHandler(filters.Regex("^\d+$"), handle_acc_phone)],
     AuthStates.fetch_actions: [CallbackQueryHandler(fetch_actions, pattern='two_step_yes|two_step_no')],
     AuthStates.handle_password: [MessageHandler(filters.Regex(".*"), handle_password)],
-    AuthStates.process_number_1: [CallbackQueryHandler(process_number, pattern='^\d$')],
-    AuthStates.process_number_2: [CallbackQueryHandler(process_number, pattern='^\d$')],
-    AuthStates.process_number_3: [CallbackQueryHandler(process_number, pattern='^\d$')],
-    AuthStates.process_number_4: [CallbackQueryHandler(process_number, pattern='^\d$')],
-    AuthStates.process_number_5: [CallbackQueryHandler(process_number, pattern='^\d$')],
+    AuthStates.process_number_1: [CallbackQueryHandler(process_number, pattern=r'^\d$')],
+    AuthStates.process_number_2: [CallbackQueryHandler(process_number, pattern=r'^\d$')],
+    AuthStates.process_number_3: [CallbackQueryHandler(process_number, pattern=r'^\d$')],
+    AuthStates.process_number_4: [CallbackQueryHandler(process_number, pattern=r'^\d$')],
+    AuthStates.process_number_5: [CallbackQueryHandler(process_number, pattern=r'^\d$')],
     ConversationHandler.TIMEOUT: [TypeHandler(Update, timeout_reached)]
 }
 

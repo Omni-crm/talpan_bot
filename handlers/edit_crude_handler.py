@@ -159,10 +159,10 @@ states = {
         CallbackQueryHandler(delete_product, '^delete$'),
     ],
     EditCrudeStockStates.EDIT_CRUDE_END: [
-        MessageHandler(filters.Regex('^\d+$'), edit_product_crude_end)
+        MessageHandler(filters.Regex(r'^\d+$'), edit_product_crude_end)
     ],
     EditCrudeStockStates.EDIT_STOCK_END: [
-        MessageHandler(filters.Regex('^\d+$'), edit_product_stock_end)
+        MessageHandler(filters.Regex(r'^\d+$'), edit_product_stock_end)
     ],
     ConversationHandler.TIMEOUT: [TypeHandler(Update, timeout_reached)]
 }

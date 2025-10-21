@@ -205,13 +205,13 @@ async def timeout_reached(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 states = {
     EndShiftStates.OPERATOR_PAID: [
-        MessageHandler(filters.Regex('^\d+$'), collect_operator_paid),
+        MessageHandler(filters.Regex(r'^\d+$'), collect_operator_paid),
     ],
     EndShiftStates.RUNNER_PAID: [
-        MessageHandler(filters.Regex('^\d+$'), collect_runner_paid),
+        MessageHandler(filters.Regex(r'^\d+$'), collect_runner_paid),
     ],
     EndShiftStates.PETROL_PAID: [
-        MessageHandler(filters.Regex('^\d+$'), collect_petrol_paid),
+        MessageHandler(filters.Regex(r'^\d+$'), collect_petrol_paid),
     ],
     EndShiftStates.CONFIRM: [
         CallbackQueryHandler(confirm_end_shift, pattern='confirm'),

@@ -111,7 +111,7 @@ async def timeout_reached(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 states = {
     TapMinStates.CHOOSE_MIN: [
-        CallbackQueryHandler(choose_minutes_courier_end, pattern="^\d+$"),
+        CallbackQueryHandler(choose_minutes_courier_end, pattern=r"^\d+$"),
     ],
     ConversationHandler.TIMEOUT: [TypeHandler(Update, timeout_reached)]
 }

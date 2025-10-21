@@ -434,14 +434,14 @@ states = {
     ],
     CollectOrderDataStates.SAVE_NEW_PRODUCT: [
         # Приходящее сообщение - число количества доступного на складе для нового продукта, сохраняем продукт.
-        MessageHandler(filters.Regex('^\d+$'), save_new_product)
+        MessageHandler(filters.Regex(r'^\d+$'), save_new_product)
     ],
     CollectOrderDataStates.QUANTITY: [
         CallbackQueryHandler(collect_quantity, '^\d+$'),
-        MessageHandler(filters.Regex('^\d+$'), collect_quantity)
+        MessageHandler(filters.Regex(r'^\d+$'), collect_quantity)
     ],
     CollectOrderDataStates.PRICE: [
-        MessageHandler(filters.Regex('^\d+$'), collect_price),
+        MessageHandler(filters.Regex(r'^\d+$'), collect_price),
         CallbackQueryHandler(collect_price, '^\d+$')
     ],
     CollectOrderDataStates.ADD_MORE_PRODUCTS_OR_CONFIRM: [

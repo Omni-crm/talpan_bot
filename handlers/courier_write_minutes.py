@@ -109,7 +109,7 @@ async def timeout_reached(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 states = {
     WriteMinStates.WRITE_MIN: [
-        MessageHandler(filters.Regex('^\d+$'), write_minutes_courier_end),
+        MessageHandler(filters.Regex(r'^\d+$'), write_minutes_courier_end),
     ],
     ConversationHandler.TIMEOUT: [TypeHandler(Update, timeout_reached)]
 }
