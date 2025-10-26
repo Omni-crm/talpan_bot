@@ -41,82 +41,145 @@ DB_PATH=/data/database.db
 
 ### 2.1 עדכון requirements.txt
 ```txt
-# PostgreSQL driver ל-Supabase
-psycopg2-binary==2.9.9
+# רק requests ל-API calls ל-Supabase
+requests==2.31.0
 
-# שמירת SQLAlchemy למקרה
+# שמירת SQLAlchemy למקרה (יכול להישאר בשימוש)
 # sqlalchemy==2.0.23 (כבר קיים)
 ```
 
 ### 2.2 התקנה
 ```bash
-pip install psycopg2-binary
+pip install requests
+```
+
+### 2.3 העדפה: Supabase Python Client
+או, בחר להשתמש ב-[Supabase Python Client](https://github.com/supabase/supabase-py):
+
+```txt
+# חלופה נוחה יותר
+supabase==2.3.4
+```
+
+```bash
+pip install supabase
 ```
 
 ---
 
 ## 📝 שלב 3: עדכון קוד בסיסי
 
-### 3.1 עדכון `db/db.py`
+### 3.1 יצירת wrapper חדש ל-Supabase
 
-#### א. הוספת import
+קובץ חדש: `db/supabase_client.py`
+
 ```python
+"""
+Supabase Client Wrapper
+עבודה ישירה עם Supabase ללא תלויות נוספות מלבד requests
+"""
 import os
-from sqlalchemy import create_engine, inspect
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.orm import declarative_base
-from sqlalchemy import Column, String, BigInteger, Boolean, UniqueConstraint, Integer, DateTime, Enum as SqlEnum
-from enum import Enum
-from telegram.ext import ContextTypes
-from telegram.constants import ParseMode
-from telegram import Update
-from functools import wraps
-from config.config import *
-from config.translations import t, get_user_lang
-import datetime, json, io
-import pandas as pd
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker  # חדש ל-Supabase async
+import requests
+from typing import Optional, List, Dict, Any
+
+class SupabaseClient:
+    """Client עבור Supabase עם HTTP requests ישירים"""
+    
+    def __init__(self):
+        self.url = os.getenv("SUPABASE_URL")
+        self.key = os.getenv("SUPABASE_KEY")
+        self.headers = {
+            "apikey": self.key,
+            "Authorization": f"Bearer {self.key}",
+            "Content-Type": "application/json"
+        }
+    
+    def _make_request(self, method: str, table: str, data: Optional[Dict] = None) -> Any:
+        """בצע HTTP request ל-Supabase"""
+        url = f"{self.url}/rest/v1/{table}"
+        response = requests.request(method, url, json=data, headers=self.headers)
+        response.raise_for_status()
+        return response.json()
+    
+    def select(self, table: str, filters: Optional[Dict] = None) -> List[Dict]:
+        """SELECT query"""
+        url = f"{self.url}/rest/v1/{table}"
+        params = filters or {}
+        response = requests.get(url, headers=self.headers, params=params)
+        response.raise_for_status()
+        return response.json()
+    
+    def insert(self, table: str, data: Dict) -> Dict:
+        """INSERT query"""
+        url = f"{self.url}/rest/v1/{table}"
+        response = requests.post(url, headers=self.headers, json=data)
+        response.raise_for_status()
+        return response.json()
+    
+    def update(self, table: str, data: Dict, filters: Optional[Dict] = None) -> Dict:
+        """UPDATE query"""
+        url = f"{self.url}/rest/v1/{table}"
+        params = filters or {}
+        response = requests.patch(url, headers=self.headers, json=data, params=params)
+        response.raise_for_status()
+        return response.json()
+    
+    def delete(self, table: str, filters: Optional[Dict] = None) -> Dict:
+        """DELETE query"""
+        url = f"{self.url}/rest/v1/{table}"
+        params = filters or {}
+        response = requests.delete(url, headers=self.headers, params=params)
+        response.raise_for_status()
+        return response.json() if response.content else {}
+
+# יצירת instance גלובלי
+def get_supabase_client():
+    """קבל Supabase client instance"""
+    return SupabaseClient()
 ```
 
-#### ב. הגדרת connection string דינמי
+### 3.2 עדכון `db/db.py` להגדרת Client
+
 ```python
-import os
+# הוספה לתחילת הקובץ
+from .supabase_client import get_supabase_client
 
-# הקראת connection string מ-environment variable
-SUPABASE_DB_URL = os.getenv("SUPABASE_DB_URL")
-SQLITE_DB_PATH = os.getenv("DB_PATH", "./database.db")
+# בחר בין Supabase ל-SQLite
+USE_SUPABASE = os.getenv("SUPABASE_URL") is not None
 
-# בחירת מסד נתונים (עדיפות ל-Supabase אם קיים)
-if SUPABASE_DB_URL:
-    # שימוש ב-Supabase PostgreSQL
-    DATABASE_URL = SUPABASE_DB_URL
-    engine = create_async_engine(
-        DATABASE_URL,
-        echo=False,
-        pool_size=5,
-        max_overflow=10,
-        pool_pre_ping=True
-    )
-    SessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+if USE_SUPABASE:
+    db_client = get_supabase_client()
+    print("✅ Using Supabase database")
 else:
-    # fallback ל-SQLite
-    DATABASE_URL = f"sqlite:///{SQLITE_DB_PATH}"
-    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-    SessionLocal = sessionmaker(bind=engine)
+    db_client = None
+    print("⚠️ Using SQLite database (local fallback)")
 ```
 
-#### ג. עדכון פונקציות לעבודה עם Async
+### 3.3 עדכון פונקציות לעבודה עם Supabase
+
 ```python
-# במקום:
-session = Session()
+# דוגמה לעדכון פונקציה
+async def get_user_by_id(user_id: int):
+    if USE_SUPABASE:
+        result = db_client.select('users', {'user_id': f'eq.{user_id}'})
+        return result[0] if result else None
+    else:
+        session = Session()
+        user = session.query(User).filter(User.user_id == user_id).first()
+        session.close()
+        return user.to_dict() if user else None
 
-# נשתמש:
-from sqlalchemy.ext.asyncio import AsyncSession
-
-# פונקציות async יעברו:
-async def some_function():
-    async with SessionLocal() as session:
-        # עבודה עם session
+# דוגמה לכתיבה
+async def create_user(user_data):
+    if USE_SUPABASE:
+        result = db_client.insert('users', user_data)
+        return result
+    else:
+        session = Session()
+        user = User(**user_data)
+        session.add(user)
+        session.commit()
+        session.close()
 ```
 
 ---
@@ -294,8 +357,11 @@ DB_PATH = "/tmp/database.db"
 
 ### 8.2 עדכון requirements.txt (לדפלוי)
 ```txt
-# רק psycopg2-binary נדרש ל-PostgreSQL
-psycopg2-binary==2.9.9
+# Supabase Client (הדרך הקלה ביותר)
+supabase==2.3.4
+
+# או אם מעדיפים רק HTTP requests:
+# requests==2.31.0
 ```
 
 ### 8.3 העלאה ל-Railway
