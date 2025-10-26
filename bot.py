@@ -43,10 +43,12 @@ def main() -> None:
     
     # Run auto_init.py to populate database settings
     try:
-        from auto_init import main as auto_init_main
-        auto_init_main()
+        import asyncio
+        from auto_init import auto_init
+        asyncio.run(auto_init())
     except Exception as e:
-        logging.error(f"Failed to run auto_init.py: {e}")
+        print(f"⚠️ Failed to run auto_init.py: {e}")
+        # Continue anyway - initialize_default_settings will handle it
     
     # Initialize bot settings if needed
     initialize_default_settings()
