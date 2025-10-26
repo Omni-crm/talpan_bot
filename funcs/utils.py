@@ -10,6 +10,58 @@ from io import BytesIO
 import json
 
 
+async def cleanup_old_messages(context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    פונקציה כללית למחיקת הודעות קודמות
+    """
+    if context.user_data.get("msgs_to_delete"):
+        msgs = context.user_data["msgs_to_delete"]
+        for msg in msgs:
+            try:
+                await msg.delete()
+            except:
+                pass
+        context.user_data["msgs_to_delete"] = []
+
+
+async def send_message_with_cleanup(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str, **kwargs):
+    """
+    פונקציה כללית לשליחת הודעה עם ניקוי אוטומטי של הודעות קודמות
+    """
+    # מחיקת הודעות קודמות
+    await cleanup_old_messages(context)
+    
+    # שליחת הודעה חדשה
+    if update.callback_query:
+        msg = await update.callback_query.message.reply_text(text, **kwargs)
+    else:
+        msg = await update.effective_message.reply_text(text, **kwargs)
+    
+    # שמירת הודעה למחיקה עתידית
+    save_message_for_cleanup(context, msg)
+    
+    return msg
+
+
+async def edit_message_with_cleanup(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str, **kwargs):
+    """
+    פונקציה כללית לעריכת הודעה עם ניקוי אוטומטי של הודעות קודמות
+    """
+    # מחיקת הודעות קודמות
+    await cleanup_old_messages(context)
+    
+    # עריכת הודעה קיימת
+    if update.callback_query:
+        msg = await update.callback_query.message.edit_text(text, **kwargs)
+    else:
+        msg = await update.effective_message.edit_text(text, **kwargs)
+    
+    # שמירת הודעה למחיקה עתידית
+    save_message_for_cleanup(context, msg)
+    
+    return msg
+
+
 def dicts_to_xlsx(dicts_list):
     df = pd.DataFrame(dicts_list)
     

@@ -48,14 +48,7 @@ async def set_language(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     user = update.effective_user
     
     # מחיקת הודעות קודמות
-    if context.user_data.get("msgs_to_delete"):
-        msgs = context.user_data["msgs_to_delete"]
-        for msg in msgs:
-            try:
-                await msg.delete()
-            except:
-                pass
-        context.user_data["msgs_to_delete"] = []
+    await cleanup_old_messages(context)
     
     # Update user language in DB
     session = Session()
@@ -72,15 +65,7 @@ async def set_language(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         
         # Show main menu in new language
         reply_markup = await build_start_menu(user.id)
-        msg = await update.callback_query.message.reply_text(
-            text=t("main_menu", lang_code),
-            reply_markup=reply_markup
-        )
-        
-        # שמירת הודעה למחיקה עתידית
-        if not context.user_data.get("msgs_to_delete"):
-            context.user_data["msgs_to_delete"] = []
-        context.user_data["msgs_to_delete"].append(msg)
+        await send_message_with_cleanup(update, context, t("main_menu", lang_code), reply_markup=reply_markup)
     finally:
         session.close()
 
@@ -103,11 +88,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 pass
     
     reply_markup = await build_start_menu(user.id)
-    msg = await update.message.reply_text(
-        text=t("main_menu", lang),
-        reply_markup=reply_markup)
-
-    context.user_data["msgs_to_delete"].append(msg)
+    await send_message_with_cleanup(update, context, t("main_menu", lang), reply_markup=reply_markup)
 
 
 @is_admin
@@ -323,14 +304,7 @@ async def beginning(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     lang = get_user_lang(update.effective_user.id)
     
     # מחיקת הודעות קודמות
-    if context.user_data.get("msgs_to_delete"):
-        msgs = context.user_data["msgs_to_delete"]
-        for msg in msgs:
-            try:
-                await msg.delete()
-            except:
-                pass
-        context.user_data["msgs_to_delete"] = []
+    await cleanup_old_messages(context)
     
     session = Session()
     shift = session.query(Shift).filter(Shift.status==ShiftStatus.opened).first()
@@ -345,15 +319,9 @@ async def beginning(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     else:
         products = Shift.set_products()
         prod_txt = " | ".join([f"{product['name']} {product['stock']}" for product in products])
-        msg = await update.effective_message.reply_text(
-            t('available_stock', lang).format(prod_txt), 
-            reply_markup=get_operator_shift_start_kb(lang), 
-            parse_mode=ParseMode.HTML
-        )
-        # שמירת הודעה למחיקה עתידית
-        if not context.user_data.get("msgs_to_delete"):
-            context.user_data["msgs_to_delete"] = []
-        context.user_data["msgs_to_delete"].append(msg)
+        await send_message_with_cleanup(update, context, t('available_stock', lang).format(prod_txt), 
+                                       reply_markup=get_operator_shift_start_kb(lang), 
+                                       parse_mode=ParseMode.HTML)
 
     session.close()
 
@@ -665,23 +633,12 @@ async def confirm_stock_shift(update: Update, context: ContextTypes.DEFAULT_TYPE
     lang = get_user_lang(update.effective_user.id)
     
     # מחיקת הודעות קודמות
-    if context.user_data.get("msgs_to_delete"):
-        msgs = context.user_data["msgs_to_delete"]
-        for msg in msgs:
-            try:
-                await msg.delete()
-            except:
-                pass
-        context.user_data["msgs_to_delete"] = []
+    await cleanup_old_messages(context)
     
     session = Session()
     shift = session.query(Shift).filter(Shift.status==ShiftStatus.opened).first()
     if shift:
-        msg = await update.effective_message.reply_text(t('close_previous_shift', lang))
-        # שמירת הודעה למחיקה עתידית
-        if not context.user_data.get("msgs_to_delete"):
-            context.user_data["msgs_to_delete"] = []
-        context.user_data["msgs_to_delete"].append(msg)
+        await send_message_with_cleanup(update, context, t('close_previous_shift', lang))
         session.close()
         return
     else:
