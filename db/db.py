@@ -548,15 +548,16 @@ def is_user_in_db(func):
                     ]
                     reply_markup = InlineKeyboardMarkup(keyboard)
                     
-                    # שליחת הודעת תפקיד קודם (ברוסית בברירת מחדל)
+                    # שליחת הודעת תפקיד לפי שפת המשתמש
+                    user_lang = get_user_lang(new_user_db.user_id)
                     if new_user_db.role == Role.ADMIN:
-                        await msg.reply_text(t("role_assigned_admin", "ru"), parse_mode=ParseMode.HTML)
+                        await msg.reply_text(t("role_assigned_admin", user_lang), parse_mode=ParseMode.HTML)
                     elif new_user_db.role == Role.OPERATOR:
-                        await msg.reply_text(t("role_assigned_operator", "ru"), parse_mode=ParseMode.HTML)
+                        await msg.reply_text(t("role_assigned_operator", user_lang), parse_mode=ParseMode.HTML)
                     elif new_user_db.role == Role.STOCKMAN:
-                        await msg.reply_text(t("role_assigned_stockman", "ru"), parse_mode=ParseMode.HTML)
+                        await msg.reply_text(t("role_assigned_stockman", user_lang), parse_mode=ParseMode.HTML)
                     elif new_user_db.role == Role.RUNNER:
-                        await msg.reply_text(t("role_assigned_courier", "ru"), parse_mode=ParseMode.HTML)
+                        await msg.reply_text(t("role_assigned_courier", user_lang), parse_mode=ParseMode.HTML)
                     
                     await msg.reply_text(
                         "בחר שפה / Выберите язык:",

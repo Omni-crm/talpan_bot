@@ -22,6 +22,7 @@ async def start_end_shift(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     """
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
+    print(f"DEBUG: User {update.effective_user.id} language: {lang}")  # Debug log
     session = Session()
     shift = session.query(Shift).filter(Shift.status==ShiftStatus.opened).first()
 
