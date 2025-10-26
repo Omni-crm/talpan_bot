@@ -627,7 +627,9 @@ async def confirm_stock_shift(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
     else:
         await send_shift_start_msg(update,context, lang)
-        # send_shift_start_msg כבר מחזיר למסך הראשי, לא צריך הודעה נוספת
+        # send_shift_start_msg כבר מחזירה למסך הראשי ואוטומטית, לא צריך לעשות כלום נוסף
+        session.close()
+        return
 
 
 @is_operator
