@@ -31,7 +31,7 @@ async def change_language(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     if update.message:
         await send_message_with_cleanup(update, context, t("choose_language", lang), reply_markup=reply_markup)
     elif update.callback_query:
-        await send_message_with_cleanup(update, context, t("choose_language", lang), reply_markup=reply_markup)
+        await edit_message_with_cleanup(update, context, t("choose_language", lang), reply_markup=reply_markup)
 
 
 async def set_language(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -52,12 +52,10 @@ async def set_language(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             user_db.lang = lang_code
             session.commit()
         
-        # Send confirmation in new language
-        await update.callback_query.message.edit_text(
-            t("language_changed", lang_code)
-        )
+        # Send confirmation in new language with cleanup
+        await edit_message_with_cleanup(update, context, t("language_changed", lang_code))
         
-        # Show main menu in new language
+        # Show main menu in new language immediately
         reply_markup = await build_start_menu(user.id)
         await send_message_with_cleanup(update, context, t("main_menu", lang_code), reply_markup=reply_markup)
     finally:

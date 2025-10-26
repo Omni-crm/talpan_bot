@@ -550,14 +550,27 @@ def is_user_in_db(func):
                     
                     # שליחת הודעת תפקיד לפי שפת המשתמש
                     user_lang = get_user_lang(new_user_db.user_id)
-                    if new_user_db.role == Role.ADMIN:
-                        await msg.reply_text(t("role_assigned_admin", user_lang), parse_mode=ParseMode.HTML)
-                    elif new_user_db.role == Role.OPERATOR:
-                        await msg.reply_text(t("role_assigned_operator", user_lang), parse_mode=ParseMode.HTML)
-                    elif new_user_db.role == Role.STOCKMAN:
-                        await msg.reply_text(t("role_assigned_stockman", user_lang), parse_mode=ParseMode.HTML)
-                    elif new_user_db.role == Role.RUNNER:
-                        await msg.reply_text(t("role_assigned_courier", user_lang), parse_mode=ParseMode.HTML)
+                    
+                    # אם המשתמש עדיין לא בחר שפה, נשלח הודעה דו-לשונית
+                    if user_lang == "ru":  # ברירת מחדל
+                        if new_user_db.role == Role.ADMIN:
+                            await msg.reply_text("Вам присвоена роль - <b>Администратор.</b>\n\nYou have been assigned the role - <b>Administrator.</b>", parse_mode=ParseMode.HTML)
+                        elif new_user_db.role == Role.OPERATOR:
+                            await msg.reply_text("Вам присвоена роль - <b>Оператор.</b>\n\nYou have been assigned the role - <b>Operator.</b>", parse_mode=ParseMode.HTML)
+                        elif new_user_db.role == Role.STOCKMAN:
+                            await msg.reply_text("Вам присвоена роль - <b>Кладовщик.</b>\n\nYou have been assigned the role - <b>Stockman.</b>", parse_mode=ParseMode.HTML)
+                        elif new_user_db.role == Role.RUNNER:
+                            await msg.reply_text("Вам присвоена роль - <b>Курьер.</b>\n\nYou have been assigned the role - <b>Courier.</b>", parse_mode=ParseMode.HTML)
+                    else:
+                        # אם המשתמש כבר בחר שפה
+                        if new_user_db.role == Role.ADMIN:
+                            await msg.reply_text(t("role_assigned_admin", user_lang), parse_mode=ParseMode.HTML)
+                        elif new_user_db.role == Role.OPERATOR:
+                            await msg.reply_text(t("role_assigned_operator", user_lang), parse_mode=ParseMode.HTML)
+                        elif new_user_db.role == Role.STOCKMAN:
+                            await msg.reply_text(t("role_assigned_stockman", user_lang), parse_mode=ParseMode.HTML)
+                        elif new_user_db.role == Role.RUNNER:
+                            await msg.reply_text(t("role_assigned_courier", user_lang), parse_mode=ParseMode.HTML)
                     
                     await msg.reply_text(
                         "בחר שפה / Выберите язык:",
