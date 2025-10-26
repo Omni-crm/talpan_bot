@@ -25,6 +25,13 @@ def main() -> None:
     # Ensure all tables are created, including BotSettings
     Base.metadata.create_all(engine)
     
+    # Run auto_init.py to populate database settings
+    try:
+        from auto_init import main as auto_init_main
+        auto_init_main()
+    except Exception as e:
+        logging.error(f"Failed to run auto_init.py: {e}")
+    
     # Initialize bot settings if needed
     initialize_default_settings()
     # Create the Application and pass it your bot's token.

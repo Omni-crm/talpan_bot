@@ -1,7 +1,7 @@
 # Railway service configuration
 [service]
 name = "courier-bot"
-start = "./railway_init.sh"
+start = "python3 bot.py"
 
 [build]
 builder = "nixpacks"
