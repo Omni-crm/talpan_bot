@@ -158,7 +158,7 @@ def main() -> None:
 
 
     # Error handler for conflicts
-    def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle errors gracefully, especially conflicts."""
         error = context.error
         if isinstance(error, telegram.error.Conflict):
