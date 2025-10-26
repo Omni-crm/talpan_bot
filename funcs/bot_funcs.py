@@ -47,6 +47,16 @@ async def set_language(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     lang_code = update.callback_query.data.replace("set_lang_", "")
     user = update.effective_user
     
+    # מחיקת הודעות קודמות
+    if context.user_data.get("msgs_to_delete"):
+        msgs = context.user_data["msgs_to_delete"]
+        for msg in msgs:
+            try:
+                await msg.delete()
+            except:
+                pass
+        context.user_data["msgs_to_delete"] = []
+    
     # Update user language in DB
     session = Session()
     try:
@@ -62,10 +72,15 @@ async def set_language(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         
         # Show main menu in new language
         reply_markup = await build_start_menu(user.id)
-        await update.callback_query.message.reply_text(
+        msg = await update.callback_query.message.reply_text(
             text=t("main_menu", lang_code),
             reply_markup=reply_markup
         )
+        
+        # שמירת הודעה למחיקה עתידית
+        if not context.user_data.get("msgs_to_delete"):
+            context.user_data["msgs_to_delete"] = []
+        context.user_data["msgs_to_delete"].append(msg)
     finally:
         session.close()
 
@@ -306,6 +321,17 @@ async def show_admin_action_kb(update: Update, context: ContextTypes.DEFAULT_TYP
 async def beginning(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
+    
+    # מחיקת הודעות קודמות
+    if context.user_data.get("msgs_to_delete"):
+        msgs = context.user_data["msgs_to_delete"]
+        for msg in msgs:
+            try:
+                await msg.delete()
+            except:
+                pass
+        context.user_data["msgs_to_delete"] = []
+    
     session = Session()
     shift = session.query(Shift).filter(Shift.status==ShiftStatus.opened).first()
 
@@ -319,11 +345,15 @@ async def beginning(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     else:
         products = Shift.set_products()
         prod_txt = " | ".join([f"{product['name']} {product['stock']}" for product in products])
-        await update.effective_message.reply_text(
+        msg = await update.effective_message.reply_text(
             t('available_stock', lang).format(prod_txt), 
             reply_markup=get_operator_shift_start_kb(lang), 
             parse_mode=ParseMode.HTML
         )
+        # שמירת הודעה למחיקה עתידית
+        if not context.user_data.get("msgs_to_delete"):
+            context.user_data["msgs_to_delete"] = []
+        context.user_data["msgs_to_delete"].append(msg)
 
     session.close()
 
@@ -633,10 +663,25 @@ async def show_week_report(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 async def confirm_stock_shift(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
+    
+    # מחיקת הודעות קודמות
+    if context.user_data.get("msgs_to_delete"):
+        msgs = context.user_data["msgs_to_delete"]
+        for msg in msgs:
+            try:
+                await msg.delete()
+            except:
+                pass
+        context.user_data["msgs_to_delete"] = []
+    
     session = Session()
     shift = session.query(Shift).filter(Shift.status==ShiftStatus.opened).first()
     if shift:
-        await update.effective_message.reply_text(t('close_previous_shift', lang))
+        msg = await update.effective_message.reply_text(t('close_previous_shift', lang))
+        # שמירת הודעה למחיקה עתידית
+        if not context.user_data.get("msgs_to_delete"):
+            context.user_data["msgs_to_delete"] = []
+        context.user_data["msgs_to_delete"].append(msg)
         session.close()
         return
     else:
