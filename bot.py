@@ -180,6 +180,7 @@ if __name__ == "__main__":
     
     print("🚀 Starting Courier Bot...")
     print("📊 Healthcheck: Bot is running")
+    print("🔧 Build: Updated dependencies")
     
     # Initialize database settings (chat IDs, user lists)
     try:
