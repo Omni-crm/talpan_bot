@@ -9,6 +9,7 @@ from telegram.constants import ParseMode
 from telegram import Update
 from functools import wraps
 from config.config import *
+from config.translations import t, get_user_lang
 import datetime, json, io
 import pandas as pd
 
@@ -414,7 +415,6 @@ async def resolve_chat_identifier(identifier: str, bot_token: str = None) -> str
 def is_admin(func):
     @wraps(func)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
-        from config.translations import t, get_user_lang
         session = Session()
         user = update.effective_user
         msg = update.effective_message
@@ -434,7 +434,6 @@ def is_admin(func):
 def is_operator(func):
     @wraps(func)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
-        from config.translations import t, get_user_lang
         session = Session()
         user = update.effective_user
         msg = update.effective_message
@@ -457,7 +456,6 @@ def is_operator(func):
 def is_stockman(func):
     @wraps(func)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
-        from config.translations import t, get_user_lang
         session = Session()
         user = update.effective_user
         msg = update.effective_message
@@ -480,7 +478,6 @@ def is_stockman(func):
 def is_courier(func):
     @wraps(func)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
-        from config.translations import t, get_user_lang
         session = Session()
         user = update.effective_user
         msg = update.effective_message
@@ -578,15 +575,19 @@ def is_user_in_db(func):
                     )
                     # נחכה לבחירת השפה לפני שנמשיך
                     # הפונקציה set_language תטפל בהמשך
+                    session.close()
                     return
                 else:
                     # אורחים - הודעת ברוכים הבאים
                     await msg.reply_text(t("guest_welcome", "ru"))
+                    session.close()
+                    return
                     
             else:
                 # משתמש קיים
                 if user_db.role == Role.GUEST:
                     await msg.reply_text(t("guest_welcome", user_db.lang or "ru"))
+                    session.close()
                     return
 
             await func(update, context, *args, **kwargs)
