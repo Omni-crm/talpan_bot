@@ -196,6 +196,12 @@ async def confirm_end_shift(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     except Exception as e:
         print(f"Error sending shift end report to admins: {e}")
 
+    # החזרה למסך הראשי
+    from config.kb import build_start_menu
+    from funcs.utils import send_message_with_cleanup
+    reply_markup = await build_start_menu(update.effective_user.id)
+    await send_message_with_cleanup(update, context, t("main_menu", lang), reply_markup=reply_markup)
+
     del context.user_data["end_shift_data"]
 
     return ConversationHandler.END

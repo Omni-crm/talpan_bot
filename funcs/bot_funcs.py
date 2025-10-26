@@ -627,7 +627,7 @@ async def confirm_stock_shift(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
     else:
         await send_shift_start_msg(update,context, lang)
-        await update.effective_message.edit_text(t('shift_started', lang))
+        await send_message_with_cleanup(update, context, t('shift_started', lang))
 
 
 @is_operator

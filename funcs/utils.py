@@ -117,6 +117,11 @@ async def send_shift_start_msg(update: Update, context: ContextTypes.DEFAULT_TYP
             await context.bot.send_message(admin_chat, msg, parse_mode=ParseMode.HTML,)
     except Exception as e:
         await update.effective_message.reply_text(repr(e))
+    
+    # החזרה למסך הראשי
+    from config.kb import build_start_menu
+    reply_markup = await build_start_menu(update.effective_user.id)
+    await send_message_with_cleanup(update, context, t("main_menu", lang), reply_markup=reply_markup)
 
 
 async def form_confirm_order(order: Order, lang: str = 'ru') -> str:

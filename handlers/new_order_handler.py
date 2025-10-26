@@ -43,7 +43,7 @@ async def start_collect_data(update: Update, context: ContextTypes.DEFAULT_TYPE)
         save_message_id(context, msg.message_id)
         return ConversationHandler.END
 
-    start_msg = await update.effective_message.reply_text(t("enter_client_name", lang), reply_markup=get_cancel_kb(lang))
+    start_msg = await send_message_with_cleanup(update, context, t("enter_client_name", lang), reply_markup=get_cancel_kb(lang))
     context.user_data["collect_order_data"] = {}
     context.user_data["collect_order_data"]["start_msg"] = start_msg
     context.user_data["collect_order_data"]["products"] = []
@@ -126,7 +126,7 @@ async def collect_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         context.user_data["collect_order_data"]["phone"] = phone
 
     msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-    context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(t("enter_address", lang), reply_markup=get_back_cancel_kb(lang))
+    context.user_data["collect_order_data"]["start_msg"] = await edit_message_with_cleanup(update, context, t("enter_address", lang), reply_markup=get_back_cancel_kb(lang))
 
     return CollectOrderDataStates.ADDRESS
 
