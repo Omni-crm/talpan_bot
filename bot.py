@@ -1,5 +1,6 @@
 import logging, os, signal, sys
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, Defaults
+import telegram
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, Defaults, ContextTypes
 from config.config import *
 from funcs.bot_funcs import *
 from funcs.admin_funcs import *
@@ -156,6 +157,17 @@ def main() -> None:
 
 
 
+    # Error handler for conflicts
+    def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle errors gracefully, especially conflicts."""
+        error = context.error
+        if isinstance(error, telegram.error.Conflict):
+            logging.warning("⚠️ Conflict detected - another bot instance may be running")
+        else:
+            logging.error(f"Update {update} caused error {error}")
+    
+    application.add_error_handler(error_handler)
+    
     # Run the bot until the user presses Ctrl-C
     application.run_polling()
 

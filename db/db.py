@@ -242,11 +242,15 @@ class BotSettings(Base):
     updated_by = Column(BigInteger)  # user_id של מי שעדכן
 
 def get_bot_setting(key: str, default_value: str = "") -> str:
-    """קבלת הגדרה מהמסד נתונים"""
-    session = Session()
-    setting = session.query(BotSettings).filter(BotSettings.key == key).first()
-    session.close()
-    return setting.value if setting else default_value
+    """קבלת הגדרה מהמסד הנתונים"""
+    try:
+        session = Session()
+        setting = session.query(BotSettings).filter(BotSettings.key == key).first()
+        session.close()
+        return setting.value if setting else default_value
+    except Exception as e:
+        # If table doesn't exist yet, return default value
+        return default_value
 
 def get_bot_setting_list(key: str) -> list:
     """קבלת רשימה מהמסד נתונים"""
@@ -260,28 +264,33 @@ def get_bot_setting_list(key: str) -> list:
 
 def set_bot_setting(key: str, value: str, user_id: int = None, value_type: str = 'string', description: str = None) -> None:
     """עדכון הגדרה במסד הנתונים"""
-    session = Session()
-    setting = session.query(BotSettings).filter(BotSettings.key == key).first()
-    
-    if setting:
-        setting.value = value
-        setting.value_type = value_type
-        setting.updated_at = datetime.datetime.now()
-        setting.updated_by = user_id
-        if description:
-            setting.description = description
-    else:
-        setting = BotSettings(
-            key=key, 
-            value=value, 
-            value_type=value_type,
-            description=description,
-            updated_by=user_id
-        )
-        session.add(setting)
-    
-    session.commit()
-    session.close()
+    try:
+        session = Session()
+        setting = session.query(BotSettings).filter(BotSettings.key == key).first()
+        
+        if setting:
+            setting.value = value
+            setting.value_type = value_type
+            setting.updated_at = datetime.datetime.now()
+            setting.updated_by = user_id
+            if description:
+                setting.description = description
+        else:
+            setting = BotSettings(
+                key=key, 
+                value=value, 
+                value_type=value_type,
+                description=description,
+                updated_by=user_id
+            )
+            session.add(setting)
+        
+        session.commit()
+        session.close()
+    except Exception as e:
+        # If table doesn't exist yet, ignore the error
+        # The table will be created in bot.py
+        pass
 
 def set_bot_setting_list(key: str, value_list: list, user_id: int = None, description: str = None) -> None:
     """שמירת רשימה במסד הנתונים"""
