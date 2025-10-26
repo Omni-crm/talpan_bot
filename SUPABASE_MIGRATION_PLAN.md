@@ -57,8 +57,8 @@ pip install requests
 או, בחר להשתמש ב-[Supabase Python Client](https://github.com/supabase/supabase-py):
 
 ```txt
-# חלופה נוחה יותר
-supabase==2.3.4
+# חלופה נוחה יותר - גרסה חדשה
+supabase==2.15.0
 ```
 
 ```bash
@@ -357,8 +357,8 @@ DB_PATH = "/tmp/database.db"
 
 ### 8.2 עדכון requirements.txt (לדפלוי)
 ```txt
-# Supabase Client (הדרך הקלה ביותר)
-supabase==2.3.4
+# Supabase Client - גרסה חדשה
+supabase==2.15.0
 
 # או אם מעדיפים רק HTTP requests:
 # requests==2.31.0
