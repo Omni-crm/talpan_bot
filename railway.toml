@@ -21,7 +21,7 @@ DB_NAME = "database.db"
 DB_PATH = "/data/database.db"
 
 [nixpacks]
-python_version = "3.13"
+python_version = "3.12"
 auto_clean = true
-install = "pip install -U pip uv && uv pip install -r requirements.txt --system"
+install = "pip install --timeout 300 --retries 5 -r requirements.txt"
 
