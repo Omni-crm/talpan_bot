@@ -181,17 +181,11 @@ if __name__ == "__main__":
     print("🚀 Starting Courier Bot...")
     print("📊 Healthcheck: Bot is running")
     
-    # אתחול הגדרות במסד נתונים
+    # Initialize database settings (chat IDs, user lists)
     try:
-        from db.db import initialize_default_settings, get_bot_setting
+        from db.db import initialize_default_settings
         initialize_default_settings()
-        
-        # בדיקה אם יש טוקן בוט במסד הנתונים
-        bot_token = get_bot_setting('bot_token')
-        if bot_token:
-            print("✅ Database settings initialized with existing data")
-        else:
-            print("⚠️ No bot token found in database - run init_settings.py or auto_init.py")
+        print("✅ Database tables and settings initialized")
     except Exception as e:
         print(f"⚠️ Warning: Could not initialize database settings: {e}")
     
