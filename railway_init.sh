@@ -3,13 +3,9 @@
 
 echo "🚀 Starting Railway initialization..."
 
-# Check if database exists
-if [ ! -f "/data/database.db" ]; then
-    echo "📊 Database not found, initializing..."
-    python3 auto_init.py
-else
-    echo "✅ Database exists, skipping initialization"
-fi
+# Always ensure database exists and is initialized
+echo "📊 Checking database..."
+python3 auto_init.py
 
 echo "🚀 Starting bot..."
 python3 bot.py

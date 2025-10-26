@@ -11,7 +11,7 @@ import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from db.db import (
-    initialize_default_settings, 
+    Base, engine, initialize_default_settings, 
     set_bot_setting, 
     set_bot_setting_list,
     resolve_chat_identifier
@@ -20,6 +20,11 @@ from db.db import (
 async def auto_init():
     """אתחול אוטומטי עם הערכים המוכנים"""
     print("🚀 מתחיל אתחול אוטומטי...")
+    
+    # Ensure all tables are created first
+    print("📊 Creating database tables...")
+    Base.metadata.create_all(engine)
+    print("✅ Database tables created")
     
     # אתחול הגדרות ברירת מחדל
     initialize_default_settings()
