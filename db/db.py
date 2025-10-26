@@ -198,7 +198,7 @@ class Shift(Base):
     summary = Column(String)
     products_end = Column(String)
     operator_id = Column(BigInteger)
-    operator_username = Column(BigInteger)
+    operator_username = Column(String)
     status = Column(SqlEnum(ShiftStatus), default=ShiftStatus.opened,)
     opened_time = Column(DateTime, default=datetime.datetime.now())
     closed_time = Column(DateTime)
@@ -212,7 +212,7 @@ class Shift(Base):
     netto = Column(Integer)
 
     operator_close_id = Column(BigInteger)
-    operator_close_username = Column(BigInteger)
+    operator_close_username = Column(String)
 
     @staticmethod
     def set_products():
