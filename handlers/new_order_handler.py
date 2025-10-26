@@ -59,23 +59,24 @@ async def collect_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     """Collecting name and go to next step @username."""
     lang = context.user_data["collect_order_data"]["lang"]
     
-    if not update.callback_query:
+    if update.callback_query:
+        await update.callback_query.answer()
+        # אם זה callback query, זה כנראה כפתור "חזור" או "ביטול"
+        return CollectOrderDataStates.NAME
+    else:
         try:
             await update.effective_message.delete()
         except:
             pass
 
-    context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.NAME
-
-    if not update.callback_query:
+        context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.NAME
         name = update.message.text[:100]
         context.user_data["collect_order_data"]["name"] = name
 
-    msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+        msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+        context.user_data["collect_order_data"]["start_msg"] = await edit_message_with_cleanup(update, context, t("enter_client_username", lang), reply_markup=get_username_kb(lang))
 
-    context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(t("enter_client_username", lang), reply_markup=get_username_kb(lang))
-
-    return CollectOrderDataStates.USERNAME
+        return CollectOrderDataStates.USERNAME
 
 async def collect_username(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Collecting @username or skip."""
@@ -112,23 +113,25 @@ async def collect_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     """Collecting phone."""
     lang = context.user_data["collect_order_data"]["lang"]
     
-    if not update.callback_query:
+    if update.callback_query:
+        await update.callback_query.answer()
+        # אם זה callback query, זה כנראה כפתור "חזור" או "ביטול"
+        return CollectOrderDataStates.PHONE
+    else:
         # מחיקת הודעת המשתמש
         try:
             await update.effective_message.delete()
         except:
             pass
 
-    context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.PHONE
-
-    if not update.callback_query:
+        context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.PHONE
         phone = update.message.text[:36]
         context.user_data["collect_order_data"]["phone"] = phone
 
-    msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-    context.user_data["collect_order_data"]["start_msg"] = await edit_message_with_cleanup(update, context, t("enter_address", lang), reply_markup=get_back_cancel_kb(lang))
+        msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+        context.user_data["collect_order_data"]["start_msg"] = await edit_message_with_cleanup(update, context, t("enter_address", lang), reply_markup=get_back_cancel_kb(lang))
 
-    return CollectOrderDataStates.ADDRESS
+        return CollectOrderDataStates.ADDRESS
 
 async def collect_address(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Collecting address."""
