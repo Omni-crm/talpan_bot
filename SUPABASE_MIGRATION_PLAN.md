@@ -1,7 +1,7 @@
 # 🚀 תכנית מעבר למסד נתונים Supabase
 
 ## 📋 סקירה כללית
-תכנית מפורטת למעבר ממסד נתונים SQLite (SQLAlchemy) ל-Supabase PostgreSQL.
+תכנית מפורטת למעבר ל-Supabase.
 
 ---
 
@@ -18,21 +18,19 @@
    - Plan: **Free Tier**
 
 ### 1.2 קבלת פרטי התחברות
-1. בפרויקט, לך ל-**Settings → Database**
-2. הקודש ל-**Connection string** → **URI**
-3. העתק את ה-Connection string (נראה כך: `postgresql://postgres:password@db.xxx.supabase.co:5432/postgres`)
+1. בפרויקט, לך ל-**Settings → API**
+2. מוליד 2 מפתחות שונים:
+   - **anon/public** - לשימוש ציבורי (בטוח מהקליינט)
+   - **service_role** - לשימוש מורש (רק לשרת!)
+3. העתק את המפתחות
 
 ### 1.3 עדכון משתני סביבה
 עדכן את קובץ `.env`:
 ```env
-# השלמת הדאטה ב-SUPABASE
+# Supabase Configuration
 SUPABASE_URL=your-supabase-url
-SUPABASE_KEY=your-supabase-anon-key
-SUPABASE_DB_URL=postgresql://postgres:password@db.xxx.supabase.co:5432/postgres
-
-# Legacy SQLite (ניתן להסיר אחרי המיגרציה)
-DB_DIR=/data
-DB_PATH=/data/database.db
+SUPABASE_ANON_KEY=your-anon-public-key
+SUPABASE_SECRET_KEY=your-service-role-key
 ```
 
 ---
@@ -87,7 +85,10 @@ class SupabaseClient:
     
     def __init__(self):
         self.url = os.getenv("SUPABASE_URL")
-        self.key = os.getenv("SUPABASE_KEY")
+        # שימוש ב-ANON_KEY למרבית הפעולות (בטוח)
+        self.key = os.getenv("SUPABASE_ANON_KEY")
+        # המפתח הסודי רק לפעולות מורשות
+        self.secret_key = os.getenv("SUPABASE_SECRET_KEY")
         self.headers = {
             "apikey": self.key,
             "Authorization": f"Bearer {self.key}",
@@ -144,7 +145,7 @@ def get_supabase_client():
 # הוספה לתחילת הקובץ
 from .supabase_client import get_supabase_client
 
-# בחר בין Supabase ל-SQLite
+# בחר בין Supabase
 USE_SUPABASE = os.getenv("SUPABASE_URL") is not None
 
 if USE_SUPABASE:
@@ -152,7 +153,7 @@ if USE_SUPABASE:
     print("✅ Using Supabase database")
 else:
     db_client = None
-    print("⚠️ Using SQLite database (local fallback)")
+    print("❌ Supabase not configured!")
 ```
 
 ### 3.3 עדכון פונקציות לעבודה עם Supabase
@@ -164,10 +165,7 @@ async def get_user_by_id(user_id: int):
         result = db_client.select('users', {'user_id': f'eq.{user_id}'})
         return result[0] if result else None
     else:
-        session = Session()
-        user = session.query(User).filter(User.user_id == user_id).first()
-        session.close()
-        return user.to_dict() if user else None
+        raise Exception("Supabase not configured!")
 
 # דוגמה לכתיבה
 async def create_user(user_data):
@@ -175,114 +173,23 @@ async def create_user(user_data):
         result = db_client.insert('users', user_data)
         return result
     else:
-        session = Session()
-        user = User(**user_data)
-        session.add(user)
-        session.commit()
-        session.close()
+        raise Exception("Supabase not configured!")
 ```
 
 ---
 
-## 🗄️ שלב 4: מיגרציה של schema
+## 🗄️ שלב 4: יצירת schema ב-Supabase
 
-### 4.1 יצירת script מיגרציה
-קובץ חדש: `scripts/migrate_to_supabase.py`
+### 4.1 יצירת טבלאות ב-Supabase Dashboard
 
+1. לך ל-**Supabase Dashboard → SQL Editor**
+2. צור queries ליצירת טבלאות לפי המודלים הקיימים
+3. או השתמש ב-Supabase CLI לעדכון אוטומטי
+
+**או באמצעות Supabase Client:**
 ```python
-"""
-Script to migrate SQLite database to Supabase PostgreSQL
-"""
-import asyncio
-from sqlalchemy import text
-from db.db import Base, engine, SupabaseEngine
-
-async def migrate_schema():
-    """Create all tables in Supabase"""
-    async with SupabaseEngine.begin() as conn:
-        # Drop existing tables if they exist (careful in production!)
-        await conn.run_sync(Base.metadata.drop_all)
-        
-        # Create all tables
-        await conn.run_sync(Base.metadata.create_all)
-    
-    print("✅ Schema migrated to Supabase!")
-
-async def migrate_data():
-    """Migrate data from SQLite to Supabase"""
-    # This will be done manually or with a separate script
-    print("ℹ️  Data migration to be done separately")
-    pass
-
-if __name__ == "__main__":
-    asyncio.run(migrate_schema())
-```
-
-### 4.2 הרצה
-```bash
-python3 scripts/migrate_to_supabase.py
-```
-
----
-
-## 📊 שלב 5: מיגרציה של נתונים
-
-### 5.1 יצירת script מיגרציה נתונים
-קובץ חדש: `scripts/migrate_data.py`
-
-```python
-"""
-Migrate data from SQLite to Supabase
-"""
-import asyncio
-import json
-from db.db import SQLiteSession, SupabaseSession
-from db.db import User, Order, Product, BotSettings, TgSession, Shift
-
-async def migrate_data():
-    """Migrate all data from SQLite to Supabase"""
-    
-    # Read from SQLite (synchronous)
-    with SQLiteSession() as sqlite_session:
-        users = sqlite_session.query(User).all()
-        orders = sqlite_session.query(Order).all()
-        products = sqlite_session.query(Product).all()
-        settings = sqlite_session.query(BotSettings).all()
-        sessions = sqlite_session.query(TgSession).all()
-        shifts = sqlite_session.query(Shift).all()
-    
-    # Write to Supabase (asynchronous)
-    async with SupabaseSession() as supabase_session:
-        # Migrate Users
-        for user in users:
-            supabase_session.add(User(**user.__dict__))
-        
-        # Migrate Orders
-        for order in orders:
-            supabase_session.add(Order(**order.__dict__))
-        
-        # Migrate Products
-        for product in products:
-            supabase_session.add(Product(**product.__dict__))
-        
-        # Migrate Settings
-        for setting in settings:
-            supabase_session.add(BotSettings(**setting.__dict__))
-        
-        # Migrate Sessions
-        for session in sessions:
-            supabase_session.add(TgSession(**session.__dict__))
-        
-        # Migrate Shifts
-        for shift in shifts:
-            supabase_session.add(Shift(**shift.__dict__))
-        
-        await supabase_session.commit()
-    
-    print("✅ Data migrated successfully!")
-
-if __name__ == "__main__":
-    asyncio.run(migrate_data())
+# קריאה לכל הטבלאות דרך API
+# (Supabase יוצר את הטבלאות אוטומטית)
 ```
 
 ---
@@ -346,13 +253,9 @@ restartPolicyMaxRetries = 10
 name = "courier-bot"
 
 [services.variables]
-SUPABASE_DB_URL = "postgresql://postgres:password@db.xxx.supabase.co:5432/postgres"
-SUPABASE_URL = "your-supabase-url"
-SUPABASE_KEY = "your-supabase-key"
-
-# ה-SQLite עדיין נשאר כ-fallback
-DB_DIR = "/tmp"  # שינוי ל-tmp כי לא צריך persistence
-DB_PATH = "/tmp/database.db"
+SUPABASE_URL = "https://your-project.supabase.co"
+SUPABASE_ANON_KEY = "your-anon-key"
+SUPABASE_SECRET_KEY = "your-secret-key"
 ```
 
 ### 8.2 עדכון requirements.txt (לדפלוי)
@@ -375,11 +278,11 @@ git push origin main
 
 ## 🧹 שלב 9: ניקוי (אופציונלי)
 
-### 9.1 הסרת SQLite fallback
+### 9.1 אופטימיזציות אחרונות
 אחרי שמוכח שהכל עובד:
-1. הסר את `db/database.db` (SQLite)
-2. הסר את משתני סביבה SQLite מ-railway.toml
-3. עדכן את הקוד להסיר fallback logic
+1. הסר קבצים מיותרים
+2. בדוק ביצועים ב-Supabase Dashboard
+3. הגדר ב-GitOps עם Version Control
 
 ### 9.2 אופטימיזציות
 - הוסף connection pooling
@@ -431,7 +334,7 @@ git push origin main
 1. בדוק את ה-logs ב-Railway
 2. בדוק את ה-console ב-Supabase Dashboard
 3. השתמש ב-Supabase SQL Editor לבדיקות ידניות
-4. אם צריך, חזור ל-SQLite (הסתר `SUPABASE_DB_URL` ב-env)
+4. ודא שמשתני הסביבה מוגדרים נכון
 
 ---
 
