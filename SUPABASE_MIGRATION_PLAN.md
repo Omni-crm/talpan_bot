@@ -41,17 +41,16 @@ DB_PATH=/data/database.db
 
 ### 2.1 עדכון requirements.txt
 ```txt
-# הוספה
-asyncpg==0.29.0
+# PostgreSQL driver ל-Supabase
 psycopg2-binary==2.9.9
 
-# הסרה/שמירה (תלוי באסטרטגיית המיגרציה)
-# sqlalchemy==2.0.23  # נשאיר עבור SQLite זמני
+# שמירת SQLAlchemy למקרה
+# sqlalchemy==2.0.23 (כבר קיים)
 ```
 
 ### 2.2 התקנה
 ```bash
-pip install asyncpg psycopg2-binary
+pip install psycopg2-binary
 ```
 
 ---
@@ -76,8 +75,7 @@ from config.config import *
 from config.translations import t, get_user_lang
 import datetime, json, io
 import pandas as pd
-import asyncpg  # חדש
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker  # חדש
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker  # חדש ל-Supabase async
 ```
 
 #### ב. הגדרת connection string דינמי
@@ -296,7 +294,7 @@ DB_PATH = "/tmp/database.db"
 
 ### 8.2 עדכון requirements.txt (לדפלוי)
 ```txt
-asyncpg==0.29.0
+# רק psycopg2-binary נדרש ל-PostgreSQL
 psycopg2-binary==2.9.9
 ```
 
