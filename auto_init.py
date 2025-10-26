@@ -33,10 +33,10 @@ async def auto_init():
     set_bot_setting('bot_token', bot_token, description='טוקן הבוט')
     print("✅ טוקן הבוט נשמר")
     
-    # מנהל ראשי
-    admin_id = 1899612463
-    set_bot_setting_list('admins', [admin_id], description='רשימת מנהלים')
-    print(f"✅ מנהל ראשי נשמר: {admin_id}")
+    # מנהלים
+    admin_ids = [1899612463, 5649994883]  # List of admin IDs
+    set_bot_setting_list('admins', admin_ids, description='רשימת מנהלים')
+    print(f"✅ מנהלים נשמרו: {admin_ids}")
     
     # הגדרות נוספות (אופציונליות)
     print("\n📝 מגדיר הגדרות נוספות...")
@@ -113,7 +113,7 @@ async def auto_init():
     print("\n🎉 אתחול אוטומטי הושלם בהצלחה!")
     print("💾 כל ההגדרות נשמרו במסד הנתונים")
     print("🚀 הבוט מוכן להפעלה!")
-    print(f"👑 מנהל ראשי: {admin_id}")
+    print(f"👑 מנהלים: {admin_ids}")
     print(f"🤖 טוקן הבוט: {bot_token[:10]}...")
 
 if __name__ == "__main__":
