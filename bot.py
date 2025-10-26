@@ -41,15 +41,6 @@ def main() -> None:
     # Ensure all tables are created, including BotSettings
     Base.metadata.create_all(engine)
     
-    # Run auto_init.py to populate database settings
-    try:
-        import asyncio
-        from auto_init import auto_init
-        asyncio.run(auto_init())
-    except Exception as e:
-        print(f"⚠️ Failed to run auto_init.py: {e}")
-        # Continue anyway - initialize_default_settings will handle it
-    
     # Initialize bot settings if needed
     initialize_default_settings()
     # Create the Application and pass it your bot's token.
@@ -166,8 +157,7 @@ def main() -> None:
 
 
     # Run the bot until the user presses Ctrl-C
-    # Enable graceful shutdown on SIGTERM and SIGINT
-    application.run_polling(stop_signals=(signal.SIGTERM, signal.SIGINT))
+    application.run_polling()
 
 
 if __name__ == "__main__":
