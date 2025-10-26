@@ -49,7 +49,7 @@ def dump_db(format: str):
                 if not df.empty:
                     df.to_excel(writer, sheet_name=table_name, index=False)
                 else:
-                    print(f"Таблица '{table_name}' пуста и не будет добавлена в Excel.")
+                    print(f"Table '{table_name}' is empty and will not be added to Excel.")
 
         output.seek(0)
 
@@ -69,9 +69,9 @@ def dump_db(format: str):
 
                 all_data[table_name] = df.to_dict(orient='records')
             else:
-                print(f"Таблица '{table_name}' пуста и не будет добавлена в JSON.")
+                print(f"Table '{table_name}' is empty and will not be added to JSON.")
 
-        # Сохранение данных в JSON в байтовый поток
+        # Save data to JSON in byte stream
         json_data = json.dumps(all_data, ensure_ascii=False, indent=4)
         output.write(json_data.encode('utf-8'))
         output.seek(0)
@@ -119,6 +119,7 @@ class Product(Base):
     name = Column(String(22))
     stock = Column(Integer, default=0)
     crude = Column(Integer, default=0)
+    price = Column(Integer, default=0)  # מחיר המוצר
 
 
 class Template(Base):
@@ -153,23 +154,7 @@ class TgSession(Base):
 
 
 class Order(Base):
-    """Template messages using to send to clients.
-    id = Column(Integer, primary_key=True)
-    client_name = Column(String)
-    client_username = Column(String)
-    client_phone = Column(String)
-    address = Column(String)
-    products = Column(String)
-    courier_name = Column(String)
-    courier_username = Column(String)
-    courier_id = Column(BigInteger)
-    courier_minutes = Column(Integer)
-    delay_reason = Column(String)
-    delay_minutes = Column(Integer)
-    created = Column(DateTime, default=datetime.datetime.now())
-    delivered = Column(DateTime)
-    status = Column(SqlEnum(Status), default=Status.pending,)
-    """
+    """Orders in the system."""
     __tablename__ = 'orders'
 
     id = Column(Integer, primary_key=True)
@@ -177,7 +162,8 @@ class Order(Base):
     client_username = Column(String)
     client_phone = Column(String)
     address = Column(String)
-    products = Column(String)
+    products = Column(String)  # JSON with total_price instead of price
+    total_order_price = Column(Integer, default=0)  # מחיר כולל להזמנה
     courier_name = Column(String)
     courier_username = Column(String)
     courier_id = Column(BigInteger)
@@ -189,10 +175,15 @@ class Order(Base):
     status = Column(SqlEnum(Status), default=Status.pending,)
 
     def set_products(self, data):
-        self.products = json.dumps(data)  # Сериализация
+        self.products = json.dumps(data)  # Serialization
 
     def get_products(self) -> list[dict]:
-        return json.loads(self.products)  # Десериализация
+        return json.loads(self.products)  # Deserialization
+    
+    def calculate_total_price(self) -> int:
+        """חישוב מחיר כולל של ההזמנה"""
+        products = self.get_products()
+        return sum([product.get('total_price', 0) for product in products])
     
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
@@ -236,6 +227,179 @@ class Shift(Base):
 
     def get_summary(self) -> list[dict]:
         return json.loads(self.summary)
+
+
+class BotSettings(Base):
+    """הגדרות הבוט - קבוצות, משתמשים וכו'"""
+    __tablename__ = 'bot_settings'
+
+    id = Column(Integer, primary_key=True)
+    key = Column(String(50), unique=True, nullable=False)  # 'admin_chat', 'order_chat', 'bot_token', etc.
+    value = Column(String(500), nullable=False)  # ערך ההגדרה
+    value_type = Column(String(20), default='string')  # 'string', 'int', 'list', 'json'
+    description = Column(String(200))  # תיאור ההגדרה
+    updated_at = Column(DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now)
+    updated_by = Column(BigInteger)  # user_id של מי שעדכן
+
+def get_bot_setting(key: str, default_value: str = "") -> str:
+    """קבלת הגדרה מהמסד נתונים"""
+    session = Session()
+    setting = session.query(BotSettings).filter(BotSettings.key == key).first()
+    session.close()
+    return setting.value if setting else default_value
+
+def get_bot_setting_list(key: str) -> list:
+    """קבלת רשימה מהמסד נתונים"""
+    value = get_bot_setting(key)
+    if value:
+        try:
+            return json.loads(value)
+        except:
+            return value.split(',') if ',' in value else [value]
+    return []
+
+def set_bot_setting(key: str, value: str, user_id: int = None, value_type: str = 'string', description: str = None) -> None:
+    """עדכון הגדרה במסד הנתונים"""
+    session = Session()
+    setting = session.query(BotSettings).filter(BotSettings.key == key).first()
+    
+    if setting:
+        setting.value = value
+        setting.value_type = value_type
+        setting.updated_at = datetime.datetime.now()
+        setting.updated_by = user_id
+        if description:
+            setting.description = description
+    else:
+        setting = BotSettings(
+            key=key, 
+            value=value, 
+            value_type=value_type,
+            description=description,
+            updated_by=user_id
+        )
+        session.add(setting)
+    
+    session.commit()
+    session.close()
+
+def set_bot_setting_list(key: str, value_list: list, user_id: int = None, description: str = None) -> None:
+    """שמירת רשימה במסד הנתונים"""
+    set_bot_setting(key, json.dumps(value_list), user_id, 'list', description)
+
+def initialize_default_settings():
+    """אתחול הגדרות ברירת מחדל"""
+    # הגדרות קבוצות
+    if not get_bot_setting('admin_chat'):
+        set_bot_setting('admin_chat', '', description='קבוצת מנהלים')
+    if not get_bot_setting('order_chat'):
+        set_bot_setting('order_chat', '', description='קבוצת שליחים')
+    
+    # הגדרות משתמשים
+    if not get_bot_setting('admins'):
+        set_bot_setting_list('admins', [], description='רשימת מנהלים')
+    if not get_bot_setting('operators'):
+        set_bot_setting_list('operators', [], description='רשימת מפעילים')
+    if not get_bot_setting('stockmen'):
+        set_bot_setting_list('stockmen', [], description='רשימת מחסנאים')
+    if not get_bot_setting('couriers'):
+        set_bot_setting_list('couriers', [], description='רשימת שליחים')
+    
+    # הגדרות API
+    if not get_bot_setting('bot_token'):
+        set_bot_setting('bot_token', '', description='טוקן הבוט')
+    if not get_bot_setting('api_id'):
+        set_bot_setting('api_id', '', description='API ID')
+    if not get_bot_setting('api_hash'):
+        set_bot_setting('api_hash', '', description='API Hash')
+    
+    # הגדרות מסד נתונים
+    if not get_bot_setting('db_name'):
+        set_bot_setting('db_name', 'database.db', description='שם מסד הנתונים')
+    if not get_bot_setting('db_dir'):
+        set_bot_setting('db_dir', '/data', description='תיקיית מסד הנתונים')
+
+async def resolve_username_to_id(username: str, bot_token: str = None) -> str:
+    """המרת username ל-ID"""
+    try:
+        from telegram import Bot
+        from config.config import links
+        
+        # קבלת טוקן
+        if not bot_token:
+            bot_token = get_bot_setting('bot_token') or links.BOT_TOKEN
+        
+        if not bot_token:
+            return username  # אם אין טוקן, החזר את ה-username
+        
+        bot = Bot(token=bot_token)
+        
+        # הסרת @ אם קיים
+        clean_username = username.replace('@', '')
+        
+        # ניסיון לקבל מידע על המשתמש
+        try:
+            # ניסיון לקבל chat info
+            chat = await bot.get_chat(f"@{clean_username}")
+            return str(chat.id)
+        except:
+            # אם זה לא עבד, ננסה לחפש במשתמשים
+            try:
+                # זה לא יעבוד עם username, אבל ננסה בכל זאת
+                return username
+            except:
+                return username
+                
+    except Exception as e:
+        print(f"Error resolving username {username}: {e}")
+        return username
+
+async def resolve_chat_identifier(identifier: str, bot_token: str = None) -> str:
+    """פתרון מזהה קבוצה/משתמש - מחזיר ID"""
+    try:
+        from telegram import Bot
+        from config.config import links
+        
+        # קבלת טוקן
+        if not bot_token:
+            bot_token = get_bot_setting('bot_token') or links.BOT_TOKEN
+        
+        if not bot_token:
+            return identifier
+        
+        bot = Bot(token=bot_token)
+        
+        # אם זה כבר ID (מספר)
+        if identifier.isdigit() or (identifier.startswith('-') and identifier[1:].isdigit()):
+            return identifier
+        
+        # אם זה username
+        if identifier.startswith('@'):
+            clean_username = identifier.replace('@', '')
+            try:
+                chat = await bot.get_chat(f"@{clean_username}")
+                return str(chat.id)
+            except:
+                return identifier
+        
+        # אם זה invite link
+        if 't.me/' in identifier:
+            try:
+                chat = await bot.get_chat(identifier)
+                return str(chat.id)
+            except:
+                return identifier
+        
+        # אם זה username רגיל
+        try:
+            chat = await bot.get_chat(f"@{identifier}")
+            return str(chat.id)
+        except:
+            return identifier
+            
+    except Exception as e:
+        print(f"Error resolving chat identifier {identifier}: {e}")
+        return identifier
 
 
 def is_admin(func):

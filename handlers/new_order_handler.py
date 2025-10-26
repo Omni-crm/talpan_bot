@@ -18,7 +18,7 @@ class CollectOrderDataStates:
     ADDRESS = 4
     PRODUCT = 5
     QUANTITY = 6
-    PRICE = 7
+    TOTAL_PRICE = 7
     CONFIRM_OR_NOT = 8
 
     NEW_PRODUCT_STOCK = 77
@@ -30,13 +30,17 @@ async def start_collect_data(update: Update, context: ContextTypes.DEFAULT_TYPE)
     """START function of collecting data for new order."""
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
+    
+    # ניקוי הודעה קודמת
+    await clean_previous_message(update, context)
 
     session = Session()
     shift = session.query(Shift).filter(Shift.status==ShiftStatus.opened).first()
     session.close()
 
     if not shift:
-        await update.effective_message.reply_text(t("need_open_shift_for_order", lang))
+        msg = await update.effective_message.reply_text(t("need_open_shift_for_order", lang))
+        save_message_id(context, msg.message_id)
         return ConversationHandler.END
 
     start_msg = await update.effective_message.reply_text(t("enter_client_name", lang), reply_markup=get_cancel_kb(lang))
@@ -45,6 +49,9 @@ async def start_collect_data(update: Update, context: ContextTypes.DEFAULT_TYPE)
     context.user_data["collect_order_data"]["products"] = []
     context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.START
     context.user_data["collect_order_data"]["lang"] = lang
+    
+    # שמירת ID לניקוי עתידי
+    save_message_id(context, start_msg.message_id)
 
     return CollectOrderDataStates.NAME
 
@@ -63,28 +70,37 @@ async def collect_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
 
-    context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(t("enter_client_username", lang), reply_markup=get_back_cancel_kb(lang))
+    context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(t("enter_client_username", lang), reply_markup=get_username_kb(lang))
 
     return CollectOrderDataStates.USERNAME
 
 async def collect_username(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Collecting @username."""
+    """Collecting @username or skip."""
     lang = context.user_data["collect_order_data"]["lang"]
     
-    if not update.callback_query:
+    if update.callback_query:
+        await update.callback_query.answer()
+        
+        if update.callback_query.data == "skip_username":
+            # דילוג על username
+            context.user_data["collect_order_data"]["username"] = ""
+            context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.USERNAME
+            
+            msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+            context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(t("enter_client_phone", lang), reply_markup=get_back_cancel_kb(lang))
+            
+            return CollectOrderDataStates.PHONE
+    else:
         await update.effective_message.delete()
-
-    context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.USERNAME
-
-    if not update.callback_query:
+        context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.USERNAME
+        
         username = update.message.text[:36]
         context.user_data["collect_order_data"]["username"] = username
 
-    msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+        msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+        context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(t("enter_client_phone", lang), reply_markup=get_back_cancel_kb(lang))
 
-    context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(t("enter_client_phone", lang), reply_markup=get_back_cancel_kb(lang))
-
-    return CollectOrderDataStates.PHONE
+        return CollectOrderDataStates.PHONE
 
 async def collect_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Collecting phone."""
@@ -237,27 +253,27 @@ async def collect_quantity(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
 
-    context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(t("choose_or_enter_price", lang), reply_markup=SELECT_PRICE_KB)
+    context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(t("choose_or_enter_total_price", lang), reply_markup=SELECT_PRICE_KB)
 
-    return CollectOrderDataStates.PRICE
+    return CollectOrderDataStates.TOTAL_PRICE
 
-async def collect_price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Collecting price."""
+async def collect_total_price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Collecting total_price."""
     lang = context.user_data["collect_order_data"]["lang"]
-    context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.PRICE
+    context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.TOTAL_PRICE
 
     if update.callback_query:
         await update.callback_query.answer()
 
         if update.callback_query.data.isdigit():
-            price = int(update.callback_query.data[:11])
-            context.user_data["collect_order_data"]["price"] = price
+            total_price = int(update.callback_query.data[:11])
+            context.user_data["collect_order_data"]["total_price"] = total_price
 
             context.user_data["collect_order_data"]["products"].append(
                 {
                     "name": context.user_data["collect_order_data"]["product"],
                     "quantity": context.user_data["collect_order_data"]["quantity"],
-                    "price": context.user_data["collect_order_data"]["price"],
+                    "total_price": context.user_data["collect_order_data"]["total_price"],
                 }
             )
 
@@ -267,14 +283,14 @@ async def collect_price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                         context.user_data["collect_order_data"]["products"].remove(product)
     else:
         await update.effective_message.delete()
-        price = int(update.effective_message.text[:11])
-        context.user_data["collect_order_data"]["price"] = price
+        total_price = int(update.effective_message.text[:11])
+        context.user_data["collect_order_data"]["total_price"] = total_price
 
         context.user_data["collect_order_data"]["products"].append(
             {
                 "name": context.user_data["collect_order_data"]["product"],
                 "quantity": context.user_data["collect_order_data"]["quantity"],
-                "price": context.user_data["collect_order_data"]["price"],
+                "total_price": context.user_data["collect_order_data"]["total_price"],
             }
         )
         if len(context.user_data["collect_order_data"]["products"]) > 1:
@@ -312,6 +328,7 @@ async def go_to_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     )
 
     order.set_products(context.user_data["collect_order_data"]["products"])
+    order.total_order_price = order.calculate_total_price()  # חישוב מחיר כולל
 
     msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
     text = t("confirm_order_check", lang) + (await form_confirm_order(order, lang))
@@ -355,7 +372,7 @@ async def step_back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await collect_quantity(update,context,)
         return step + 1
     elif step == 7 or step == 78:
-        await collect_price(update,context,)
+        await collect_total_price(update,context,)
         return step + 1
     elif step == 8:
         await go_to_confirm(update,context,)
@@ -391,9 +408,12 @@ async def confirm_order(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     final_msg = await msg.edit_text(new_text, parse_mode=ParseMode.HTML)
 
     try:
-        crourier_text = await form_confirm_order_courier(order, 'ru')  # לקבוצת קוריירים - ברוסית
-        markup = await form_courier_action_kb(order.id, 'ru')  # לקבוצת קוריירים - ברוסית
-        await context.bot.send_message(links.ORDER_CHAT, crourier_text, parse_mode=ParseMode.HTML, reply_markup=markup)
+        from db.db import get_bot_setting
+        order_chat = get_bot_setting('order_chat') or links.ORDER_CHAT
+        if order_chat:
+            crourier_text = await form_confirm_order_courier(order, 'ru')  # לקבוצת קוריירים - ברוסית
+            markup = await form_courier_action_kb(order.id, 'ru')  # לקבוצת קוריירים - ברוסית
+            await context.bot.send_message(order_chat, crourier_text, parse_mode=ParseMode.HTML, reply_markup=markup)
     except Exception as e:
         traceback.print_exc()
         print(f'Failed to forward message about new order. Error: {e}')
@@ -404,7 +424,7 @@ async def confirm_order(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 async def timeout_reached(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-    await msg.reply_text("[Ошибка] Время ожидания истекло, попробуйте сначала.")
+    await msg.reply_text(t("timeout_error", get_user_lang(update.effective_user.id)))
     del context.user_data["collect_order_data"]
 
     return ConversationHandler.END
@@ -426,23 +446,23 @@ states = {
     ],
     CollectOrderDataStates.PRODUCT: [
         CallbackQueryHandler(new_product_name, '^create$'),
-        CallbackQueryHandler(collect_product, '^\d+$'),
+        CallbackQueryHandler(collect_product, r'^\d+$'),
     ],
     CollectOrderDataStates.NEW_PRODUCT_STOCK: [
-        # Извлекаем из сообщения название нового продукта и просим ввести количество на складе.
+        # Extract new product name from message and ask for stock quantity.
         MessageHandler(filters.Regex('^.+$'), new_product_stock)
     ],
     CollectOrderDataStates.SAVE_NEW_PRODUCT: [
-        # Приходящее сообщение - число количества доступного на складе для нового продукта, сохраняем продукт.
+        # Incoming message - number of available stock quantity for new product, save product.
         MessageHandler(filters.Regex(r'^\d+$'), save_new_product)
     ],
     CollectOrderDataStates.QUANTITY: [
-        CallbackQueryHandler(collect_quantity, '^\d+$'),
+        CallbackQueryHandler(collect_quantity, r'^\d+$'),
         MessageHandler(filters.Regex(r'^\d+$'), collect_quantity)
     ],
-    CollectOrderDataStates.PRICE: [
-        MessageHandler(filters.Regex(r'^\d+$'), collect_price),
-        CallbackQueryHandler(collect_price, '^\d+$')
+    CollectOrderDataStates.TOTAL_PRICE: [
+        MessageHandler(filters.Regex(r'^\d+$'), collect_total_price),
+        CallbackQueryHandler(collect_total_price, r'^\d+$')
     ],
     CollectOrderDataStates.ADD_MORE_PRODUCTS_OR_CONFIRM: [
         CallbackQueryHandler(go_to_confirm, '^to_confirm$'),

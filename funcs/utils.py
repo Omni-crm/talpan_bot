@@ -15,18 +15,18 @@ def dicts_to_xlsx(dicts_list):
     
     output = BytesIO()
     df.to_excel(output, index=False, engine='openpyxl')
-    output.seek(0)  # Перемещаем указатель в начало файла
+    output.seek(0)  # Move pointer to beginning of file
     return output
 
 
 async def send_shift_start_msg(update: Update, context: ContextTypes.DEFAULT_TYPE, lang: str = 'ru'):
     """
-    Пример сообщения в группе контроля:
+    Example message in control group:
 
-    Начало рабочего дня – 17.04.2025
-    Оператор: @Vanillanew
+    Start of work day – 17.04.2025
+    Operator: @Vanillanew
 
-    Начальный остаток (расфасовано):
+    Initial stock (packaged):
     🔴 12 | ⚫️ 8 | 🛍️ 10 | 🍿 6
     """
     session = Session()
@@ -50,7 +50,10 @@ async def send_shift_start_msg(update: Update, context: ContextTypes.DEFAULT_TYP
     session.close()
 
     try:
-        await context.bot.send_message(links.ADMIN_CHAT, msg, parse_mode=ParseMode.HTML,)
+        from db.db import get_bot_setting
+        admin_chat = get_bot_setting('admin_chat') or links.ADMIN_CHAT
+        if admin_chat:
+            await context.bot.send_message(admin_chat, msg, parse_mode=ParseMode.HTML,)
     except Exception as e:
         await update.effective_message.reply_text(repr(e))
 
@@ -59,10 +62,10 @@ async def form_confirm_order(order: Order, lang: str = 'ru') -> str:
     products = order.get_products()
     print(products)
 
-    qty_text = "шт" if lang == 'ru' else "יח'"
-    products_text = ", ".join([f"{product['name']} - {product['quantity']} {qty_text} - {product['price']}₪" for product in products])
+    qty_text = t("units", lang)
+    products_text = ", ".join([f"{product['name']} - {product['quantity']} {qty_text} - {product['total_price']}₪" for product in products])
 
-    price_all_text = sum([(product['price']*product['quantity']) for product in products])
+    price_all_text = sum([(product['total_price']) for product in products])
 
     # הוספת RTL mark לתחילת ההודעה אם בעברית
     rtl = '\u200F' if lang == 'he' else ''
@@ -84,10 +87,10 @@ async def form_confirm_order_courier_info(order: Order, lang: str = 'ru') -> str
     products = order.get_products()
     print(products)
 
-    qty_text = "шт" if lang == 'ru' else "יח'"
-    products_text = ", ".join([f"{product['name']} - {product['quantity']} {qty_text} - {product['price']}₪/{qty_text}" for product in products])
+    qty_text = t("units", lang)
+    products_text = ", ".join([f"{product['name']} - {product['quantity']} {qty_text} - {product['total_price']}₪/{qty_text}" for product in products])
 
-    price_all_text = sum([(product['price']*product['quantity']) for product in products])
+    price_all_text = sum([(product['total_price']) for product in products])
 
     # הוספת RTL mark לתחילת ההודעה אם בעברית
     rtl = '\u200F' if lang == 'he' else ''
@@ -117,10 +120,10 @@ async def form_confirm_order_courier(order: Order, lang: str = 'ru') -> str:
     products = order.get_products()
     print(products)
 
-    qty_text = "шт" if lang == 'ru' else "יח'"
-    products_text = ", ".join([f"{product['name']} - {product['quantity']} {qty_text} - {product['price']}₪" for product in products])
+    qty_text = t("units", lang)
+    products_text = ", ".join([f"{product['name']} - {product['quantity']} {qty_text} - {product['total_price']}₪" for product in products])
 
-    price_all_text = sum([(product['price']*product['quantity']) for product in products])
+    price_all_text = sum([(product['total_price']) for product in products])
 
     # הוספת RTL mark לתחילת ההודעה אם בעברית
     rtl = '\u200F' if lang == 'he' else ''
@@ -154,8 +157,8 @@ async def form_notif_delay_short(order: Order, lang: str = 'ru') -> str:
 
 async def form_week_report():
     """
-    Пример отчета:
-    Недельный отчет – 13–19 апреля 2025  
+    Example report:
+    Weekly report – April 13-19, 2025  
     Общий доход (брутто): 27,350₪  
     Расходы: 4,600₪  
     Чистая прибыль (нетто): 22,750₪
@@ -185,26 +188,26 @@ async def form_week_report():
 
     for entry in summaries:
         for key, value in entry.items():
-            print(f"Processing {key}: {value}")  # Выводим ключ и значение
+            print(f"Processing {key}: {value}")  # Print key and value
             if key not in result:
-                result[key] = {'quantity': value['total_quantity'], 'price': value['total_price']}  # Инициализируем словарь
+                result[key] = {'quantity': value['total_quantity'], 'price': value['total_price']}  # Initialize dictionary
             else:
-                result[key]['quantity'] += value['total_quantity']  # Складываем quantity
+                result[key]['quantity'] += value['total_quantity']  # Add quantity
 
     result = [f"{k} {v['quantity']}" for k,v in result.items()]
     summary_text = " | ".join(result)
 
-    msg = f"""
-<b>Недельный отчет – </b><i>{seven_days_ago.strftime("%d.%m.%Y")} - {now.strftime("%d.%m.%Y")}</i>
-<b>Общий доход (брутто):</b> <i>{brutto}₪</i>
-<b>Расходы:</b> <i>{expenses}₪</i>
-<b>Чистая прибыль (нетто):</b> <i>{netto}₪</i>
+    rtl = '\u200F' if lang == 'he' else ''
+    msg = f"""{rtl}<b>{t('weekly_report_title', lang)} – </b><i>{seven_days_ago.strftime("%d.%m.%Y")} - {now.strftime("%d.%m.%Y")}</i>
+<b>{t('total_brutto', lang)}:</b> <i>{brutto}₪</i>
+<b>{t('total_expenses', lang)}:</b> <i>{expenses}₪</i>
+<b>{t('net_profit', lang)}:</b> <i>{netto}₪</i>
 
-<b>Всего выдано:</b>
+<b>{t('total_issued', lang)}:</b>
 {summary_text}
 
-<b>Средние показатели: </b>
-<b>Брутто:</b> <i>{avg_brutto}₪ в день | Нетто: {avg_netto}₪ в день</i>
+<b>{t('average_indicators', lang)}: </b>
+<b>{t('brutto', lang)}:</b> <i>{avg_brutto}₪ {t('per_day', lang)} | {t('netto', lang)}: {avg_netto}₪ {t('per_day', lang)}</i>
 """
 
     return msg
@@ -232,12 +235,13 @@ async def form_end_shift_report(shift: Shift):
 
     shift_start_date = shift.opened_time.strftime("%d.%m.%Y")
 
-    text = f"""<b>Отчет за день -</b> {shift_start_date}
-<b>Общая выручка (брутто):</b> {shift.brutto}
-<b>Расходы: Оператор –</b> {shift.operator_paid}₪ | Курьер – {shift.runner_paid}₪ | Топливо – {shift.petrol_paid}₪  
-<b>Чистая прибыль (нетто):</b> {shift.netto}₪
+    rtl = '\u200F' if lang == 'he' else ''
+    text = f"""{rtl}<b>{t('daily_report_title', lang)} -</b> {shift_start_date}
+<b>{t('total_brutto', lang)}:</b> {shift.brutto}
+<b>{t('expenses', lang)}: {t('operator', lang)} –</b> {shift.operator_paid}₪ | {t('courier', lang)} – {shift.runner_paid}₪ | {t('fuel', lang)} – {shift.petrol_paid}₪  
+<b>{t('net_profit', lang)}:</b> {shift.netto}₪
 
-<b>Выдано за день:</b>
+<b>{t('issued_today', lang)}:</b>
 {shift.products_fetched_text}
 """
     
@@ -326,7 +330,7 @@ async def form_daily_profit_report(date_option: str, lang: str = 'ru') -> str:
         
         if product_summary:
             report += t("products_sold", lang) + "\n"
-            qty_text = "шт" if lang == 'ru' else "יח'"
+            qty_text = t("units", lang)
             for product_name, data in product_summary.items():
                 report += f"  • {product_name} - {data['quantity']} {qty_text} - {data['total_price']}₪\n"
         
@@ -334,3 +338,188 @@ async def form_daily_profit_report(date_option: str, lang: str = 'ru') -> str:
         
     finally:
         session.close()
+
+# מערכת היסטוריית ניווט
+def add_to_navigation_history(context, menu_name, data=None):
+    """הוספת תפריט להיסטוריית הניווט"""
+    if 'navigation_history' not in context.user_data:
+        context.user_data['navigation_history'] = []
+    
+    context.user_data['navigation_history'].append({
+        'menu': menu_name,
+        'data': data,
+        'timestamp': datetime.datetime.now()
+    })
+
+def get_previous_menu(context):
+    """קבלת התפריט הקודם"""
+    if 'navigation_history' in context.user_data and len(context.user_data['navigation_history']) > 1:
+        return context.user_data['navigation_history'].pop()
+    return None
+
+def add_back_button_to_keyboard(keyboard, lang):
+    """הוספת כפתור חזרה לכל תפריט"""
+    if isinstance(keyboard, list):
+        keyboard.append([InlineKeyboardButton(t('btn_back', lang), callback_data="back")])
+    return keyboard
+
+def add_navigation_buttons_to_keyboard(keyboard, lang):
+    """הוספת כפתורי חזרה ועמוד הבית לכל תפריט"""
+    if isinstance(keyboard, list):
+        keyboard.append([
+            InlineKeyboardButton(t('btn_back', lang), callback_data="back"),
+            InlineKeyboardButton(t('btn_home', lang), callback_data="home")
+        ])
+    return keyboard
+
+# מערכת ניקוי הודעות
+async def clean_previous_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """מחיקת ההודעה הקודמת לפני הצגת תפריט חדש"""
+    if 'last_message_id' in context.user_data:
+        try:
+            await context.bot.delete_message(
+                chat_id=update.effective_chat.id,
+                message_id=context.user_data['last_message_id']
+            )
+        except Exception as e:
+            # הודעה כבר נמחקה או אין הרשאה
+            print(f"Could not delete message: {e}")
+            pass
+
+def save_message_id(context, message_id):
+    """שמירת ID של הודעה לניקוי עתידי"""
+    context.user_data['last_message_id'] = message_id
+
+# דוח סיום משמרת
+async def send_shift_end_report_to_admins(shift, lang: str = 'ru') -> None:
+    """שליחת דוח סיום משמרת לקבוצת מנהלים"""
+    from config.config import links
+    from telegram.constants import ParseMode
+    
+    rtl = '\u200F' if lang == 'he' else ''
+    
+    # חישוב נתונים
+    total_orders = len(json.loads(shift.summary)) if shift.summary else 0
+    total_brutto = shift.brutto or 0
+    total_expenses = (shift.operator_paid or 0) + (shift.runner_paid or 0) + (shift.petrol_paid or 0)
+    net_profit = shift.netto or 0
+    
+    # בניית הדוח
+    report = f"""{rtl}<b>{t("shift_end_report_title", lang)}</b>
+<i>{shift.closed_time.strftime("%d.%m.%Y, %H:%M:%S")}</i>
+
+<b>{t("total_orders", lang)}:</b> {total_orders}
+<b>{t("total_brutto", lang)}:</b> {total_brutto}₪
+<b>{t("total_expenses", lang)}:</b> {total_expenses}₪
+<b>{t("net_profit", lang)}:</b> {net_profit}₪
+
+<b>{t("expenses_breakdown", lang)}:</b>
+• {t("operator_pay", lang)}: {shift.operator_paid or 0}₪
+• {t("courier_pay", lang)}: {shift.runner_paid or 0}₪
+• {t("fuel_pay", lang)}: {shift.petrol_paid or 0}₪
+"""
+    
+    # שליחה לקבוצת מנהלים
+    try:
+        from telegram import Bot
+        from db.db import get_bot_setting
+        admin_chat = get_bot_setting('admin_chat') or links.ADMIN_CHAT
+        if admin_chat:
+            bot = Bot(token=links.BOT_TOKEN)
+            await bot.send_message(
+                admin_chat,
+                report,
+                parse_mode=ParseMode.HTML
+            )
+    except Exception as e:
+        print(f"Error sending shift report: {e}")
+
+# ייצוא הזמנות כטקסט
+async def export_orders_as_text(update: Update, context: ContextTypes.DEFAULT_TYPE, lang: str = 'ru') -> None:
+    """ייצוא הזמנות כטקסט במקום Excel"""
+    session = Session()
+    
+    # קבלת כל ההזמנות
+    orders = session.query(Order).all()
+    
+    if not orders:
+        await update.effective_message.reply_text(t("no_orders_found", lang))
+        session.close()
+        return
+    
+    # בניית טקסט
+    rtl = '\u200F' if lang == 'he' else ''
+    export_text = f"{rtl}<b>{t('orders_export_title', lang)}</b>\n\n"
+    
+    for order in orders:
+        products = json.loads(order.products) if order.products else []
+        products_text = ", ".join([f"{p['name']} x{p['quantity']}" for p in products])
+        
+        export_text += f"<b>{t('order_id', lang)}:</b> {order.id}\n"
+        export_text += f"<b>{t('client_name', lang)}:</b> {order.client_name}\n"
+        export_text += f"<b>{t('client_phone', lang)}:</b> {order.client_phone}\n"
+        export_text += f"<b>{t('address', lang)}:</b> {order.address}\n"
+        export_text += f"<b>{t('products', lang)}:</b> {products_text}\n"
+        export_text += f"<b>{t('status', lang)}:</b> {order.status.value if order.status else 'N/A'}\n"
+        export_text += f"<b>{t('created', lang)}:</b> {order.created.strftime('%d.%m.%Y %H:%M')}\n"
+        if order.delivered:
+            export_text += f"<b>{t('delivered', lang)}:</b> {order.delivered.strftime('%d.%m.%Y %H:%M')}\n"
+        export_text += "\n" + "─" * 50 + "\n\n"
+    
+    # חלוקה להודעות אם הטקסט ארוך מדי
+    if len(export_text) > 4000:
+        # חלוקה לחלקים
+        parts = [export_text[i:i+4000] for i in range(0, len(export_text), 4000)]
+        for part in parts:
+            await update.effective_message.reply_text(part, parse_mode=ParseMode.HTML)
+    else:
+        await update.effective_message.reply_text(export_text, parse_mode=ParseMode.HTML)
+    
+    session.close()
+
+# מערכת אישור וביטול
+async def show_confirmation_dialog(update: Update, context: ContextTypes.DEFAULT_TYPE, 
+                                 action: str, details: str, lang: str = 'ru') -> None:
+    """הצגת דיאלוג אישור לפעולה"""
+    rtl = '\u200F' if lang == 'he' else ''
+    
+    confirmation_text = f"""{rtl}<b>{t('confirmation_title', lang)}</b>
+
+<b>{t('action', lang)}:</b> {action}
+<b>{t('details', lang)}:</b> {details}
+
+{t('confirmation_warning', lang)}"""
+    
+    keyboard = [
+        [InlineKeyboardButton(t('btn_confirm', lang), callback_data=f"confirm_{action}")],
+        [InlineKeyboardButton(t('btn_cancel', lang), callback_data=f"cancel_{action}")]
+    ]
+    
+    await update.effective_message.reply_text(
+        confirmation_text,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode=ParseMode.HTML
+    )
+
+async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """טיפול באישור/ביטול"""
+    await update.callback_query.answer()
+    lang = get_user_lang(update.effective_user.id)
+    
+    if update.callback_query.data.startswith("confirm_"):
+        action = update.callback_query.data.replace("confirm_", "")
+        await execute_confirmed_action(update, context, action, lang)
+    elif update.callback_query.data.startswith("cancel_"):
+        action = update.callback_query.data.replace("cancel_", "")
+        await update.effective_message.reply_text(t("action_cancelled", lang))
+
+async def execute_confirmed_action(update: Update, context: ContextTypes.DEFAULT_TYPE, action: str, lang: str) -> None:
+    """ביצוע הפעולה המאושרת"""
+    if action == "end_shift":
+        # ביצוע סיום משמרת
+        from handlers.end_shift_handler import confirm_end_shift
+        await confirm_end_shift(update, context)
+    elif action == "delete_order":
+        # ביצוע מחיקת הזמנה
+        await update.effective_message.reply_text(t("order_deleted", lang))
+    # הוספת פעולות נוספות לפי הצורך

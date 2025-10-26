@@ -24,10 +24,14 @@ class AuthStates:
 async def start_sessing_creation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """STARTING CREATION OF A SESSION VIA THE BOT BUTTONS."""
     await update.callback_query.answer()
-    inline_keyboard = [[InlineKeyboardButton("Cancel", callback_data="cancel")]]
+    lang = get_user_lang(update.effective_user.id)
+    inline_keyboard = [
+        [InlineKeyboardButton("Cancel", callback_data="cancel")],
+        [InlineKeyboardButton(t("btn_back", lang), callback_data="back"), InlineKeyboardButton(t("btn_home", lang), callback_data="home")]
+    ]
     reply_markup = InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
 
-    start_msg = await context.bot.send_message(chat_id=update.effective_chat.id, text="Введите номер телефона аккаунта (с кодом страны):", reply_markup=reply_markup)
+    start_msg = await context.bot.send_message(chat_id=update.effective_chat.id, text=t("enter_phone_number", lang), reply_markup=reply_markup)
     context.user_data["auth_data"] = {}
     context.user_data["auth_data"]["start_msg_id"] = start_msg.id
 
@@ -50,7 +54,11 @@ async def handle_acc_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 async def fetch_actions(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.callback_query.answer("Processing.")
-    inline_keyboard = [[InlineKeyboardButton("Cancel", callback_data="cancel")]]
+    lang = get_user_lang(update.effective_user.id)
+    inline_keyboard = [
+        [InlineKeyboardButton("Cancel", callback_data="cancel")],
+        [InlineKeyboardButton(t("btn_back", lang), callback_data="back"), InlineKeyboardButton(t("btn_home", lang), callback_data="home")]
+    ]
     reply_markup = InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
 
     if update.callback_query.data == "two_step_yes":
@@ -290,7 +298,7 @@ async def timeout_reached(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     del context.user_data["auth_data"]
 
 states = {
-    AuthStates.handle_acc_phone: [MessageHandler(filters.Regex("^\d+$"), handle_acc_phone)],
+        AuthStates.handle_acc_phone: [MessageHandler(filters.Regex(r"^\d+$"), handle_acc_phone)],
     AuthStates.fetch_actions: [CallbackQueryHandler(fetch_actions, pattern='two_step_yes|two_step_no')],
     AuthStates.handle_password: [MessageHandler(filters.Regex(".*"), handle_password)],
     AuthStates.process_number_1: [CallbackQueryHandler(process_number, pattern=r'^\d$')],

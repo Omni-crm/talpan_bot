@@ -17,10 +17,16 @@ from handlers.end_shift_handler import END_SHIFT_HANDLER
 from handlers.edit_crude_handler import EDIT_CRUDE_HANDLER
 from handlers.change_links_handler import CHANGE_LINK_HANDLER
 from handlers.make_tg_session_handler import MAKE_TG_SESSION_HANDLER
+from handlers.new_order_handler import collect_username
+from db.db import Base, engine, initialize_default_settings
 
 def main() -> None:
     """Run the bot."""
-    if_table()
+    # Ensure all tables are created, including BotSettings
+    Base.metadata.create_all(engine)
+    
+    # Initialize bot settings if needed
+    initialize_default_settings()
     # Create the Application and pass it your bot's token.
     application = Application.builder().token(BOT_TOKEN).concurrent_updates(True).build()
     # Health log on startup for Railway
@@ -36,10 +42,9 @@ def main() -> None:
     application.add_handler(CallbackQueryHandler(change_language, pattern="change_language"))
     application.add_handler(CallbackQueryHandler(set_language, pattern="set_lang_ru|set_lang_he"))
 
-    # Главное меню
+    # Main menu
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(show_rest_from_last_day, pattern="rest"))
-    application.add_handler(CallbackQueryHandler(show_menu_edit_crude_stock, pattern="crude_manage"))
     application.add_handler(CallbackQueryHandler(beginning, pattern="beginning"))
     application.add_handler(CallbackQueryHandler(msg_client, pattern="msg_client"))
 
@@ -66,6 +71,12 @@ def main() -> None:
     application.add_handler(CallbackQueryHandler(filter_orders_by_param, pattern="fdate|fproduct|fclient|fstatus"))
     application.add_handler(CallbackQueryHandler(manage_roles, pattern="manage_roles"))
     application.add_handler(CallbackQueryHandler(show_security_menu, pattern="security_menu"))
+    
+    # Handler ניווט
+    application.add_handler(CallbackQueryHandler(handle_navigation, pattern="back|home"))
+    application.add_handler(CallbackQueryHandler(show_staff_list, pattern="view_staff"))
+    application.add_handler(CallbackQueryHandler(handle_confirmation, pattern="confirm_|cancel_"))
+    application.add_handler(CallbackQueryHandler(collect_username, pattern="skip_username"))
 
     application.job_queue.run_daily(show_week_report, time=datetime.time(hour=12), days=(6,),)
 
@@ -83,7 +94,7 @@ def main() -> None:
 
     # Filter orders by status
     application.add_handler(CallbackQueryHandler(filter_orders_by_status, pattern="|".join((Status.completed.value,Status.active.value,Status.pending.value,Status.cancelled.value,Status.delay.value,))))
-    application.add_handler(CallbackQueryHandler(fetch_orders_excel, pattern="orders_xl"))
+    # Excel export removed - now using text messages
 
     application.add_handler(CallbackQueryHandler(show_cleanup_tip, pattern="cleanup"))
     application.add_handler(CallbackQueryHandler(dump_choose_format, pattern="dump"))
@@ -137,4 +148,22 @@ if __name__ == "__main__":
     logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.ERROR)
+    
+    print("🚀 Starting Courier Bot...")
+    print("📊 Healthcheck: Bot is running")
+    
+    # אתחול הגדרות במסד נתונים
+    try:
+        from db.db import initialize_default_settings, get_bot_setting
+        initialize_default_settings()
+        
+        # בדיקה אם יש טוקן בוט במסד הנתונים
+        bot_token = get_bot_setting('bot_token')
+        if bot_token:
+            print("✅ Database settings initialized with existing data")
+        else:
+            print("⚠️ No bot token found in database - run init_settings.py or auto_init.py")
+    except Exception as e:
+        print(f"⚠️ Warning: Could not initialize database settings: {e}")
+    
     main()

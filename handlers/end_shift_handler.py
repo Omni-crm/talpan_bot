@@ -30,13 +30,18 @@ async def start_end_shift(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         session.close()
         return
 
-    context.user_data["end_shift_data"] = {}
-    context.user_data["end_shift_data"]["shift_id"] = shift.id
-    context.user_data["end_shift_data"]["lang"] = lang
-    context.user_data["end_shift_data"]["start_msg"] = await update.effective_message.reply_text(t("enter_operator_payment", lang), reply_markup=get_cancel_kb(lang), parse_mode=ParseMode.HTML)
+    # הצגת דיאלוג אישור
+    from funcs.utils import show_confirmation_dialog
+    shift_details = f"סיום משמרת - {shift.opened_time.strftime('%d.%m.%Y %H:%M')}"
+    await show_confirmation_dialog(
+        update, context, 
+        t("end_shift_action", lang), 
+        shift_details, 
+        lang
+    )
     session.close()
 
-    return EndShiftStates.OPERATOR_PAID
+    return ConversationHandler.END
 
 
 async def collect_operator_paid(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -80,31 +85,31 @@ async def collect_petrol_paid(update: Update, context: ContextTypes.DEFAULT_TYPE
     print(all_products)
 
     summary = {}
-    total_sum = 0  # Переменная для хранения общей суммы
+    total_sum = 0  # Variable to store total sum
 
-    # Обходим все продукты
+    # Iterate through all products
     for product in all_products:
         name = product["name"]
         quantity = product["quantity"]
-        price = product["price"]
+        total_price = product["total_price"]
 
-        # Вычисляем сумму для текущего продукта
-        current_product_total = quantity * price
-        total_sum += current_product_total  # Добавляем к общей сумме
+        # Calculate sum for current product
+        current_product_total = total_price
+        total_sum += current_product_total  # Add to total sum
 
-        # Если продукт уже есть в словаре, обновляем количество и сумму
+        # If product already exists in dictionary, update quantity and sum
         if name in summary:
             summary[name]["total_quantity"] += quantity
             summary[name]["total_price"] += current_product_total
         else:
-            # Если продукта нет, добавляем его в словарь
+            # If product doesn't exist, add it to dictionary
             summary[name] = {
                 "total_quantity": quantity,
-                "total_price": quantity * price
+                "total_price": current_product_total
             }
 
     samples = []
-    qty_text = "шт" if lang == 'ru' else "יח'"
+    qty_text = t("units", lang)
 
     for name, data in summary.items():
         sample_text = f"{name} - {data['total_quantity']} {qty_text} - {data['total_price']} ₪"
@@ -116,7 +121,7 @@ async def collect_petrol_paid(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     context.user_data["end_shift_data"]["products_fetched_text"] = products_fetched_text
 
-    total_sum_text = "Общая сумма за выданные товары" if lang == 'ru' else "סכום כולל עבור מוצרים שנמסרו"
+    total_sum_text = t("total_sum_delivered_products", lang)
     products_fetched_text += f'\n\n{total_sum_text}: {total_sum} ₪'
 
     context.user_data["end_shift_data"]["brutto"] = total_sum
@@ -175,10 +180,20 @@ async def confirm_end_shift(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     await update.effective_message.reply_text(t("shift_closed_success", lang))
 
     try:
-        await context.bot.send_message(links.ADMIN_CHAT, report, parse_mode=ParseMode.HTML)
+        from db.db import get_bot_setting
+        admin_chat = get_bot_setting('admin_chat') or links.ADMIN_CHAT
+        if admin_chat:
+            await context.bot.send_message(admin_chat, report, parse_mode=ParseMode.HTML)
     except Exception as e:
-        error_msg = "Не смогли отправить отчёт в контрольную группу. Ошибка" if lang == 'ru' else "לא הצליח לשלוח דוח לקבוצת הבקרה. שגיאה"
+        error_msg = t("error_sending_report", lang)
         await update.effective_message.reply_text(f"{error_msg}: {repr(e)}")
+
+    # שליחת דוח סיום משמרת לקבוצת מנהלים
+    try:
+        from funcs.utils import send_shift_end_report_to_admins
+        await send_shift_end_report_to_admins(shift, lang)
+    except Exception as e:
+        print(f"Error sending shift end report to admins: {e}")
 
     del context.user_data["end_shift_data"]
 

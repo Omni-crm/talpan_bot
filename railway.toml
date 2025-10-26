@@ -1,7 +1,7 @@
 # Railway service configuration
 [service]
 name = "courier-bot"
-start = "python3 bot.py"
+start = "./railway_init.sh"
 
 [build]
 builder = "nixpacks"
@@ -11,6 +11,8 @@ builder = "nixpacks"
 # BOT_TOKEN, ADMIN_ID, ADMIN_CHAT, ORDER_CHAT, API_ID, API_HASH, DB_NAME, DEFAULT_OPERATOR_PAY, DEFAULT_COURIER_PAY, DEFAULT_PETROL
 # Persist DB on Railway volume (recommended):
 DB_DIR = "/data"
+DB_NAME = "database.db"
+DB_PATH = "/data/database.db"
 
 [nixpacks]
 python_version = "3.13"

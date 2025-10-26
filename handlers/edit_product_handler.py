@@ -100,7 +100,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def timeout_reached(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     msg: Message = context.user_data["edit_product_data"]["start_msg"]
-    await msg.reply_text("[Ошибка] Время ожидания истекло, попробуйте сначала.")
+    await msg.reply_text(t("timeout_error", get_user_lang(update.effective_user.id)))
     del context.user_data["edit_product_data"]
 
     return ConversationHandler.END

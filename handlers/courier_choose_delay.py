@@ -96,13 +96,16 @@ async def delay_minutes_courier_end(update: Update, context: ContextTypes.DEFAUL
         text = await form_confirm_order_courier(order, lang)
         context.user_data["delay_min_data"]["start_msg"] = await msg.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=(await form_courier_action_kb(order_id, lang)))
 
-        status_text = "Статус заказа" if lang == 'ru' else "סטטוס הזמנה"
-        changed_text = "изменился на" if lang == 'ru' else "שונה ל"
-        info_text = f"<b>{status_text}</b> <i>#{order_id}</i> {changed_text} <i>{order.status.value}</i>"
-        await context.bot.send_message(links.ADMIN_CHAT, info_text, parse_mode=ParseMode.HTML)
+        status_text = t("order_status", lang)
+        changed_text = t("changed_to", lang)
+        from db.db import get_bot_setting
+        admin_chat = get_bot_setting('admin_chat') or links.ADMIN_CHAT
+        if admin_chat:
+            info_text = f"<b>{status_text}</b> <i>#{order_id}</i> {changed_text} <i>{order.status.value}</i>"
+            await context.bot.send_message(admin_chat, info_text, parse_mode=ParseMode.HTML)
 
-        text = await form_confirm_order_courier_info(order, 'ru')  # לקבוצת אדמינים תמיד ברוסית
-        await context.bot.send_message(links.ADMIN_CHAT, text, parse_mode=ParseMode.HTML)
+            text = await form_confirm_order_courier_info(order, 'ru')  # לקבוצת אדמינים תמיד ברוסית
+            await context.bot.send_message(admin_chat, text, parse_mode=ParseMode.HTML)
     except Exception:
         traceback.print_exc(chain=False)
 

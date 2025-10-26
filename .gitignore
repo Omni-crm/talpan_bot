@@ -35,6 +35,8 @@ env/
 *.db
 *.sqlite
 *.sqlite3
+database.db
+/data/
 
 # Pyrogram session files
 *.session

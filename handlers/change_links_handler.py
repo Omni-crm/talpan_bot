@@ -23,8 +23,8 @@ async def start_edit_group_link(update: Update, context: ContextTypes.DEFAULT_TY
     tip_he = 'קבוצת מנהלים' if group_type == 'admin' else 'קבוצת שליחים'
     
     tip_text = tip if lang == 'ru' else tip_he
-    prompt = "Напишите боту новую ссылку для" if lang == 'ru' else "כתוב קישור חדש עבור"
-    format_text = "в формате @username:" if lang == 'ru' else "בפורמט @username:"
+    prompt = t("write_new_link_for", lang)
+    format_text = t("in_format_username", lang)
 
     start_msg = await update.effective_message.edit_text(f"{prompt} <b>{tip_text}</b> {format_text}", reply_markup=get_cancel_kb(lang), parse_mode=ParseMode.HTML)
     context.user_data["edit_group_link_data"] = {}
@@ -43,32 +43,22 @@ async def change_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     
     group_type = context.user_data["edit_group_link_data"]["group_type"]
 
+    # עדכון במסד הנתונים
+    from db.db import set_bot_setting
+    key = 'admin_chat' if group_type == 'admin' else 'order_chat'
+    set_bot_setting(key, new_link, update.effective_user.id)
+    
+    # עדכון בזיכרון
     if group_type == 'admin':
-        with open('.env', 'r') as f:
-            env_text = f.read()
-        
-        env_text = env_text.replace(f"ADMIN_CHAT={links.ADMIN_CHAT}", f"ADMIN_CHAT={new_link}")
-
-        with open('.env', 'w') as f:
-            f.write(env_text)
-        
         links.ADMIN_CHAT = new_link
     else:
-        with open('.env', 'r') as f:
-            env_text = f.read()
-
-        env_text = env_text.replace(f"ORDER_CHAT={links.ORDER_CHAT}", f"ORDER_CHAT={new_link}")
-
-        with open('.env', 'w') as f:
-            f.write(env_text)
-        
         links.ORDER_CHAT = new_link
 
     msg: Message = context.user_data["edit_group_link_data"]["start_msg"]
     
-    success_text = "Успешно. Новые ссылки на группы" if lang == 'ru' else "הצלחה. קישורים חדשים לקבוצות"
-    admin_text = "Группа админов" if lang == 'ru' else "קבוצת מנהלים"
-    courier_text = "Группа курьеров" if lang == 'ru' else "קבוצת שליחים"
+    success_text = t("success_new_group_links", lang)
+    admin_text = t("admin_group", lang)
+    courier_text = t("courier_group", lang)
 
     await msg.edit_text(f"<b>{success_text}:</b>\n\n<b>{admin_text}:</b> {links.ADMIN_CHAT}\n<b>{courier_text}:</b> {links.ORDER_CHAT}", parse_mode=ParseMode.HTML)
 
