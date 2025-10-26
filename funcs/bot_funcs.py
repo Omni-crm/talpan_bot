@@ -29,15 +29,9 @@ async def change_language(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     lang = get_user_lang(user.id)
     
     if update.message:
-        await update.message.reply_text(
-            t("choose_language", lang),
-            reply_markup=reply_markup
-        )
+        await send_message_with_cleanup(update, context, t("choose_language", lang), reply_markup=reply_markup)
     elif update.callback_query:
-        await update.callback_query.message.reply_text(
-            t("choose_language", lang),
-            reply_markup=reply_markup
-        )
+        await send_message_with_cleanup(update, context, t("choose_language", lang), reply_markup=reply_markup)
 
 
 async def set_language(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -95,7 +89,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def dump_choose_format(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
-    await update.effective_message.reply_text(t('choose_format', lang), reply_markup=get_db_format_kb(lang))
+    await send_message_with_cleanup(update, context, t('choose_format', lang), reply_markup=get_db_format_kb(lang))
 
 
 @is_admin
@@ -121,7 +115,7 @@ async def dump_database(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 async def quick_reports(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
-    await update.effective_message.reply_text(t('choose_report_param', lang), reply_markup=get_quick_reports_kb(lang),)
+    await send_message_with_cleanup(update, context, t('choose_report_param', lang), reply_markup=get_quick_reports_kb(lang))
 
 
 @is_admin
@@ -154,12 +148,9 @@ async def daily_profit_report(update: Update, context: ContextTypes.DEFAULT_TYPE
     
     try:
         report = await form_daily_profit_report(date_option, lang)
-        await update.effective_message.reply_text(report, parse_mode=ParseMode.HTML)
+        await send_message_with_cleanup(update, context, report, parse_mode=ParseMode.HTML)
     except Exception as e:
-        await update.effective_message.reply_text(
-            t("error", lang).format(repr(e)),
-            parse_mode=ParseMode.HTML
-        )
+        await send_message_with_cleanup(update, context, t("error", lang).format(repr(e)), parse_mode=ParseMode.HTML)
 
 
 @is_admin
@@ -188,7 +179,7 @@ async def report_by_product(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     session.close()
 
-    await update.effective_message.reply_text(text=report)
+    await send_message_with_cleanup(update, context, text=report)
 
 
 @is_admin
@@ -213,7 +204,7 @@ async def report_by_client(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     session.close()
 
-    await update.effective_message.reply_text(text=report)
+    await send_message_with_cleanup(update, context, text=report)
 
 
 @is_admin
@@ -245,7 +236,7 @@ async def report_by_price(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     session.close()
 
-    await update.effective_message.reply_text(text=report)
+    await send_message_with_cleanup(update, context, text=report)
 
 @is_admin
 async def report_by_days(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -290,13 +281,13 @@ async def report_by_days(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     session.close()
 
-    await update.effective_message.reply_text(text=report)
+    await send_message_with_cleanup(update, context, text=report)
 
 @is_admin
 async def show_admin_action_kb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
-    await update.effective_message.reply_text(t('admin_menu', lang), reply_markup=get_admin_action_kb(lang), parse_mode=ParseMode.HTML)
+    await send_message_with_cleanup(update, context, t('admin_menu', lang), reply_markup=get_admin_action_kb(lang), parse_mode=ParseMode.HTML)
 
 @is_operator
 async def beginning(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -334,22 +325,22 @@ async def msg_client(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     reply_markup = await get_all_active_orders_to_msg_kb()
 
     if reply_markup:
-        await update.effective_message.reply_text(t('choose_client_to_msg', lang), reply_markup=reply_markup)
+        await send_message_with_cleanup(update, context, t('choose_client_to_msg', lang), reply_markup=reply_markup)
     else:
-        await update.effective_message.reply_text(t('no_active_orders', lang))
+        await send_message_with_cleanup(update, context, t('no_active_orders', lang))
 
 
 @is_admin
 async def manage_roles(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
-    await update.effective_message.reply_text(t('manage_roles_title', lang), reply_markup=get_manage_roles_kb(lang))
+    await send_message_with_cleanup(update, context, t('manage_roles_title', lang), reply_markup=get_manage_roles_kb(lang))
 
 @is_admin
 async def show_security_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
-    await update.effective_message.reply_text(t('security_menu', lang), reply_markup=get_security_kb(lang))
+    await send_message_with_cleanup(update, context, t('security_menu', lang), reply_markup=get_security_kb(lang))
 
 
 async def all_orders(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -369,7 +360,7 @@ async def filter_orders_by_date(update: Update, context: ContextTypes.DEFAULT_TY
     
     # Make sure end_date is greater than start_date
     if start_date > end_date:
-        await update.message.reply_text(t("date_error", get_user_lang(update.effective_user.id)))
+        await send_message_with_cleanup(update, context, t("date_error", get_user_lang(update.effective_user.id)))
         return
 
     session = Session()
@@ -385,7 +376,7 @@ async def filter_orders_by_date(update: Update, context: ContextTypes.DEFAULT_TY
     if not orders:
         lang = get_user_lang(update.effective_user.id)
         not_found = t("no_orders_found_dates", lang)
-        await update.effective_message.reply_text(f"{not_found}: {start_date} - {end_date}")
+        await send_message_with_cleanup(update, context, f"{not_found}: {start_date} - {end_date}")
         session.close()
         return
 
@@ -393,7 +384,7 @@ async def filter_orders_by_date(update: Update, context: ContextTypes.DEFAULT_TY
     msg = t("total_found", lang).format(len(orders))
     context.user_data["orders_filtered"] = [order.to_dict() for order in orders]
 
-    await update.effective_message.reply_text(msg, parse_mode=ParseMode.HTML)
+    await send_message_with_cleanup(update, context, msg, parse_mode=ParseMode.HTML)
     await update.effective_message.delete()
 
     session.close()
@@ -419,7 +410,7 @@ async def filter_orders_by_product(update: Update, context: ContextTypes.DEFAULT
     if not orders:
         lang = get_user_lang(update.effective_user.id)
         not_found = t("no_orders_found_products", lang)
-        await update.effective_message.reply_text(f"{not_found}: {product_names}")
+        await send_message_with_cleanup(update, context, f"{not_found}: {product_names}")
         session.close()
         return
 
@@ -427,7 +418,7 @@ async def filter_orders_by_product(update: Update, context: ContextTypes.DEFAULT
     msg = t("total_found", lang).format(len(orders))
     context.user_data["orders_filtered"] = [order.to_dict() for order in orders]
 
-    await update.effective_message.reply_text(msg, parse_mode=ParseMode.HTML)
+    await send_message_with_cleanup(update, context, msg, parse_mode=ParseMode.HTML)
     await update.effective_message.delete()
 
     session.close()
@@ -457,7 +448,7 @@ async def filter_orders_by_client(update: Update, context: ContextTypes.DEFAULT_
     if not orders:
         lang = get_user_lang(update.effective_user.id)
         not_found = t("no_orders_found_param", lang)
-        await update.effective_message.reply_text(f"{not_found}: {identifier}")
+        await send_message_with_cleanup(update, context, f"{not_found}: {identifier}")
         session.close()
         return
 
@@ -465,7 +456,7 @@ async def filter_orders_by_client(update: Update, context: ContextTypes.DEFAULT_
     msg = t("total_found", lang).format(len(orders))
     context.user_data["orders_filtered"] = [order.to_dict() for order in orders]
 
-    await update.effective_message.reply_text(msg, parse_mode=ParseMode.HTML)
+    await send_message_with_cleanup(update, context, msg, parse_mode=ParseMode.HTML)
     await update.effective_message.delete()
 
     session.close()
@@ -487,14 +478,14 @@ async def filter_orders_by_status(update: Update, context: ContextTypes.DEFAULT_
 
     if not orders:
         not_found = t("no_orders_found_status", lang)
-        await update.effective_message.reply_text(f"{not_found}: {status}")
+        await send_message_with_cleanup(update, context, f"{not_found}: {status}")
         session.close()
         return
 
     msg = t("total_found", lang).format(len(orders))
     context.user_data["orders_filtered"] = [order.to_dict() for order in orders]
 
-    await update.effective_message.reply_text(msg, parse_mode=ParseMode.HTML)
+    await send_message_with_cleanup(update, context, msg, parse_mode=ParseMode.HTML)
 
     session.close()
 
@@ -514,7 +505,7 @@ async def manage_links_tip(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     msg = t("current_links", lang).format(admin_group_link, order_group_link)
     
-    await update.effective_message.reply_text(msg, reply_markup=get_change_links_kb(lang), parse_mode=ParseMode.HTML)
+    await send_message_with_cleanup(update, context, msg, reply_markup=get_change_links_kb(lang), parse_mode=ParseMode.HTML)
 
 
 @is_admin
@@ -530,11 +521,11 @@ async def erase_orders_before_date(update: Update, context: ContextTypes.DEFAULT
         session.commit()
         session.close()
     except Exception as e:
-        await update.effective_message.reply_text(f"{t('error', get_user_lang(update.effective_user.id))}: {repr(e)}")
+        await send_message_with_cleanup(update, context, f"{t('error', get_user_lang(update.effective_user.id))}: {repr(e)}")
         await update.effective_message.delete()
         return
 
-    await update.effective_message.reply_text(t("orders_deleted_success", get_user_lang(update.effective_user.id)).format(count=orders_count))
+    await send_message_with_cleanup(update, context, t("orders_deleted_success", get_user_lang(update.effective_user.id)).format(count=orders_count))
     await update.effective_message.delete()
 
 
@@ -559,8 +550,7 @@ async def filter_orders_by_param(update: Update, context: ContextTypes.DEFAULT_T
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
     if update.callback_query.data == "fdate":
-        await update.effective_message.reply_text(
-            """
+        await send_message_with_cleanup(update, context, """
 <b>Чтобы показать список заказов по дате напишите боту сообщение такого формата -</b> <i>order:dd.mm.yyyy:dd.mm.yyyy</i>
 
 <b>Пример:</b>
@@ -570,11 +560,9 @@ async def filter_orders_by_param(update: Update, context: ContextTypes.DEFAULT_T
 Будет сформирован список заказов с 6 Мая 2025 по 16 Мая 2025.
 P.S.: Эта команда всегда доступна в чате бота, а это сообщение просто подсказка.
 </i>
-""", parse_mode=ParseMode.HTML,
-)
+""", parse_mode=ParseMode.HTML)
     elif update.callback_query.data == "fproduct":
-        await update.effective_message.reply_text(
-            """
+        await send_message_with_cleanup(update, context, """
 <b>Чтобы показать список заказов по товару напишите боту сообщение такого формата -</b> <i>order$название_товара</i>
 
 <b>Пример:</b>
@@ -587,10 +575,9 @@ P.S.: Эта команда всегда доступна в чате бота, 
 Будет сформирован список заказов с указанными товарами.
 P.S.: Эта команда всегда доступна в чате бота, а это сообщение просто подсказка.
 </i>
-""", parse_mode=ParseMode.HTML,)
+""", parse_mode=ParseMode.HTML)
     elif update.callback_query.data == "fclient":
-        await update.effective_message.reply_text(
-            """
+        await send_message_with_cleanup(update, context, """
 <b>Чтобы показать список заказов по КЛИЕНТУ напишите боту сообщение такого формата -</b> <i>order@username или order@phone</i>
 
 <b>Пример:</b>
@@ -603,17 +590,16 @@ P.S.: Эта команда всегда доступна в чате бота, 
 Будет сформирован список заказов по указанному юзернейму клиента или номеру телефона клиента
 P.S.: Эта команда всегда доступна в чате бота, а это сообщение просто подсказка.
 </i>
-""", parse_mode=ParseMode.HTML,
-)
+""", parse_mode=ParseMode.HTML)
     elif update.callback_query.data == "fstatus":
-        await update.effective_message.edit_text(t("choose_status", lang), reply_markup=FILTER_ORDERS_BY_STATUS_KB)
+        await edit_message_with_cleanup(update, context, t("choose_status", lang), reply_markup=FILTER_ORDERS_BY_STATUS_KB)
 
 async def show_week_report(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     week_report = await form_week_report()
 
     if update.callback_query:
         await update.callback_query.answer()
-        await update.effective_message.reply_text(week_report, parse_mode=ParseMode.HTML,)
+        await send_message_with_cleanup(update, context, week_report, parse_mode=ParseMode.HTML)
     else:
         session = Session()
         admins = session.query(User).filter(User.role==Role.ADMIN).all()
@@ -685,10 +671,10 @@ async def make_tg_session_as_worker(update: Update, context: ContextTypes.DEFAUL
     if tgsession:
         tgsession.is_worker = True
         session.commit()
-        await update.effective_message.reply_text(t('session_now_worker', lang).format(tgsession.name, tgsession.username))
+        await send_message_with_cleanup(update, context, t('session_now_worker', lang).format(tgsession.name, tgsession.username))
         await update.effective_message.edit_reply_markup(reply_markup=create_tg_sessions_kb())
     else:
-        await update.effective_message.reply_text(t('session_not_found', lang))
+        await send_message_with_cleanup(update, context, t('session_not_found', lang))
 
     session.close()
 
@@ -705,10 +691,10 @@ async def delete_tg_session(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         session.delete(tgsession)
         session.flush()
         session.commit()
-        await update.effective_message.reply_text(t('session_deleted', lang).format(tgsession.name, tgsession.username))
+        await send_message_with_cleanup(update, context, t('session_deleted', lang).format(tgsession.name, tgsession.username))
         await update.effective_message.edit_reply_markup(reply_markup=create_tg_sessions_kb())
     else:
-        await update.effective_message.reply_text(t('session_not_found', lang))
+        await send_message_with_cleanup(update, context, t('session_not_found', lang))
 
     session.close()
 
@@ -729,7 +715,7 @@ async def show_tg_sessions(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     reply_markup = create_tg_sessions_kb(lang)
 
-    await update.effective_message.reply_text(t("tg_sessions_info", lang), reply_markup=reply_markup)
+    await send_message_with_cleanup(update, context, t("tg_sessions_info", lang), reply_markup=reply_markup)
 
 
 @is_courier
@@ -767,7 +753,7 @@ async def order_ready(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             text = await form_confirm_order_courier_info(order, 'ru')  # For admin group always in Russian
             await context.bot.send_message(admin_chat, text, parse_mode=ParseMode.HTML)
     except Exception as e:
-        await update.effective_message.reply_text(t('error', lang).format(repr(e)))
+        await send_message_with_cleanup(update, context, t('error', lang).format(repr(e)))
     finally:
         session.close()
 
@@ -783,7 +769,7 @@ async def notif_client(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     tgsession = session.query(TgSession).filter_by(is_worker=True).first()
 
     if not tgsession:
-        await update.effective_message.reply_text(t('no_worker_session', lang))
+        await send_message_with_cleanup(update, context, t('no_worker_session', lang))
         session.close()
         return
 
@@ -793,12 +779,12 @@ async def notif_client(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         async with client:
             await client.send_message(client_username, t('notif_client_order_active', lang))
     except Exception as e:
-        await update.effective_message.reply_text(t('send_message_error', lang).format(repr(e)))
+        await send_message_with_cleanup(update, context, t('send_message_error', lang).format(repr(e)))
         session.close()
         return
 
     session.close()
-    await update.effective_message.reply_text(t('notification_sent', lang))
+    await send_message_with_cleanup(update, context, t('notification_sent', lang))
 
 
 @is_operator
@@ -814,7 +800,7 @@ async def show_rest_from_last_day(update: Update, context: ContextTypes.DEFAULT_
 
     inline_markup = get_products_markup_left_edit_stock()
 
-    await update.effective_message.reply_text(t('edit_stock_or_delete', lang), reply_markup=inline_markup)
+    await send_message_with_cleanup(update, context, t('edit_stock_or_delete', lang), reply_markup=inline_markup)
 
 
 @is_stockman
@@ -833,7 +819,7 @@ async def show_menu_edit_crude_stock(update: Update, context: ContextTypes.DEFAU
 
     inline_markup = get_products_markup_left_edit_stock_crude()
 
-    msg = await update.effective_message.reply_text(t('edit_crude_stock_prompt', lang), reply_markup=inline_markup)
+    msg = await send_message_with_cleanup(update, context, t('edit_crude_stock_prompt', lang), reply_markup=inline_markup)
     
     # Save ID for future cleanup
     save_message_id(context, msg.message_id)
@@ -851,7 +837,7 @@ async def handle_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         # Back logic
         previous_menu = get_previous_menu(context)
         if not previous_menu:
-            msg = await update.effective_message.reply_text(t("no_previous_menu", lang))
+            msg = await send_message_with_cleanup(update, context, t("no_previous_menu", lang))
             save_message_id(context, msg.message_id)
             return
         
@@ -864,7 +850,7 @@ async def handle_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         elif menu_name == 'admin_menu':
             await show_admin_action_kb(update, context)
         else:
-            msg = await update.effective_message.reply_text(t("no_previous_menu", lang))
+            msg = await send_message_with_cleanup(update, context, t("no_previous_menu", lang))
             save_message_id(context, msg.message_id)
     
     elif update.callback_query.data == "home":
@@ -918,4 +904,4 @@ async def show_staff_list(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             message += "\n"
     
     session.close()
-    await update.effective_message.reply_text(message, parse_mode=ParseMode.HTML)
+    await send_message_with_cleanup(update, context, message, parse_mode=ParseMode.HTML)
