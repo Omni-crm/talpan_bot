@@ -96,7 +96,9 @@ def main() -> None:
     application.add_handler(CallbackQueryHandler(handle_confirmation, pattern="confirm_|cancel_"))
     application.add_handler(CallbackQueryHandler(collect_username, pattern="skip_username"))
 
-    application.job_queue.run_daily(show_week_report, time=datetime.time(hour=12), days=(6,),)
+    # Schedule weekly report (only if job_queue is available)
+    if application.job_queue:
+        application.job_queue.run_daily(show_week_report, time=datetime.time(hour=12), days=(6,),)
 
     # Filter orders by date
     application.add_handler(MessageHandler(filters.Regex(r'^order:\d{2}\.\d{2}\.\d{4}:\d{2}\.\d{2}\.\d{4}$'), filter_orders_by_date))
