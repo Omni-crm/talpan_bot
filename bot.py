@@ -1,4 +1,4 @@
-import logging, os
+import logging, os, signal, sys
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, Defaults
 from config.config import *
 from funcs.bot_funcs import *
@@ -20,8 +20,24 @@ from handlers.make_tg_session_handler import MAKE_TG_SESSION_HANDLER
 from handlers.new_order_handler import collect_username
 from db.db import Base, engine, initialize_default_settings
 
+# Global variable to store the application
+bot_application = None
+
+def signal_handler(signum, frame):
+    """Handle shutdown signals gracefully."""
+    logging.info("🛑 Received shutdown signal, stopping gracefully...")
+    if bot_application:
+        bot_application.stop()
+    sys.exit(0)
+
+# Register signal handlers
+signal.signal(signal.SIGTERM, signal_handler)
+signal.signal(signal.SIGINT, signal_handler)
+
 def main() -> None:
     """Run the bot."""
+    global bot_application
+    
     # Ensure all tables are created, including BotSettings
     Base.metadata.create_all(engine)
     
@@ -36,6 +52,7 @@ def main() -> None:
     initialize_default_settings()
     # Create the Application and pass it your bot's token.
     application = Application.builder().token(BOT_TOKEN).concurrent_updates(True).build()
+    bot_application = application  # Store globally for signal handler
     # Health log on startup for Railway
     import logging, os
     logging.getLogger(__name__).setLevel(logging.INFO)
@@ -147,7 +164,8 @@ def main() -> None:
 
 
     # Run the bot until the user presses Ctrl-C
-    application.run_polling()
+    # Enable graceful shutdown on SIGTERM and SIGINT
+    application.run_polling(stop_signals=(signal.SIGTERM, signal.SIGINT))
 
 
 if __name__ == "__main__":

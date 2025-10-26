@@ -3,6 +3,12 @@
 name = "courier-bot"
 start = "python3 bot.py"
 
+# Enable graceful shutdown and zero-downtime deployments
+[deploy]
+startCommand = "python3 bot.py"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 10
+
 [build]
 builder = "nixpacks"
 
