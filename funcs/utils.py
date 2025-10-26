@@ -24,6 +24,15 @@ async def cleanup_old_messages(context: ContextTypes.DEFAULT_TYPE) -> None:
         context.user_data["msgs_to_delete"] = []
 
 
+def save_message_for_cleanup(context: ContextTypes.DEFAULT_TYPE, msg) -> None:
+    """
+    פונקציה לשמירת הודעה למחיקה עתידית
+    """
+    if not context.user_data.get("msgs_to_delete"):
+        context.user_data["msgs_to_delete"] = []
+    context.user_data["msgs_to_delete"].append(msg)
+
+
 async def send_message_with_cleanup(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str, **kwargs):
     """
     פונקציה כללית לשליחת הודעה עם ניקוי אוטומטי של הודעות קודמות
