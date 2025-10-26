@@ -55,12 +55,15 @@ async def start_collect_data(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     return CollectOrderDataStates.NAME
 
-async def collect_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def collect_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Collecting name and go to next step @username."""
     lang = context.user_data["collect_order_data"]["lang"]
     
     if not update.callback_query:
-        await update.effective_message.delete()
+        try:
+            await update.effective_message.delete()
+        except:
+            pass
 
     context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.NAME
 
@@ -74,7 +77,7 @@ async def collect_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     return CollectOrderDataStates.USERNAME
 
-async def collect_username(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def collect_username(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Collecting @username or skip."""
     lang = context.user_data["collect_order_data"]["lang"]
     
@@ -91,7 +94,10 @@ async def collect_username(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             
             return CollectOrderDataStates.PHONE
     else:
-        await update.effective_message.delete()
+        try:
+            await update.effective_message.delete()
+        except:
+            pass
         context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.USERNAME
         
         username = update.message.text[:36]
@@ -102,12 +108,16 @@ async def collect_username(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
         return CollectOrderDataStates.PHONE
 
-async def collect_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def collect_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Collecting phone."""
     lang = context.user_data["collect_order_data"]["lang"]
     
     if not update.callback_query:
-        await update.effective_message.delete()
+        # מחיקת הודעת המשתמש
+        try:
+            await update.effective_message.delete()
+        except:
+            pass
 
     context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.PHONE
 
