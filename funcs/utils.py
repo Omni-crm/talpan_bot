@@ -94,8 +94,16 @@ async def send_shift_start_msg(update: Update, context: ContextTypes.DEFAULT_TYP
     shift = Shift()
     shift.operator_id = update.effective_user.id
     shift.operator_username = update.effective_user.username
+    shift.status = ShiftStatus.opened
     session.add(shift)
     session.commit()
+    
+    # Verify the shift was saved
+    saved_shift = session.query(Shift).filter(Shift.id == shift.id).first()
+    if not saved_shift:
+        print("ERROR: Shift was not saved properly!")
+        session.close()
+        return
 
     products_text = " | ".join([((product.get("name") + ' ' + str(product.get("stock")))) for product in shift.get_products()])
 
