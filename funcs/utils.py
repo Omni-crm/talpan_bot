@@ -107,9 +107,18 @@ async def send_shift_start_msg(update: Update, context: ContextTypes.DEFAULT_TYP
         'opened_time': datetime.datetime.now().isoformat()
     }
     saved_shift = db_client.insert('shifts', shift_data)
+    
+    # Handle response
+    if not saved_shift or 'id' not in saved_shift:
+        print(f"❌ Error creating shift: {saved_shift}")
+        await update.effective_message.reply_text("❌ Error starting shift")
+        return
+    
     shift.id = saved_shift['id']
     shift.opened_time = datetime.datetime.fromisoformat(saved_shift['opened_time'])
-
+    
+    # Get products from the saved shift data
+    shift.products_start = shift_data['products_start']
     products_text = " | ".join([((product.get("name") + ' ' + str(product.get("stock")))) for product in shift.get_products()])
 
     # הוספת RTL mark לתחילת ההודעה אם בעברית
