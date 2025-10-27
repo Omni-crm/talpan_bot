@@ -22,18 +22,22 @@ async def start_dealing_template(update: Update, context: ContextTypes.DEFAULT_T
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
 
-    session = Session()
-
+    # Using Supabase only
+    from db.db import db_client
+    
     _, template_id, order_id = update.callback_query.data.split('_')
     print(_, template_id, order_id)
     template_id = int(template_id)
     order_id = int(order_id)
 
-    template: Template = session.query(Template).get(template_id)
-    order = session.query(Order).get(order_id)
+    templates = db_client.select('templates', {'id': template_id})
+    orders = db_client.select('orders', {'id': order_id})
+    
+    template = templates[0] if templates else None
+    order = orders[0] if orders else None
 
     start_msg = await update.effective_message.edit_text(
-        text=t("template_info", lang).format(template.name, template.text),
+        text=t("template_info", lang).format(template.get('name'), template.get('text')),
         reply_markup=get_actions_template_kb(lang),
         parse_mode=ParseMode.HTML,
     )
@@ -49,32 +53,38 @@ async def send_template(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     await update.callback_query.answer()
     lang = context.user_data["dealing_template_data"]["lang"]
 
-    template: Template = context.user_data["dealing_template_data"]["template"]
-    order: Order = context.user_data["dealing_template_data"]["order"]
+    template = context.user_data["dealing_template_data"]["template"]
+    order = context.user_data["dealing_template_data"]["order"]
     msg: Message = context.user_data["dealing_template_data"]["start_msg"]
 
-    session = Session()
-    order = session.query(Order).get(order.id)
-    template = session.query(Template).get(template.id)
+    # Using Supabase only
+    from db.db import db_client
+    
+    # Get fresh data from Supabase
+    orders = db_client.select('orders', {'id': order['id']})
+    templates = db_client.select('templates', {'id': template['id']})
+    tgsessions_list = db_client.select('tgsessions', {'is_worker': True})
 
-    tgsession = session.query(TgSession).filter_by(is_worker=True).first()
-
-    if not tgsession:
+    if not tgsessions_list:
         await msg.reply_text(t('no_worker_account', lang))
-        session.close()
         return ConversationHandler.END
 
+    tgsession = tgsessions_list[0]
+    
+    # Get fresh data
+    order = orders[0] if orders else order
+    template = templates[0] if templates else template
+
     try:
-        client = Client(name='default', api_id=tgsession.api_id, api_hash=tgsession.api_hash, session_string=tgsession.string)
+        client = Client(name='default', api_id=tgsession['api_id'], api_hash=tgsession['api_hash'], session_string=tgsession['string'])
 
         async with client:
-            await client.send_message(order.client_username, template.text)
+            await client.send_message(order['client_username'], template['text'])
 
-        await msg.reply_text(t('template_sent', lang).format(template.id, template.name))
+        await msg.reply_text(t('template_sent', lang).format(template['id'], template['name']))
     except Exception as e:
         await update.effective_message.reply_text(t('send_message_error', lang).format(repr(e)))
     finally:
-        session.close()
         await msg.delete()
 
         return ConversationHandler.END
@@ -83,20 +93,16 @@ async def delete_template(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     await update.callback_query.answer()
     lang = context.user_data["dealing_template_data"]["lang"]
 
-    template: Template = context.user_data["dealing_template_data"]["template"]
+    template = context.user_data["dealing_template_data"]["template"]
 
-    session = Session()
-    template = session.query(Template).get(template.id)
-
-
-    session.delete(template)
-    session.flush()
-    session.commit()
+    # Using Supabase only
+    from db.db import db_client
+    
+    db_client.delete('templates', {'id': template['id']})
 
     msg: Message = context.user_data["dealing_template_data"]["start_msg"]
 
-    await msg.edit_text(t('template_deleted', lang).format(template.name))
-    session.close()
+    await msg.edit_text(t('template_deleted', lang).format(template['name']))
 
     del context.user_data["dealing_template_data"]
 
@@ -127,23 +133,24 @@ async def editing_template_name_end(update: Update, context: ContextTypes.DEFAUL
     name = update.effective_message.text[:22]
     context.user_data["dealing_template_data"]["name"] = name
 
-    session = Session()
-
-    template: Template = context.user_data["dealing_template_data"]["template"]
-
-    template = session.query(Template).get(template.id)
-    template.name = name
-    session.commit()
-    print(template)
+    # Using Supabase only
+    from db.db import db_client
+    
+    template = context.user_data["dealing_template_data"]["template"]
+    
+    db_client.update('templates', {'name': name}, {'id': template['id']})
+    
+    # Update in context
+    template['name'] = name
+    print(f"Updated template: {template}")
 
     start_msg: Message = context.user_data["dealing_template_data"]["start_msg"]
 
     await start_msg.edit_text(
-        text=t("template_updated", lang).format(template.name, template.text),
+        text=t("template_updated", lang).format(template['name'], template['text']),
         parse_mode=ParseMode.HTML,
         reply_markup=get_actions_template_kb(lang),
     )
-    session.close()
 
     return DealTemplateStates.CHOOSE_ACTION
 
@@ -162,22 +169,24 @@ async def editing_template_text_end(update: Update, context: ContextTypes.DEFAUL
     text = update.effective_message.text
     context.user_data["dealing_template_data"]["text"] = text
 
-    session = Session()
-
-    template: Template = context.user_data["dealing_template_data"]["template"]
-    template = session.query(Template).get(template.id)
-    template.text = text
-    session.commit()
-    print(template)
+    # Using Supabase only
+    from db.db import db_client
+    
+    template = context.user_data["dealing_template_data"]["template"]
+    
+    db_client.update('templates', {'text': text}, {'id': template['id']})
+    
+    # Update in context
+    template['text'] = text
+    print(f"Updated template: {template}")
 
     start_msg: Message = context.user_data["dealing_template_data"]["start_msg"]
 
     await start_msg.edit_text(
-        text=t("template_updated", lang).format(template.name, template.text),
+        text=t("template_updated", lang).format(template['name'], template['text']),
         parse_mode=ParseMode.HTML,
         reply_markup=get_actions_template_kb(lang),
     )
-    session.close()
 
     return DealTemplateStates.CHOOSE_ACTION
 
