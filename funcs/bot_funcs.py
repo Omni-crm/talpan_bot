@@ -683,7 +683,7 @@ async def confirm_stock_shift(update: Update, context: ContextTypes.DEFAULT_TYPE
     from db.db import get_opened_shift
     
     shift_data = get_opened_shift()
-    shift = type('Shift', (), shift_data)() if shift_data else None
+    shift = type('Shift', (), shift_data)() if shift_data and isinstance(shift_data, dict) else None
     
     if shift:
         await send_message_with_cleanup(update, context, t('close_previous_shift', lang))

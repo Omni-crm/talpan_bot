@@ -51,6 +51,10 @@ class SupabaseClient:
         except requests.exceptions.HTTPError as e:
             print(f"❌ SELECT error: {e}")
             return []
+        except ValueError as e:
+            # Handle JSON decode errors
+            print(f"❌ JSON decode error: {e}")
+            return []
     
     def insert(self, table: str, data: Dict) -> Dict:
         """INSERT query - מבוסס על HTTP POST request"""
@@ -69,7 +73,13 @@ class SupabaseClient:
         
         except requests.exceptions.HTTPError as e:
             print(f"❌ INSERT error: {e}")
+            print(f"   Response: {response.text}")
             raise
+        except ValueError as e:
+            # Handle JSON decode errors
+            print(f"❌ JSON decode error: {e}")
+            print(f"   Response text length: {len(response.text) if response.text else 0}")
+            return {}
     
     def update(self, table: str, data: Dict, filters: Optional[Dict] = None) -> List[Dict]:
         """UPDATE query - מבוסס על HTTP PATCH request"""
@@ -93,6 +103,10 @@ class SupabaseClient:
         
         except requests.exceptions.HTTPError as e:
             print(f"❌ UPDATE error: {e}")
+            return []
+        except ValueError as e:
+            # Handle JSON decode errors
+            print(f"❌ JSON decode error: {e}")
             return []
     
     def delete(self, table: str, filters: Optional[Dict] = None) -> bool:
