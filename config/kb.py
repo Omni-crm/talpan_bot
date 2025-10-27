@@ -307,28 +307,27 @@ def show_tg_session_action_kb(sess_id: str, lang='ru'):
     return SESS_ACT_KB
 
 def create_tg_sessions_kb(lang='ru'):
-    session_db = Session()
-
-    tgsessions = session_db.query(TgSession).filter_by(is_worker=False).all()
-    worker_session = session_db.query(TgSession).filter_by(is_worker=True).first()
+    # Using Supabase only
+    from db.db import db_client
+    
+    tgsessions = db_client.select('tgsessions', {'is_worker': False})
+    worker_sessions = db_client.select('tgsessions', {'is_worker': True})
+    worker_session = worker_sessions[0] if worker_sessions else None
 
     if not tgsessions and not worker_session:
-        session_db.close()
         inline_keyboard = [
             [InlineKeyboardButton(t('btn_add_account', lang), callback_data='make_tg_session')],
             [InlineKeyboardButton(t("btn_back", lang), callback_data="back"), InlineKeyboardButton(t("btn_home", lang), callback_data="home")]
         ]
         return InlineKeyboardMarkup(inline_keyboard=inline_keyboard,)
 
-    inline_keyboard = [[InlineKeyboardButton(f'{tgsess.name[:10]} {tgsess.username[:10]}', callback_data=f'sess_{tgsess.id}')] for tgsess in tgsessions]
+    inline_keyboard = [[InlineKeyboardButton(f'{sess.get("name", "")[:10]} {sess.get("username", "")[:10]}', callback_data=f'sess_{sess.get("id")}')] for sess in tgsessions]
 
     if worker_session:
-        inline_keyboard = [[InlineKeyboardButton(f'✅ {worker_session.name[:10]} {worker_session.username[:10]}', callback_data=f'sess_{worker_session.id}')]] + inline_keyboard
+        inline_keyboard = [[InlineKeyboardButton(f'✅ {worker_session.get("name", "")[:10]} {worker_session.get("username", "")[:10]}', callback_data=f'sess_{worker_session.get("id")}')]] + inline_keyboard
 
     inline_keyboard = [[InlineKeyboardButton(t('btn_add', lang), callback_data='make_tg_session')]] + inline_keyboard
     inline_keyboard.append([InlineKeyboardButton(t("btn_back", lang), callback_data="back"), InlineKeyboardButton(t("btn_home", lang), callback_data="home")])
-
-    session_db.close()
 
     return InlineKeyboardMarkup(inline_keyboard=inline_keyboard,)
 

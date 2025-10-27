@@ -121,8 +121,7 @@ async def send_shift_start_msg(update: Update, context: ContextTypes.DEFAULT_TYP
 <b>{t("initial_stock", lang)}:</b>
 {products_text}
     """
-    session.close()
-
+    
     try:
         from db.db import get_bot_setting
         admin_chat = get_bot_setting('admin_chat') or links.ADMIN_CHAT
