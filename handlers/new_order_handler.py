@@ -100,20 +100,23 @@ async def collect_username(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                 print(f"🔧 Updated message to phone input")
                 
                 return CollectOrderDataStates.PHONE
-    else:
-        try:
-            await update.effective_message.delete()
-        except:
-            pass
-        context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.USERNAME
         
-        username = update.message.text[:36]
-        context.user_data["collect_order_data"]["username"] = username
+        else:
+            # User typed username
+            try:
+                await update.effective_message.delete()
+            except:
+                pass
+            
+            context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.USERNAME
+            username = update.message.text[:36]
+            context.user_data["collect_order_data"]["username"] = username
 
-        msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-        context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(t("enter_client_phone", lang), reply_markup=get_back_cancel_kb(lang))
+            msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+            context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(t("enter_client_phone", lang), reply_markup=get_back_cancel_kb(lang))
+            print(f"🔧 Updated message to phone input (with username)")
 
-        return CollectOrderDataStates.PHONE
+            return CollectOrderDataStates.PHONE
     except Exception as e:
         print(f"❌ ERROR in collect_username: {e}")
         import traceback
