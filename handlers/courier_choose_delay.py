@@ -23,16 +23,13 @@ async def choose_minutes_courier(update: Update, context: ContextTypes.DEFAULT_T
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
 
-    session = Session()
-    courier = session.query(User).filter(
-        User.user_id == update.effective_user.id,
-        or_(User.role == Role.RUNNER, User.role == Role.ADMIN)
-    ).first()
-    if not courier:
+    # Using Supabase only
+    from db.db import db_client
+    
+    users = db_client.select('users', {'user_id': update.effective_user.id})
+    if not users or users[0].get('role') not in ['runner', 'admin']:
         await update.effective_message.reply_text(t('need_courier_role', lang))
-        session.close()
         return ConversationHandler.END
-    session.close()
 
     start_msg_2 = await update.effective_message.reply_text(t('enter_delay_reason', lang))
     context.user_data["delay_min_data"] = {}
@@ -77,18 +74,33 @@ async def delay_minutes_courier_end(update: Update, context: ContextTypes.DEFAUL
 
     order_id = context.user_data["delay_min_data"]["order_id"]
 
-    session = Session()
+    # Using Supabase only
+    from db.db import db_client
+    
+    # Update order
+    db_client.update('orders', {
+        'courier_id': update.effective_user.id,
+        'courier_name': f"{update.effective_user.first_name} {update.effective_user.last_name if update.effective_user.last_name else ''}".strip(),
+        'courier_username': f"@{update.effective_user.username}" if update.effective_user.username else "",
+        'delay_minutes': delay_minutes,
+        'delay_reason': context.user_data["delay_min_data"]["delay_reason"],
+        'status': 'delay'
+    }, {'id': order_id})
 
-    order = session.query(Order).filter(Order.id==order_id).first()
-
-    order.courier_id = update.effective_user.id
-    order.courier_name = f"{update.effective_user.first_name} {update.effective_user.last_name if update.effective_user.last_name else ''}".strip()
-    order.courier_username = f"@{update.effective_user.username}" if update.effective_user.username else ""
-    order.delay_minutes = delay_minutes
-    order.delay_reason = context.user_data["delay_min_data"]["delay_reason"]
-    order.status = Status.delay
-
-    session.commit()
+    # Get updated order for compatibility
+    orders = db_client.select('orders', {'id': order_id})
+    order_dict = orders[0] if orders else {}
+    
+    class OrderObj:
+        def __init__(self, data):
+            self.id = data.get('id')
+            for k, v in data.items():
+                if k == 'status':
+                    setattr(self, k, type('Status', (), {'value': v})())
+                else:
+                    setattr(self, k, v)
+    
+    order = OrderObj(order_dict)
 
     msg: Message = context.user_data["delay_min_data"]["start_msg"]
 
@@ -106,10 +118,8 @@ async def delay_minutes_courier_end(update: Update, context: ContextTypes.DEFAUL
 
             text = await form_confirm_order_courier_info(order, 'ru')  # לקבוצת אדמינים תמיד ברוסית
             await context.bot.send_message(admin_chat, text, parse_mode=ParseMode.HTML)
-    except Exception:
-        traceback.print_exc(chain=False)
-
-    session.close()
+    except Exception as e:
+        print(f"Error: {e}")
     del context.user_data["delay_min_data"]
 
     return ConversationHandler.END
@@ -133,18 +143,33 @@ async def write_delay_minutes_courier_end(update: Update, context: ContextTypes.
 
     order_id = context.user_data["delay_min_data"]["order_id"]
 
-    session = Session()
+    # Using Supabase only
+    from db.db import db_client, get_opened_shift
+    
+    # Update order
+    db_client.update('orders', {
+        'courier_id': update.effective_user.id,
+        'courier_name': f"{update.effective_user.first_name} {update.effective_user.last_name if update.effective_user.last_name else ''}".strip(),
+        'courier_username': f"@{update.effective_user.username}" if update.effective_user.username else "",
+        'delay_minutes': minutes,
+        'delay_reason': context.user_data["delay_min_data"]["delay_reason"],
+        'status': 'delay'
+    }, {'id': order_id})
 
-    order = session.query(Order).filter(Order.id==order_id).first()
-
-    order.courier_id = update.effective_user.id
-    order.courier_name = f"{update.effective_user.first_name} {update.effective_user.last_name if update.effective_user.last_name else ''}".strip()
-    order.courier_username = f"@{update.effective_user.username}" if update.effective_user.username else ""
-    order.delay_minutes = minutes
-    order.delay_reason = context.user_data["delay_min_data"]["delay_reason"]
-    order.status = Status.delay
-
-    session.commit()
+    # Get updated order for compatibility
+    orders = db_client.select('orders', {'id': order_id})
+    order_dict = orders[0] if orders else {}
+    
+    class OrderObj:
+        def __init__(self, data):
+            self.id = data.get('id')
+            for k, v in data.items():
+                if k == 'status':
+                    setattr(self, k, type('Status', (), {'value': v})())
+                else:
+                    setattr(self, k, v)
+    
+    order = OrderObj(order_dict)
 
     start_msg: Message = context.user_data["delay_min_data"]["start_msg"]
 
@@ -159,18 +184,16 @@ async def write_delay_minutes_courier_end(update: Update, context: ContextTypes.
                 except:
                     pass
 
-        shift = session.query(Shift).filter(Shift.status==ShiftStatus.opened).first()
+        shift = get_opened_shift()
 
         if shift:
             try:
-                operator_lang = get_user_lang(shift.operator_id)
-                await context.bot.send_message(shift.operator_id, (await form_notif_delay_short(order, operator_lang)), parse_mode=ParseMode.HTML)
+                operator_lang = get_user_lang(shift['operator_id'])
+                await context.bot.send_message(shift['operator_id'], (await form_notif_delay_short(order, operator_lang)), parse_mode=ParseMode.HTML)
             except Exception as e:
                 print(repr(e))
-    except Exception:
-        traceback.print_exc()
-
-    session.close()
+    except Exception as e:
+        print(f"Error: {e}")
     del context.user_data["delay_min_data"]
 
     return ConversationHandler.END

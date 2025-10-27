@@ -499,8 +499,10 @@ MANAGE_ROLES_KB = get_manage_roles_kb('ru')
 ADMIN_ACTION_KB = get_admin_action_kb('ru')
 
 async def form_operator_templates_kb(order: Order, lang: str = 'ru'):
-    session = Session()
-    templates = session.query(Template).all()
+    # Using Supabase only
+    from db.db import db_client
+    
+    templates = db_client.select('templates')
 
     inline_keyboard=[
         [InlineKeyboardButton(t('btn_add_template', lang), callback_data="new_shab")],
@@ -508,7 +510,7 @@ async def form_operator_templates_kb(order: Order, lang: str = 'ru'):
 
     for template in templates:
         inline_keyboard.append(
-            [InlineKeyboardButton(f'{template.id}. {template.name}', callback_data=f"shab_{template.id}_{order.id}")]
+            [InlineKeyboardButton(f'{template.get("id")}. {template.get("name")}', callback_data=f"shab_{template.get("id")}_{order.id}")]
         )
 
     # Add navigation buttons
