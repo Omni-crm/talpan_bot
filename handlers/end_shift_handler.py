@@ -1,6 +1,6 @@
 from telegram.ext import CallbackQueryHandler, TypeHandler, ContextTypes, ConversationHandler, MessageHandler, filters
-from telegram import Message, InlineKeyboardMarkup, InlineKeyboardButton, ParseMode
-from telegram import Update
+from telegram import Message, InlineKeyboardMarkup, InlineKeyboardButton, Update
+from telegram.constants import ParseMode
 from geopy.geocoders import Nominatim
 from db.db import *
 from config.config import *
