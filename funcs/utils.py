@@ -106,7 +106,9 @@ async def send_shift_start_msg(update: Update, context: ContextTypes.DEFAULT_TYP
         'products_start': json.dumps(Shift.set_products()),
         'opened_time': datetime.datetime.now().isoformat()
     }
+    print(f"🔧 Inserting shift to Supabase...")
     saved_shift = db_client.insert('shifts', shift_data)
+    print(f"🔧 Insert response: {saved_shift}")
     
     # Handle response
     if not saved_shift or 'id' not in saved_shift:
@@ -114,12 +116,15 @@ async def send_shift_start_msg(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.effective_message.reply_text("❌ Error starting shift")
         return
     
+    print(f"🔧 Shift created with ID: {saved_shift['id']}")
     shift.id = saved_shift['id']
     shift.opened_time = datetime.datetime.fromisoformat(saved_shift['opened_time'])
     
     # Get products from the saved shift data
     shift.products_start = shift_data['products_start']
+    print(f"🔧 Getting products from shift...")
     products_text = " | ".join([((product.get("name") + ' ' + str(product.get("stock")))) for product in shift.get_products()])
+    print(f"🔧 Products text: {products_text}")
 
     # הוספת RTL mark לתחילת ההודעה אם בעברית
     rtl = '\u200F' if lang == 'he' else ''
@@ -140,9 +145,12 @@ async def send_shift_start_msg(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.effective_message.reply_text(repr(e))
     
     # החזרה למסך הראשי
+    print(f"🔧 Returning to main menu...")
     from config.kb import build_start_menu
     reply_markup = await build_start_menu(update.effective_user.id)
+    print(f"🔧 Main menu built")
     await send_message_with_cleanup(update, context, t("main_menu", lang), reply_markup=reply_markup)
+    print(f"🔧 Main menu sent - shift start complete!")
 
 
 async def form_confirm_order(order: Order, lang: str = 'ru') -> str:
