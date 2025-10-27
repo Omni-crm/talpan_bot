@@ -20,12 +20,12 @@ async def start_edit_product(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     product_id = int(update.callback_query.data.split('_')[1])
 
-    session = Session()
+    # Using Supabase only
+    from db.db import get_product_by_id
+    
+    product = get_product_by_id(product_id)
 
-    product = session.query(Product).filter(Product.id==product_id).first()
-    session.close()
-
-    start_msg = await update.effective_message.edit_text(t("product_info", lang).format(product.name, product.stock), reply_markup=get_edit_product_kb(lang), parse_mode=ParseMode.HTML)
+    start_msg = await update.effective_message.edit_text(t("product_info", lang).format(product.get('name'), product.get('stock')), reply_markup=get_edit_product_kb(lang), parse_mode=ParseMode.HTML)
     context.user_data["edit_product_data"] = {}
     context.user_data["edit_product_data"]["start_msg"] = start_msg
     context.user_data["edit_product_data"]["product"] = product
@@ -50,19 +50,16 @@ async def edit_product_stock_end(update: Update, context: ContextTypes.DEFAULT_T
     new_stock = int(update.effective_message.text[:20])
     await update.effective_message.delete()
 
-    product: Product = context.user_data["edit_product_data"]["product"]
+    product = context.user_data["edit_product_data"]["product"]
 
-    session = Session()
-    product = session.query(Product).filter(Product.id==product.id).first()
-
-    product.stock = new_stock
-    session.commit()
-
+    # Using Supabase only
+    from db.db import db_client
+    
+    db_client.update('products', {'stock': new_stock}, {'id': product['id']})
 
     msg = context.user_data["edit_product_data"]["start_msg"]
 
-    await msg.edit_text(t("stock_updated", lang).format(product.name, product.stock))
-    session.close()
+    await msg.edit_text(t("stock_updated", lang).format(product.get('name'), new_stock))
 
     del context.user_data["edit_product_data"]
 
@@ -72,19 +69,16 @@ async def delete_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     await update.callback_query.answer()
     lang = context.user_data["edit_product_data"]["lang"]
 
-    product: Product = context.user_data["edit_product_data"]["product"]
+    product = context.user_data["edit_product_data"]["product"]
 
-    session = Session()
-
-    session.delete(product)
-    session.flush()
-    session.commit()
-
-    session.close()
+    # Using Supabase only
+    from db.db import db_client
+    
+    db_client.delete('products', {'id': product['id']})
 
     msg = context.user_data["edit_product_data"]["start_msg"]
 
-    await msg.edit_text(t("product_deleted", lang).format(product.name))
+    await msg.edit_text(t("product_deleted", lang).format(product.get('name')))
     del context.user_data["edit_product_data"]
 
     return ConversationHandler.END
