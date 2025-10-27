@@ -519,20 +519,40 @@ def save_message_id(context, message_id):
 # דוח סיום משמרת
 async def send_shift_end_report_to_admins(shift, lang: str = 'ru') -> None:
     """שליחת דוח סיום משמרת לקבוצת מנהלים"""
+    print(f"🔧 send_shift_end_report_to_admins called")
+    print(f"🔧 Shift type: {type(shift)}")
+    print(f"🔧 Lang: {lang}")
+    
     from config.config import links
     from telegram.constants import ParseMode
     
     rtl = '\u200F' if lang == 'he' else ''
     
+    # Handle both dict and object
+    summary = shift.summary if hasattr(shift, 'summary') else shift.get('summary', '{}')
+    brutto = shift.brutto if hasattr(shift, 'brutto') else shift.get('brutto', 0)
+    operator_paid = shift.operator_paid if hasattr(shift, 'operator_paid') else shift.get('operator_paid', 0)
+    runner_paid = shift.runner_paid if hasattr(shift, 'runner_paid') else shift.get('runner_paid', 0)
+    petrol_paid = shift.petrol_paid if hasattr(shift, 'petrol_paid') else shift.get('petrol_paid', 0)
+    netto = shift.netto if hasattr(shift, 'netto') else shift.get('netto', 0)
+    closed_time = shift.closed_time if hasattr(shift, 'closed_time') else shift.get('closed_time')
+    
     # חישוב נתונים
-    total_orders = len(json.loads(shift.summary)) if shift.summary else 0
-    total_brutto = shift.brutto or 0
-    total_expenses = (shift.operator_paid or 0) + (shift.runner_paid or 0) + (shift.petrol_paid or 0)
-    net_profit = shift.netto or 0
+    total_orders = len(json.loads(summary)) if summary else 0
+    total_brutto = brutto or 0
+    total_expenses = (operator_paid or 0) + (runner_paid or 0) + (petrol_paid or 0)
+    net_profit = netto or 0
+    
+    # Handle closed_time
+    import datetime
+    if isinstance(closed_time, str):
+        closed_time = datetime.datetime.fromisoformat(closed_time)
+    elif not isinstance(closed_time, datetime.datetime):
+        closed_time = datetime.datetime.now()
     
     # בניית הדוח
     report = f"""{rtl}<b>{t("shift_end_report_title", lang)}</b>
-<i>{shift.closed_time.strftime("%d.%m.%Y, %H:%M:%S")}</i>
+<i>{closed_time.strftime("%d.%m.%Y, %H:%M:%S")}</i>
 
 <b>{t("total_orders", lang)}:</b> {total_orders}
 <b>{t("total_brutto", lang)}:</b> {total_brutto}₪
@@ -540,9 +560,9 @@ async def send_shift_end_report_to_admins(shift, lang: str = 'ru') -> None:
 <b>{t("net_profit", lang)}:</b> {net_profit}₪
 
 <b>{t("expenses_breakdown", lang)}:</b>
-• {t("operator_pay", lang)}: {shift.operator_paid or 0}₪
-• {t("courier_pay", lang)}: {shift.runner_paid or 0}₪
-• {t("fuel_pay", lang)}: {shift.petrol_paid or 0}₪
+• {t("operator_pay", lang)}: {operator_paid or 0}₪
+• {t("courier_pay", lang)}: {runner_paid or 0}₪
+• {t("fuel_pay", lang)}: {petrol_paid or 0}₪
 """
     
     # שליחה לקבוצת מנהלים

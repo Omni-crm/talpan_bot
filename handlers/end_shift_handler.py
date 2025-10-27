@@ -297,7 +297,7 @@ async def confirm_end_shift(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     # שליחת דוח סיום משמרת לקבוצת מנהלים
     try:
         from funcs.utils import send_shift_end_report_to_admins
-        await send_shift_end_report_to_admins(shift, lang)
+        await send_shift_end_report_to_admins(shift_obj, lang)
         print(f"🔧 Report sent to admins group")
     except Exception as e:
         print(f"❌ Error sending shift end report to admins: {e}")
