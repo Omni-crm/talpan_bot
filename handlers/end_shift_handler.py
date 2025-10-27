@@ -23,24 +23,43 @@ async def start_end_shift(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
     print(f"DEBUG: User {update.effective_user.id} language: {lang}")  # Debug log
-    session = Session()
-    shift = session.query(Shift).filter(Shift.status==ShiftStatus.opened).first()
+    
+    # Using Supabase only
+    from db.db import get_opened_shift
+    shift = get_opened_shift()
 
     if not shift:
         await update.effective_message.edit_text(t("no_open_shifts", lang))
-        session.close()
         return
+
+    # Convert dict to object-like
+    class ShiftObj:
+        def __init__(self, data):
+            import datetime
+            for k, v in data.items():
+                if isinstance(v, str) and 'T' in v and '-' in v:  # ISO datetime
+                    try:
+                        v = datetime.datetime.fromisoformat(v)
+                    except:
+                        pass
+                setattr(self, k, v)
+    
+    shift_obj = ShiftObj(shift) if isinstance(shift, dict) else shift
 
     # הצגת דיאלוג אישור
     from funcs.utils import show_confirmation_dialog
-    shift_details = f"סיום משמרת - {shift.opened_time.strftime('%d.%m.%Y %H:%M')}"
+    opened_time_str = shift['opened_time'] if isinstance(shift, dict) else shift.opened_time
+    if isinstance(opened_time_str, str):
+        opened_time = datetime.datetime.fromisoformat(opened_time_str)
+    else:
+        opened_time = opened_time_str
+    shift_details = f"סיום משמרת - {opened_time.strftime('%d.%m.%Y %H:%M')}"
     await show_confirmation_dialog(
         update, context, 
         t("end_shift_action", lang), 
         shift_details, 
         lang
     )
-    session.close()
 
     return ConversationHandler.END
 
@@ -71,17 +90,34 @@ async def collect_petrol_paid(update: Update, context: ContextTypes.DEFAULT_TYPE
     lang = context.user_data["end_shift_data"]["lang"]
     context.user_data["end_shift_data"]["petrol_paid"] = int(update.effective_message.text)
 
+    # Using Supabase only
+    from db.db import get_opened_shift, get_all_orders
+    
+    shift = get_opened_shift()
+    
+    # Convert datetime
+    import datetime
+    if isinstance(shift['opened_time'], str):
+        opened_time = datetime.datetime.fromisoformat(shift['opened_time'])
+    else:
+        opened_time = shift['opened_time']
+    
+    shift_start_date = opened_time.strftime("%d.%m.%Y, %H:%M:%S")
 
-    session = Session()
-    shift = session.query(Shift).filter(Shift.status==ShiftStatus.opened).first()
-    shift_start_date = shift.opened_time.strftime("%d.%m.%Y, %H:%M:%S")
+    # Get all completed orders and filter by time range
+    all_orders = get_all_orders()
+    orders = []
+    for o in all_orders:
+        if o.get('status') == 'completed' and o.get('delivered'):
+            delivered_time = datetime.datetime.fromisoformat(o['delivered']) if isinstance(o['delivered'], str) else o['delivered']
+            if opened_time <= delivered_time <= datetime.datetime.now():
+                orders.append(o)
 
-    orders = session.query(Order).filter(
-        Order.status==Status.completed,
-        Order.delivered.between(shift.opened_time, datetime.datetime.now()),
-    )
-
-    all_products: list[dict] = [product for order in orders for product in order.get_products()]
+    # Extract all products from orders
+    all_products = []
+    for order in orders:
+        products = json.loads(order.get('products', '[]'))
+        all_products.extend(products)
 
     print(all_products)
 
@@ -143,38 +179,63 @@ async def collect_petrol_paid(update: Update, context: ContextTypes.DEFAULT_TYPE
     start_msg: Message = context.user_data["end_shift_data"]["start_msg"]
     context.user_data["end_shift_data"]["start_msg"] = await start_msg.edit_text(text, reply_markup=get_confirm_order_kb(lang), parse_mode=ParseMode.HTML)
 
-    session.close()
-
     return EndShiftStates.CONFIRM
 
 
 async def confirm_end_shift(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.callback_query.answer()
     lang = context.user_data["end_shift_data"]["lang"]
-    session = Session()
+    
+    # Using Supabase only
+    from db.db import db_client, get_user_by_id
+    
+    shift_id = context.user_data["end_shift_data"].get("shift_id")
+    if not shift_id:
+        # Get the opened shift
+        from db.db import get_opened_shift
+        opened_shift = get_opened_shift()
+        shift_id = opened_shift['id']
+    
+    user = get_user_by_id(update.effective_user.id)
 
-    shift: Shift = session.query(Shift).get(context.user_data["end_shift_data"]["shift_id"])
-
-    user: User = session.query(User).filter(User.user_id==update.effective_user.id).first()
-
-    shift.operator_paid = context.user_data["end_shift_data"]["operator_paid"]
-    shift.runner_paid = context.user_data["end_shift_data"]["runner_paid"]
-    shift.petrol_paid = context.user_data["end_shift_data"]["petrol_paid"]
-    shift.brutto = context.user_data["end_shift_data"]["brutto"]
-    shift.netto = context.user_data["end_shift_data"]["netto"]
-    shift.products_fetched_text = context.user_data["end_shift_data"]["products_fetched_text"]
-    shift.operator_close_id = user.user_id
-    shift.operator_close_username = user.username
-    shift.summary = json.dumps(context.user_data["end_shift_data"]["summary"])
-
-    shift.products_end = json.dumps(shift.set_products())
-    shift.closed_time = datetime.datetime.now()
-    shift.status = ShiftStatus.closed
-    session.commit()
-
-    report = await form_end_shift_report(shift)
-
-    session.close()
+    # Update shift in Supabase
+    import datetime
+    from db.db import Shift
+    
+    # Get products
+    shift = {'id': shift_id}
+    products_list = Shift.set_products()
+    
+    db_client.update('shifts', {
+        'operator_paid': context.user_data["end_shift_data"]["operator_paid"],
+        'runner_paid': context.user_data["end_shift_data"]["runner_paid"],
+        'petrol_paid': context.user_data["end_shift_data"]["petrol_paid"],
+        'brutto': context.user_data["end_shift_data"]["brutto"],
+        'netto': context.user_data["end_shift_data"]["netto"],
+        'products_fetched_text': context.user_data["end_shift_data"]["products_fetched_text"],
+        'operator_close_id': user.get('user_id'),
+        'operator_close_username': user.get('username'),
+        'summary': json.dumps(context.user_data["end_shift_data"]["summary"]),
+        'products_end': json.dumps(products_list),
+        'closed_time': datetime.datetime.now().isoformat(),
+        'status': 'closed'
+    }, {'id': shift_id})
+    
+    # Create object for report
+    class ShiftObj:
+        def __init__(self, data):
+            for k, v in data.items():
+                if isinstance(v, str) and 'T' in v and '-' in v:
+                    try:
+                        v = datetime.datetime.fromisoformat(v)
+                    except:
+                        pass
+                setattr(self, k, v)
+    
+    shift_data = db_client.select('shifts', {'id': shift_id})[0]
+    shift_obj = ShiftObj(shift_data)
+    
+    report = await form_end_shift_report(shift_obj)
 
     start_msg: Message = context.user_data["end_shift_data"]["start_msg"]
     context.user_data["end_shift_data"]["start_msg"] = await start_msg.edit_text(report, parse_mode=ParseMode.HTML)
