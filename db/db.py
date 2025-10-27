@@ -231,16 +231,8 @@ class Shift(Base):
     @staticmethod
     def set_products():
         # Using Supabase only
-        if USE_SUPABASE:
-            products = db_client.select('products')
-            data = [{'id': product['id'], 'name': product['name'], 'stock': product['stock']} for product in products]
-        else:
-            # Fallback for SQLite (should not be used in production)
-            session = Session()
-            products = session.query(Product).all()
-            data = [{'id': product.id, 'name': product.name, 'stock': product.stock} for product in products]
-            session.close()
-
+        products = db_client.select('products')
+        data = [{'id': product['id'], 'name': product['name'], 'stock': product['stock']} for product in products]
         return data
 
     def get_products(self) -> list[dict]:
@@ -263,20 +255,12 @@ class BotSettings(Base):
     updated_by = Column(BigInteger)  # user_id של מי שעדכן
 
 def get_bot_setting(key: str, default_value: str = "") -> str:
-    """קבלת הגדרה מהמסד הנתונים"""
+    """קבלת הגדרה מהמסד הנתונים - Supabase only"""
     try:
-        if USE_SUPABASE:
-            # Using Supabase
-            results = db_client.select('bot_settings', {'key': key})
-            if results:
-                return results[0].get('value', default_value)
-            return default_value
-        else:
-            # Using SQLite
-            session = Session()
-            setting = session.query(BotSettings).filter(BotSettings.key == key).first()
-            session.close()
-            return setting.value if setting else default_value
+        results = db_client.select('bot_settings', {'key': key})
+        if results:
+            return results[0].get('value', default_value)
+        return default_value
     except Exception as e:
         # If table doesn't exist yet, return default value
         return default_value
@@ -292,56 +276,30 @@ def get_bot_setting_list(key: str) -> list:
     return []
 
 def set_bot_setting(key: str, value: str, user_id: int = None, value_type: str = 'string', description: str = None) -> None:
-    """עדכון הגדרה במסד הנתונים"""
+    """עדכון הגדרה במסד הנתונים - Supabase only"""
     try:
-        if USE_SUPABASE:
-            # Using Supabase
-            # Check if setting exists
-            results = db_client.select('bot_settings', {'key': key})
-            
-            if results:
-                # Update existing setting
-                db_client.update('bot_settings', {
-                    'value': value,
-                    'value_type': value_type,
-                    'updated_at': datetime.datetime.now().isoformat(),
-                    'updated_by': user_id,
-                    'description': description or results[0].get('description', '')
-                }, {'key': key})
-            else:
-                # Create new setting
-                db_client.insert('bot_settings', {
-                    'key': key,
-                    'value': value,
-                    'value_type': value_type,
-                    'description': description or '',
-                    'updated_by': user_id,
-                    'updated_at': datetime.datetime.now().isoformat()
-                })
+        # Check if setting exists
+        results = db_client.select('bot_settings', {'key': key})
+        
+        if results:
+            # Update existing setting
+            db_client.update('bot_settings', {
+                'value': value,
+                'value_type': value_type,
+                'updated_at': datetime.datetime.now().isoformat(),
+                'updated_by': user_id,
+                'description': description or results[0].get('description', '')
+            }, {'key': key})
         else:
-            # Using SQLite
-            session = Session()
-            setting = session.query(BotSettings).filter(BotSettings.key == key).first()
-            
-            if setting:
-                setting.value = value
-                setting.value_type = value_type
-                setting.updated_at = datetime.datetime.now()
-                setting.updated_by = user_id
-                if description:
-                    setting.description = description
-            else:
-                setting = BotSettings(
-                    key=key, 
-                    value=value, 
-                    value_type=value_type,
-                    description=description,
-                    updated_by=user_id
-                )
-                session.add(setting)
-            
-            session.commit()
-            session.close()
+            # Create new setting
+            db_client.insert('bot_settings', {
+                'key': key,
+                'value': value,
+                'value_type': value_type,
+                'description': description or '',
+                'updated_by': user_id,
+                'updated_at': datetime.datetime.now().isoformat()
+            })
     except Exception as e:
         # If table doesn't exist yet, ignore the error
         # The table will be created in bot.py
