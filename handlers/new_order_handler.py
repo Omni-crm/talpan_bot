@@ -196,15 +196,17 @@ async def save_new_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     stock = int(update.message.text[:10])
 
-    session = Session()
-    product = Product(
-        name=context.user_data["collect_order_data"]["new_product_name"],
-        stock=stock,
-    )
-    session.add(product)
-    session.commit()
-    print(product)
-    session.close()
+    # Using Supabase only
+    from db.db import db_client
+    
+    product_data = {
+        'name': context.user_data["collect_order_data"]["new_product_name"],
+        'stock': stock,
+        'price': 0,
+        'crude': 0
+    }
+    result = db_client.insert('products', product_data)
+    print(f"Created product: {result}")
 
     msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
     context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(t("choose_product", lang), reply_markup=get_products_markup(update.effective_user))
@@ -218,12 +220,13 @@ async def collect_product(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.PRODUCT
 
     if update.callback_query.data.isdigit():
-        session = Session()
-        product = session.query(Product).filter(Product.id==int(update.callback_query.data)).first()
+        # Using Supabase only
+        from db.db import get_product_by_id
+        product = get_product_by_id(int(update.callback_query.data))
 
-        context.user_data["collect_order_data"]["product"] = product.name
-        context.user_data["collect_order_data"]["product_stock"] = product.stock
-        session.close()
+        if product:
+            context.user_data["collect_order_data"]["product"] = product.get('name', '')
+            context.user_data["collect_order_data"]["product_stock"] = product.get('stock', 0)
 
     msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
     context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(t("choose_or_enter_quantity", lang), reply_markup=SELECT_QUANTITY_KB)
@@ -401,22 +404,33 @@ async def confirm_order(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
 
-    session = Session()
-    order = Order(
-        client_name=context.user_data["collect_order_data"]["name"],
-        client_username=context.user_data["collect_order_data"]["username"],
-        client_phone=context.user_data["collect_order_data"]["phone"],
-        address=context.user_data["collect_order_data"]["address"],
-    )
-    order.set_products(context.user_data["collect_order_data"]["products"])
+    # Using Supabase only
+    from db.db import db_client
+    import json
+    import datetime
+    
+    order_data = {
+        'client_name': context.user_data["collect_order_data"]["name"],
+        'client_username': context.user_data["collect_order_data"]["username"],
+        'client_phone': context.user_data["collect_order_data"]["phone"],
+        'address': context.user_data["collect_order_data"]["address"],
+        'products': json.dumps(context.user_data["collect_order_data"]["products"]),
+        'total_order_price': 0,
+        'status': 'active',
+        'created': datetime.datetime.now().isoformat()
+    }
+    
+    result = db_client.insert('orders', order_data)
+    context.user_data["collect_order_data"]["order_id"] = result.get('id')
 
-    session.add(order)
-    session.commit()
-
-    context.user_data["collect_order_data"]["order_id"] = order.id
-    session.close()
-
-    new_text = await form_confirm_order(order, lang)
+    # Create object-like structure for compatibility
+    class OrderObj:
+        def __init__(self, data):
+            for k, v in data.items():
+                setattr(self, k, v)
+    
+    order_obj = OrderObj(result)
+    new_text = await form_confirm_order(order_obj, lang)
 
     final_msg = await msg.edit_text(new_text, parse_mode=ParseMode.HTML)
 
