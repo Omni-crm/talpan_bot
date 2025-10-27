@@ -22,21 +22,18 @@ async def start_edit_crude_stock_product(update: Update, context: ContextTypes.D
 
     product_id = int(update.callback_query.data.split('_')[2])
 
-    session = Session()
-
-    stockman = session.query(User).filter(
-        User.user_id == update.effective_user.id,
-        or_(User.role == Role.STOCKMAN, User.role == Role.ADMIN)
-    ).first()
-    if not stockman:
+    # Using Supabase only
+    from db.db import db_client, get_product_by_id
+    
+    # Check if user is stockman or admin
+    users = db_client.select('users', {'user_id': update.effective_user.id})
+    if not users or users[0].get('role') not in ['stockman', 'admin']:
         await update.effective_message.reply_text(t('need_stockman_role', lang))
-        session.close()
         return ConversationHandler.END
 
-    product = session.query(Product).filter(Product.id==product_id).first()
-    session.close()
+    product = get_product_by_id(product_id)
 
-    start_msg = await update.effective_message.edit_text(t("product_crude_info", lang).format(product.name, product.crude, product.stock), reply_markup=get_edit_product_crude_kb(lang), parse_mode=ParseMode.HTML)
+    start_msg = await update.effective_message.edit_text(t("product_crude_info", lang).format(product.get('name'), product.get('crude'), product.get('stock')), reply_markup=get_edit_product_crude_kb(lang), parse_mode=ParseMode.HTML)
     context.user_data["edit_product_with_crude_data"] = {}
     context.user_data["edit_product_with_crude_data"]["start_msg"] = start_msg
     context.user_data["edit_product_with_crude_data"]["product"] = product
@@ -61,19 +58,16 @@ async def edit_product_crude_end(update: Update, context: ContextTypes.DEFAULT_T
     new_stock = int(update.effective_message.text[:20])
     await update.effective_message.delete()
 
-    product: Product = context.user_data["edit_product_with_crude_data"]["product"]
+    product = context.user_data["edit_product_with_crude_data"]["product"]
 
-    session = Session()
-    product = session.query(Product).filter(Product.id==product.id).first()
-
-    product.crude = new_stock
-    session.commit()
-
+    # Using Supabase only
+    from db.db import db_client
+    
+    db_client.update('products', {'crude': new_stock}, {'id': product['id']})
 
     msg: Message = context.user_data["edit_product_with_crude_data"]["start_msg"]
 
-    await msg.edit_text(t("crude_updated", lang).format(product.name, product.crude), reply_markup=get_products_markup_left_edit_stock_crude())
-    session.close()
+    await msg.edit_text(t("crude_updated", lang).format(product.get('name'), new_stock), reply_markup=get_products_markup_left_edit_stock_crude())
 
     del context.user_data["edit_product_with_crude_data"]
 
@@ -96,19 +90,16 @@ async def edit_product_stock_end(update: Update, context: ContextTypes.DEFAULT_T
     new_stock = int(update.effective_message.text[:20])
     await update.effective_message.delete()
 
-    product: Product = context.user_data["edit_product_with_crude_data"]["product"]
+    product = context.user_data["edit_product_with_crude_data"]["product"]
 
-    session = Session()
-    product = session.query(Product).filter(Product.id==product.id).first()
-
-    product.stock = new_stock
-    session.commit()
-
+    # Using Supabase only
+    from db.db import db_client
+    
+    db_client.update('products', {'stock': new_stock}, {'id': product['id']})
 
     msg = context.user_data["edit_product_with_crude_data"]["start_msg"]
 
-    await msg.edit_text(t("stock_updated", lang).format(product.name, product.stock))
-    session.close()
+    await msg.edit_text(t("stock_updated", lang).format(product.get('name'), new_stock))
 
     del context.user_data["edit_product_with_crude_data"]
 
@@ -118,19 +109,16 @@ async def delete_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     await update.callback_query.answer()
     lang = context.user_data["edit_product_with_crude_data"]["lang"]
 
-    product: Product = context.user_data["edit_product_with_crude_data"]["product"]
+    product = context.user_data["edit_product_with_crude_data"]["product"]
 
-    session = Session()
-
-    session.delete(product)
-    session.flush()
-    session.commit()
-
-    session.close()
+    # Using Supabase only
+    from db.db import db_client
+    
+    db_client.delete('products', {'id': product['id']})
 
     msg = context.user_data["edit_product_with_crude_data"]["start_msg"]
 
-    await msg.edit_text(t("product_deleted", lang).format(product.name))
+    await msg.edit_text(t("product_deleted", lang).format(product.get('name')))
     del context.user_data["edit_product_with_crude_data"]
 
     return ConversationHandler.END
