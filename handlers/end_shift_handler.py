@@ -275,7 +275,7 @@ async def confirm_end_shift(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     shift_obj = ShiftObj(shift_data)
     print(f"🔧 Shift object created for report")
     
-    report = await form_end_shift_report(shift_obj)
+    report = await form_end_shift_report(shift_obj, lang)
     print(f"🔧 Report generated")
 
     start_msg: Message = context.user_data["end_shift_data"].get("start_msg", update.effective_message)

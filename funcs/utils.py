@@ -339,7 +339,7 @@ async def form_notif_ready_order_short(order: Order, lang: str = 'ru') -> str:
     )
     return msg
 
-async def form_end_shift_report(shift: Shift):
+async def form_end_shift_report(shift: Shift, lang: str = 'ru'):
     """
     Отчет за день – 17.04.2025
     Общая выручка (брутто): 4,800₪  
