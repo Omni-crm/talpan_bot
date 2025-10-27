@@ -662,12 +662,20 @@ def create_shift(shift_data: dict):
 
 def get_opened_shift():
     """Get the currently opened shift - Supabase only"""
-    # Status is stored as "Открыта / פתוחה" in database
+    # Status is stored as "Открыта / פתוחה" in database or 'opened' or 'closed'
     all_shifts = db_client.select('shifts')
+    print(f"🔧 get_opened_shift: Checking {len(all_shifts)} shifts")
     for shift in all_shifts:
         status = shift.get('status', '')
-        if 'פתוח' in status or 'Открыта' in status:
-            return shift
+        shift_id = shift.get('id', 'unknown')
+        print(f"🔧 get_opened_shift: Shift ID={shift_id}, Status='{status}'")
+        # Check if shift is opened and NOT closed
+        if status == 'opened' or 'פתוח' in status or 'Открыта' in status:
+            # Double check it's not closed
+            if status != 'closed' and 'закрыт' not in status.lower():
+                print(f"🔧 get_opened_shift: Found opened shift ID={shift_id}")
+                return shift
+    print(f"🔧 get_opened_shift: No opened shift found")
     return None
 
 def update_shift(shift_id: int, updates: dict):
