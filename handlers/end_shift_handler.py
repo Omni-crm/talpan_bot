@@ -20,6 +20,7 @@ async def start_end_shift(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     """
     Начало процесса завершения смены.
     """
+    print(f"🔧 start_end_shift called")
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
     print(f"DEBUG: User {update.effective_user.id} language: {lang}")  # Debug log
@@ -46,8 +47,17 @@ async def start_end_shift(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     
     shift_obj = ShiftObj(shift) if isinstance(shift, dict) else shift
 
+    # Initialize end_shift_data for confirm_end_shift
+    context.user_data["end_shift_data"] = {
+        "lang": lang,
+        "shift_id": shift['id'],
+        "start_msg": update.effective_message
+    }
+    print(f"🔧 Initialized end_shift_data with shift_id: {shift['id']}")
+
     # הצגת דיאלוג אישור
     from funcs.utils import show_confirmation_dialog
+    import datetime
     opened_time_str = shift['opened_time'] if isinstance(shift, dict) else shift.opened_time
     if isinstance(opened_time_str, str):
         opened_time = datetime.datetime.fromisoformat(opened_time_str)
@@ -183,8 +193,30 @@ async def collect_petrol_paid(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 async def confirm_end_shift(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    print(f"🔧 confirm_end_shift called")
     await update.callback_query.answer()
+    
+    # Get or initialize end_shift_data
+    if "end_shift_data" not in context.user_data:
+        print(f"⚠️ end_shift_data not found, initializing...")
+        lang = get_user_lang(update.effective_user.id)
+        from db.db import get_opened_shift
+        shift = get_opened_shift()
+        context.user_data["end_shift_data"] = {
+            "lang": lang,
+            "shift_id": shift['id'],
+            "start_msg": update.effective_message,
+            "operator_paid": 0,
+            "runner_paid": 0,
+            "petrol_paid": 0,
+            "brutto": 0,
+            "netto": 0,
+            "products_fetched_text": "",
+            "summary": {}
+        }
+    
     lang = context.user_data["end_shift_data"]["lang"]
+    print(f"🔧 Language: {lang}")
     
     # Using Supabase only
     from db.db import db_client, get_user_by_id
@@ -195,6 +227,7 @@ async def confirm_end_shift(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         from db.db import get_opened_shift
         opened_shift = get_opened_shift()
         shift_id = opened_shift['id']
+    print(f"🔧 Shift ID: {shift_id}")
     
     user = get_user_by_id(update.effective_user.id)
 
@@ -206,20 +239,22 @@ async def confirm_end_shift(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     shift = {'id': shift_id}
     products_list = Shift.set_products()
     
-    db_client.update('shifts', {
-        'operator_paid': context.user_data["end_shift_data"]["operator_paid"],
-        'runner_paid': context.user_data["end_shift_data"]["runner_paid"],
-        'petrol_paid': context.user_data["end_shift_data"]["petrol_paid"],
-        'brutto': context.user_data["end_shift_data"]["brutto"],
-        'netto': context.user_data["end_shift_data"]["netto"],
-        'products_fetched_text': context.user_data["end_shift_data"]["products_fetched_text"],
+    update_data = {
+        'operator_paid': context.user_data["end_shift_data"].get("operator_paid", 0),
+        'runner_paid': context.user_data["end_shift_data"].get("runner_paid", 0),
+        'petrol_paid': context.user_data["end_shift_data"].get("petrol_paid", 0),
+        'brutto': context.user_data["end_shift_data"].get("brutto", 0),
+        'netto': context.user_data["end_shift_data"].get("netto", 0),
+        'products_fetched_text': context.user_data["end_shift_data"].get("products_fetched_text", ""),
         'operator_close_id': user.get('user_id'),
         'operator_close_username': user.get('username'),
-        'summary': json.dumps(context.user_data["end_shift_data"]["summary"]),
+        'summary': json.dumps(context.user_data["end_shift_data"].get("summary", {})),
         'products_end': json.dumps(products_list),
         'closed_time': datetime.datetime.now().isoformat(),
         'status': 'closed'
-    }, {'id': shift_id})
+    }
+    print(f"🔧 Updating shift in Supabase with data: {update_data}")
+    db_client.update('shifts', update_data, {'id': shift_id})
     
     # Create object for report
     class ShiftObj:
@@ -234,37 +269,46 @@ async def confirm_end_shift(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     
     shift_data = db_client.select('shifts', {'id': shift_id})[0]
     shift_obj = ShiftObj(shift_data)
+    print(f"🔧 Shift object created for report")
     
     report = await form_end_shift_report(shift_obj)
+    print(f"🔧 Report generated")
 
-    start_msg: Message = context.user_data["end_shift_data"]["start_msg"]
+    start_msg: Message = context.user_data["end_shift_data"].get("start_msg", update.effective_message)
     context.user_data["end_shift_data"]["start_msg"] = await start_msg.edit_text(report, parse_mode=ParseMode.HTML)
     await update.effective_message.reply_text(t("shift_closed_success", lang))
+    print(f"🔧 Report sent to user")
 
     try:
         from db.db import get_bot_setting
         admin_chat = get_bot_setting('admin_chat') or links.ADMIN_CHAT
         if admin_chat:
             await context.bot.send_message(admin_chat, report, parse_mode=ParseMode.HTML)
+            print(f"🔧 Report sent to admin chat: {admin_chat}")
     except Exception as e:
         error_msg = t("error_sending_report", lang)
         await update.effective_message.reply_text(f"{error_msg}: {repr(e)}")
+        print(f"❌ Error sending report to admin: {e}")
 
     # שליחת דוח סיום משמרת לקבוצת מנהלים
     try:
         from funcs.utils import send_shift_end_report_to_admins
         await send_shift_end_report_to_admins(shift, lang)
+        print(f"🔧 Report sent to admins group")
     except Exception as e:
-        print(f"Error sending shift end report to admins: {e}")
+        print(f"❌ Error sending shift end report to admins: {e}")
 
     # החזרה למסך הראשי
     from config.kb import build_start_menu
     from funcs.utils import send_message_with_cleanup
     reply_markup = await build_start_menu(update.effective_user.id)
     await send_message_with_cleanup(update, context, t("main_menu", lang), reply_markup=reply_markup)
+    print(f"🔧 Main menu sent")
 
-    del context.user_data["end_shift_data"]
-
+    if "end_shift_data" in context.user_data:
+        del context.user_data["end_shift_data"]
+    
+    print(f"✅ confirm_end_shift completed successfully")
     return ConversationHandler.END
 
 
