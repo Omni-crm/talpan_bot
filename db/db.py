@@ -430,15 +430,21 @@ def is_admin(func):
         user = update.effective_user
         msg = update.effective_message
         
+        print(f"🔧 is_admin decorator called for user {user.id}")
+        
         # Check user role - Supabase only
         results = db_client.select('users', {'user_id': user.id, 'role': 'admin'})
         is_admin_role = len(results) > 0
         
+        print(f"🔧 Is admin role: {is_admin_role}")
+        
         if not is_admin_role:
+            print(f"❌ Access denied - not admin")
             lang = get_user_lang(user.id)
             await msg.reply_text(t("admin_only", lang))
             return
 
+        print(f"✅ Access granted - executing admin function")
         await func(update, context, *args, **kwargs)
 
     return wrapper
@@ -450,16 +456,23 @@ def is_operator(func):
         user = update.effective_user
         msg = update.effective_message
         
+        print(f"🔧 is_operator decorator called for user {user.id}")
+        
         # Check user role - Supabase only
         results = db_client.select('users', {'user_id': user.id})
         user_data = results[0] if results else None
         is_operator_role = user_data and user_data['role'] in ['operator', 'admin']
         
+        print(f"🔧 User role check: {user_data['role'] if user_data else 'None'}")
+        print(f"🔧 Is operator role: {is_operator_role}")
+        
         if not is_operator_role:
+            print(f"❌ Access denied - not operator")
             lang = get_user_lang(user.id)
             await msg.reply_text(t("operator_only", lang))
             return
 
+        print(f"✅ Access granted - executing function")
         await func(update, context, *args, **kwargs)
 
     return wrapper
