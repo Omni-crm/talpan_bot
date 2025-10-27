@@ -41,6 +41,11 @@ class SupabaseClient:
             
             response = requests.get(url, headers=self.headers, params=params)
             response.raise_for_status()
+            
+            # Handle empty or None response
+            if not response.text:
+                return []
+            
             return response.json()
         
         except requests.exceptions.HTTPError as e:
@@ -54,7 +59,13 @@ class SupabaseClient:
             
             response = requests.post(url, headers=self.headers, json=data)
             response.raise_for_status()
-            return response.json()[0] if isinstance(response.json(), list) else response.json()
+            
+            # Handle empty or None response
+            if not response.text:
+                return {}
+            
+            result = response.json()
+            return result[0] if isinstance(result, list) else result
         
         except requests.exceptions.HTTPError as e:
             print(f"❌ INSERT error: {e}")
@@ -73,6 +84,11 @@ class SupabaseClient:
             
             response = requests.patch(url, headers=self.headers, json=data, params=params)
             response.raise_for_status()
+            
+            # Handle empty or None response
+            if not response.text:
+                return []
+            
             return response.json()
         
         except requests.exceptions.HTTPError as e:
