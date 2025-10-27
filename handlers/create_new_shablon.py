@@ -52,23 +52,23 @@ async def collecting_new_template_text(update: Update, context: ContextTypes.DEF
     text = update.effective_message.text
     context.user_data["create_new_shab_data"]["text"] = text
 
-    session = Session()
-
-    template = Template(
-        name=context.user_data["create_new_shab_data"]["name"],
-        text=text,
-    )
-    session.add(template)
-    session.commit()
-    print(template)
+    # Using Supabase only
+    from db.db import db_client
+    
+    template_data = {
+        'name': context.user_data["create_new_shab_data"]["name"],
+        'text': text
+    }
+    
+    result = db_client.insert('templates', template_data)
+    print(f"Created template: {result}")
 
     start_msg: Message = context.user_data["create_new_shab_data"]["start_msg"]
 
     await start_msg.edit_text(
-        text=t("template_created", lang).format(template.name, template.text),
+        text=t("template_created", lang).format(template_data['name'], text),
         parse_mode=ParseMode.HTML,
     )
-    session.close()
 
     return ConversationHandler.END
 
