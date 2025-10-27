@@ -39,8 +39,10 @@ async def build_start_menu(user_id):
     users = db_client.select('users', {'user_id': user_id})
     user = users[0] if users else None
     
-    shifts = db_client.select('shifts', {'status': 'opened'})
-    shift = shifts[0] if shifts else None
+    # Check for open shift - status is in Hebrew/Russian
+    all_shifts = db_client.select('shifts')
+    shift = next((s for s in all_shifts if 'פתוח' in s.get('status', '') or 'Открыта' in s.get('status', '')), None)
+    print(f"🔧 build_start_menu: Checking for open shift... found: {shift is not None}")
     
     # Get user's language
     lang = user.get('lang', 'ru') if user else 'ru'
