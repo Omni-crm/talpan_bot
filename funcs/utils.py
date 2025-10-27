@@ -633,19 +633,27 @@ async def show_confirmation_dialog(update: Update, context: ContextTypes.DEFAULT
 
 async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """טיפול באישור/ביטול"""
+    print(f"🔧 handle_confirmation called with data: {update.callback_query.data}")
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
+    print(f"🔧 Language: {lang}")
     
     if update.callback_query.data.startswith("confirm_"):
         action = update.callback_query.data.replace("confirm_", "")
+        print(f"🔧 Confirm action: {action}")
         await execute_confirmed_action(update, context, action, lang)
     elif update.callback_query.data.startswith("cancel_"):
         action = update.callback_query.data.replace("cancel_", "")
+        print(f"🔧 Cancel action: {action}")
         await update.effective_message.reply_text(t("action_cancelled", lang))
 
 async def execute_confirmed_action(update: Update, context: ContextTypes.DEFAULT_TYPE, action: str, lang: str) -> None:
     """ביצוע הפעולה המאושרת"""
-    if action == "end_shift":
+    print(f"🔧 execute_confirmed_action: action='{action}'")
+    
+    # Check if it's end_shift (could be with RTL markers or Hebrew text)
+    if "סיום" in action or "משמרת" in action or action.strip() == "end_shift":
+        print(f"🔧 Executing end_shift")
         # ביצוע סיום משמרת
         from handlers.end_shift_handler import confirm_end_shift
         await confirm_end_shift(update, context)
