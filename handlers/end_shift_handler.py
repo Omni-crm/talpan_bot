@@ -196,10 +196,12 @@ async def confirm_end_shift(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     print(f"🔧 confirm_end_shift called")
     await update.callback_query.answer()
     
+    # Get language first
+    lang = get_user_lang(update.effective_user.id)
+    
     # Get or initialize end_shift_data
     if "end_shift_data" not in context.user_data:
         print(f"⚠️ end_shift_data not found, initializing...")
-        lang = get_user_lang(update.effective_user.id)
         from db.db import get_opened_shift
         shift = get_opened_shift()
         context.user_data["end_shift_data"] = {
@@ -214,8 +216,10 @@ async def confirm_end_shift(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             "products_fetched_text": "",
             "summary": {}
         }
+    else:
+        # Use existing lang from context
+        lang = context.user_data["end_shift_data"].get("lang", lang)
     
-    lang = context.user_data["end_shift_data"]["lang"]
     print(f"🔧 Language: {lang}")
     
     # Using Supabase only
