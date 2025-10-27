@@ -34,14 +34,13 @@ SHIFT_END_KB = get_shift_end_kb('ru')
 
 async def build_start_menu(user_id):
     # Using Supabase only
-    from db.db import db_client
+    from db.db import db_client, get_opened_shift
     
     users = db_client.select('users', {'user_id': user_id})
     user = users[0] if users else None
     
-    # Check for open shift - status is in Hebrew/Russian
-    all_shifts = db_client.select('shifts')
-    shift = next((s for s in all_shifts if 'פתוח' in s.get('status', '') or 'Открыта' in s.get('status', '')), None)
+    # Check for open shift using the centralized function
+    shift = get_opened_shift()
     print(f"🔧 build_start_menu: Checking for open shift... found: {shift is not None}")
     
     # Get user's language

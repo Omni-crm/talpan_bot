@@ -662,21 +662,39 @@ def create_shift(shift_data: dict):
 
 def get_opened_shift():
     """Get the currently opened shift - Supabase only"""
-    # Status is stored as "Открыта / פתוחה" in database or 'opened' or 'closed'
-    all_shifts = db_client.select('shifts')
+    all_shifts = db_client.select('shifts', order='id', ascending=False)  # Get most recent first
     print(f"🔧 get_opened_shift: Checking {len(all_shifts)} shifts")
+    opened_shift = None
     for shift in all_shifts:
         status = shift.get('status', '')
         shift_id = shift.get('id', 'unknown')
         print(f"🔧 get_opened_shift: Shift ID={shift_id}, Status='{status}'")
-        # Check if shift is opened and NOT closed
-        if status == 'opened' or 'פתוח' in status or 'Открыта' in status:
-            # Double check it's not closed
-            if status != 'closed' and 'закрыт' not in status.lower():
-                print(f"🔧 get_opened_shift: Found opened shift ID={shift_id}")
-                return shift
-    print(f"🔧 get_opened_shift: No opened shift found")
-    return None
+        
+        # Check for opened status (Hebrew, Russian, or English)
+        is_opened = (
+            status == 'opened' or 
+            status == 'Открыта / פתוחה' or
+            ('פתוח' in status and 'closed' not in status.lower()) or 
+            ('Открыта' in status and 'closed' not in status.lower())
+        )
+        
+        # Double check it's not closed
+        is_closed = (
+            status == 'closed' or 
+            'closed' in status.lower() or 
+            'закрыт' in status.lower() or
+            'סגור' in status
+        )
+        
+        if is_opened and not is_closed:
+            print(f"🔧 get_opened_shift: Found opened shift ID={shift_id}, Status='{status}'")
+            opened_shift = shift
+    
+    if opened_shift:
+        return opened_shift
+    else:
+        print(f"🔧 get_opened_shift: No opened shift found")
+        return None
 
 def update_shift(shift_id: int, updates: dict):
     """Update a shift - Supabase only"""

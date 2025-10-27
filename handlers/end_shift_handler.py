@@ -302,6 +302,13 @@ async def confirm_end_shift(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     except Exception as e:
         print(f"❌ Error sending shift end report to admins: {e}")
 
+    # מחיקת הודעת האישור
+    try:
+        await update.effective_message.delete()
+        print(f"🔧 Deleted confirmation message")
+    except Exception as e:
+        print(f"⚠️ Could not delete confirmation message: {e}")
+    
     # החזרה למסך הראשי
     from config.kb import build_start_menu
     from funcs.utils import send_message_with_cleanup
