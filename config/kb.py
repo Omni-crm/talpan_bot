@@ -115,19 +115,25 @@ BACK_CANCEL_KB = get_back_cancel_kb('ru')
 ADD_MORE_PRODUCTS_OR_CONFIRM_KB = get_add_more_or_confirm_kb('ru')
 
 def get_products_markup(user):
-    session = Session()
-    products = session.query(Product).all()
-
+    # Using Supabase only
+    from db.db import db_client
+    
+    products = db_client.select('products')
+    
     inline_keyboard = []
     delimiter = []
     for product in products:
         print(len(delimiter))
+        product_name = product.get('name', '')
+        product_stock = product.get('stock', 0)
+        product_id = product.get('id')
+        
         if len(delimiter) and len(delimiter) % 3 == 0:
             inline_keyboard.append(delimiter)
             delimiter = []
-            delimiter.append(InlineKeyboardButton(f"{product.name[:12]} ({product.stock})", callback_data=str(product.id)))
+            delimiter.append(InlineKeyboardButton(f"{product_name[:12]} ({product_stock})", callback_data=str(product_id)))
         else:
-            delimiter.append(InlineKeyboardButton(f"{product.name[:12]} ({product.stock})", callback_data=str(product.id)))
+            delimiter.append(InlineKeyboardButton(f"{product_name[:12]} ({product_stock})", callback_data=str(product_id)))
     
     if delimiter:
         inline_keyboard.append(delimiter)
@@ -145,19 +151,25 @@ def get_products_markup(user):
     return reply_markup
 
 def get_products_markup_left_edit_stock():
-    session = Session()
-    products = session.query(Product).all()
-
+    # Using Supabase only
+    from db.db import db_client
+    
+    products = db_client.select('products')
+    
     inline_keyboard = []
     delimiter = []
     for product in products:
         print(len(delimiter))
+        product_name = product.get('name', '')
+        product_stock = product.get('stock', 0)
+        product_id = product.get('id')
+        
         if len(delimiter) and len(delimiter) % 3 == 0:
             inline_keyboard.append(delimiter)
             delimiter = []
-            delimiter.append(InlineKeyboardButton(product.name[:12], callback_data=f"edit_{product.id}"))
+            delimiter.append(InlineKeyboardButton(product_name[:12], callback_data=f"edit_{product_id}"))
         else:
-            delimiter.append(InlineKeyboardButton(f"{product.name[:6]} ({product.stock})", callback_data=f"edit_{product.id}"))
+            delimiter.append(InlineKeyboardButton(f"{product_name[:6]} ({product_stock})", callback_data=f"edit_{product_id}"))
 
     if delimiter:
         inline_keyboard.append(delimiter)
@@ -169,9 +181,11 @@ def get_products_markup_left_edit_stock():
 
 
 def get_products_markup_left_edit_stock_crude():
-    session = Session()
-    products = session.query(Product).all()
-
+    # Using Supabase only
+    from db.db import db_client
+    
+    products = db_client.select('products')
+    
     inline_keyboard = []
     delimiter = []
     
@@ -181,10 +195,16 @@ def get_products_markup_left_edit_stock_crude():
             inline_keyboard.append(delimiter)
             delimiter = []
         
+        product_name = product.get('name', '')
+        product_crude = product.get('crude', 0)
+        product_stock = product.get('stock', 0)
+        product_price = product.get('price', 0)
+        product_id = product.get('id')
+        
         # הוספת כפתור עם מלאי ומחיר
         delimiter.append(InlineKeyboardButton(
-            f"{product.name[:6]} ({product.crude}) ({product.stock}) - {product.price}₪", 
-            callback_data=f"edit_crude_{product.id}"
+            f"{product_name[:6]} ({product_crude}) ({product_stock}) - {product_price}₪", 
+            callback_data=f"edit_crude_{product_id}"
         ))
 
     # הוספת השורה האחרונה אם יש כפתורים
@@ -200,7 +220,6 @@ def get_products_markup_left_edit_stock_crude():
         InlineKeyboardButton(t('btn_home', 'ru'), callback_data="home")
     ])
 
-    session.close()
     reply_markup = InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
 
     return reply_markup
