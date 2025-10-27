@@ -80,20 +80,26 @@ async def collect_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
 async def collect_username(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Collecting @username or skip."""
-    lang = context.user_data["collect_order_data"]["lang"]
-    
-    if update.callback_query:
-        await update.callback_query.answer()
+    try:
+        print(f"🔧 collect_username called")
+        lang = context.user_data["collect_order_data"]["lang"]
+        print(f"🔧 Language: {lang}")
         
-        if update.callback_query.data == "skip_username":
-            # דילוג על username
-            context.user_data["collect_order_data"]["username"] = ""
-            context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.USERNAME
+        if update.callback_query:
+            print(f"🔧 Callback query detected")
+            await update.callback_query.answer()
             
-            msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-            context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(t("enter_client_phone", lang), reply_markup=get_back_cancel_kb(lang))
-            
-            return CollectOrderDataStates.PHONE
+            if update.callback_query.data == "skip_username":
+                print(f"🔧 Skip username clicked")
+                # דילוג על username
+                context.user_data["collect_order_data"]["username"] = ""
+                context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.USERNAME
+                
+                msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+                context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(t("enter_client_phone", lang), reply_markup=get_back_cancel_kb(lang))
+                print(f"🔧 Updated message to phone input")
+                
+                return CollectOrderDataStates.PHONE
     else:
         try:
             await update.effective_message.delete()
@@ -108,6 +114,11 @@ async def collect_username(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(t("enter_client_phone", lang), reply_markup=get_back_cancel_kb(lang))
 
         return CollectOrderDataStates.PHONE
+    except Exception as e:
+        print(f"❌ ERROR in collect_username: {e}")
+        import traceback
+        traceback.print_exc()
+        return ConversationHandler.END
 
 async def collect_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Collecting phone."""

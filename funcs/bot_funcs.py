@@ -673,25 +673,39 @@ async def show_week_report(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 @is_operator
 async def confirm_stock_shift(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.callback_query.answer()
-    lang = get_user_lang(update.effective_user.id)
-    
-    # מחיקת הודעות קודמות
-    await cleanup_old_messages(context)
-    
-    # Using Supabase only
-    from db.db import get_opened_shift
-    
-    shift_data = get_opened_shift()
-    shift = type('Shift', (), shift_data)() if shift_data and isinstance(shift_data, dict) else None
-    
-    if shift:
-        await send_message_with_cleanup(update, context, t('close_previous_shift', lang))
-        return
-    else:
-        await send_shift_start_msg(update,context, lang)
-        # send_shift_start_msg כבר מחזירה למסך הראשי ואוטומטית, לא צריך לעשות כלום נוסף
-        return
+    try:
+        print(f"🔧 confirm_stock_shift called")
+        await update.callback_query.answer()
+        lang = get_user_lang(update.effective_user.id)
+        print(f"🔧 Language: {lang}")
+        
+        # מחיקת הודעות קודמות
+        await cleanup_old_messages(context)
+        print(f"🔧 Messages cleaned")
+        
+        # Using Supabase only
+        from db.db import get_opened_shift
+        
+        print(f"🔧 Getting opened shift...")
+        shift_data = get_opened_shift()
+        print(f"🔧 Shift data: {shift_data}")
+        shift = type('Shift', (), shift_data)() if shift_data and isinstance(shift_data, dict) else None
+        print(f"🔧 Shift object: {shift}")
+        
+        if shift:
+            print(f"🔧 Shift exists, closing previous shift")
+            await send_message_with_cleanup(update, context, t('close_previous_shift', lang))
+            return
+        else:
+            print(f"🔧 No shift, starting new shift")
+            await send_shift_start_msg(update,context, lang)
+            # send_shift_start_msg כבר מחזירה למסך הראשי ואוטומטית, לא צריך לעשות כלום נוסף
+            return
+    except Exception as e:
+        print(f"❌ ERROR in confirm_stock_shift: {e}")
+        import traceback
+        traceback.print_exc()
+        await update.effective_message.reply_text(f"Error: {e}")
 
 
 @is_operator
