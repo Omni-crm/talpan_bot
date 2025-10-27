@@ -38,35 +38,33 @@ async def add_staff(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     start_msg: Message = context.user_data["add_staff_data"]["start_msg"]
 
     text = update.effective_message.text
+    
+    # Using Supabase only
+    from db.db import db_client
+    
     if text.isdigit():
         user_id = int(update.effective_message.text)
-
-        session = Session()
-
-        user = session.query(User).filter(User.user_id==user_id).first()
-
-        if user:
-            user.role = context.user_data["add_staff_data"]["role_tup"][0]
-            session.commit()
-            await start_msg.edit_text(t("staff_added", lang).format(user.firstname, user.username, context.user_data["add_staff_data"]["role_tup"][1]), parse_mode=ParseMode.HTML)
+        users = db_client.select('users', {'user_id': user_id})
+        
+        if users:
+            user = users[0]
+            role_value = context.user_data["add_staff_data"]["role_tup"][0].value
+            db_client.update('users', {'role': role_value}, {'user_id': user_id})
+            await start_msg.edit_text(t("staff_added", lang).format(user['firstname'], user['username'], context.user_data["add_staff_data"]["role_tup"][1]), parse_mode=ParseMode.HTML)
         else:
             await start_msg.edit_text(t("user_not_found_id", lang).format(text), parse_mode=ParseMode.HTML)
     else:
         username = update.effective_message.text.replace('@', '')
-
-        session = Session()
-
-        user = session.query(User).filter(User.username==username).first()
-
-        if user:
-            user.role = context.user_data["add_staff_data"]["role_tup"][0]
-            session.commit()
-            await start_msg.edit_text(t("staff_added", lang).format(user.firstname, user.username, context.user_data["add_staff_data"]["role_tup"][1]), parse_mode=ParseMode.HTML)
+        users = db_client.select('users', {'username': username})
+        
+        if users:
+            user = users[0]
+            role_value = context.user_data["add_staff_data"]["role_tup"][0].value
+            db_client.update('users', {'role': role_value}, {'username': username})
+            await start_msg.edit_text(t("staff_added", lang).format(user['firstname'], user['username'], context.user_data["add_staff_data"]["role_tup"][1]), parse_mode=ParseMode.HTML)
         else:
             await start_msg.edit_text(t("user_not_found_username", lang).format(text), parse_mode=ParseMode.HTML)
-
-
-    session.close()
+    
     del context.user_data["add_staff_data"]
 
     return ConversationHandler.END
