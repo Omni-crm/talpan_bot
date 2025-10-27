@@ -14,11 +14,9 @@ builder = "nixpacks"
 
 [variables]
 # Set these in Railway Dashboard (Environment Variables)
-# BOT_TOKEN, ADMIN_ID, ADMIN_CHAT, ORDER_CHAT, API_ID, API_HASH, DB_NAME, DEFAULT_OPERATOR_PAY, DEFAULT_COURIER_PAY, DEFAULT_PETROL
-# Persist DB on Railway volume (recommended):
-DB_DIR = "/data"
-DB_NAME = "database.db"
-DB_PATH = "/data/database.db"
+# REQUIRED: BOT_TOKEN, SUPABASE_URL, SUPABASE_ANON_KEY
+# Optional: SUPABASE_SECRET_KEY, ADMIN_ID, ADMIN_CHAT, ORDER_CHAT, API_ID, API_HASH
+# Note: We no longer use SQLite - all data is in Supabase
 
 [nixpacks]
 python_version = "3.12"
