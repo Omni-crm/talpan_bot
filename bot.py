@@ -39,8 +39,10 @@ def main() -> None:
     """Run the bot."""
     global bot_application
     
-    # Ensure all tables are created, including BotSettings
-    Base.metadata.create_all(engine)
+    # Using Supabase - no need to create tables
+    # Tables are managed in Supabase dashboard
+    if USE_SUPABASE:
+        print("✅ Using Supabase - tables managed in cloud")
     
     # Initialize bot settings if needed
     initialize_default_settings()
