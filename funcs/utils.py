@@ -90,6 +90,7 @@ async def send_shift_start_msg(update: Update, context: ContextTypes.DEFAULT_TYP
     Initial stock (packaged):
     🔴 12 | ⚫️ 8 | 🛍️ 10 | 🍿 6
     """
+    print(f"🔧 send_shift_start_msg called")
     from db.db import USE_SUPABASE, db_client, get_opened_shift
     import json
     
@@ -97,6 +98,7 @@ async def send_shift_start_msg(update: Update, context: ContextTypes.DEFAULT_TYP
     shift.operator_id = update.effective_user.id
     shift.operator_username = update.effective_user.username
     shift.status = ShiftStatus.opened
+    print(f"🔧 Shift object created: ID={shift.operator_id}, Status={shift.status}")
     
     # Using Supabase only
     shift_data = {
