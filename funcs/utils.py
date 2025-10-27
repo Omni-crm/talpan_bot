@@ -570,6 +570,7 @@ async def send_shift_end_report_to_admins(shift, lang: str = 'ru') -> None:
         from telegram import Bot
         from db.db import get_bot_setting
         admin_chat = get_bot_setting('admin_chat') or links.ADMIN_CHAT
+        print(f"🔧 Admin chat ID: {admin_chat}")
         if admin_chat:
             bot = Bot(token=links.BOT_TOKEN)
             await bot.send_message(
@@ -577,8 +578,13 @@ async def send_shift_end_report_to_admins(shift, lang: str = 'ru') -> None:
                 report,
                 parse_mode=ParseMode.HTML
             )
+            print(f"✅ Report sent to admin chat: {admin_chat}")
+        else:
+            print(f"⚠️ No admin chat configured, skipping report send")
     except Exception as e:
-        print(f"Error sending shift report: {e}")
+        print(f"❌ Error sending shift report: {e}")
+        import traceback
+        traceback.print_exc()
 
 # ייצוא הזמנות כטקסט
 async def export_orders_as_text(update: Update, context: ContextTypes.DEFAULT_TYPE, lang: str = 'ru') -> None:
