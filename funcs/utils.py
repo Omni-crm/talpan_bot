@@ -3,7 +3,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 from db.db import Status, Order, Shift, ShiftStatus, Session, Product
 from config.config import *
-from config.translations import t
+from config.translations import t, get_user_lang
 import datetime
 import pandas as pd
 from io import BytesIO
