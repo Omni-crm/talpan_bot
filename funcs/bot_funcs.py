@@ -44,24 +44,12 @@ async def set_language(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     # מחיקת הודעות קודמות
     await cleanup_old_messages(context)
     
-    # Update user language in DB
-    from db.db import USE_SUPABASE, db_client
+    # Update user language in DB - Supabase only
+    from db.db import db_client
     
-    if USE_SUPABASE:
-        # Using Supabase
-        results = db_client.select('users', {'user_id': user.id})
-        if results:
-            db_client.update('users', {'lang': lang_code}, {'user_id': user.id})
-    else:
-        # Using SQLite
-        session = Session()
-        try:
-            user_db = session.query(User).filter(User.user_id == user.id).first()
-            if user_db:
-                user_db.lang = lang_code
-                session.commit()
-        finally:
-            session.close()
+    results = db_client.select('users', {'user_id': user.id})
+    if results:
+        db_client.update('users', {'lang': lang_code}, {'user_id': user.id})
     
     # Send confirmation in new language with cleanup
     await edit_message_with_cleanup(update, context, t("language_changed", lang_code))
@@ -165,32 +153,26 @@ async def report_by_product(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
 
-    from db.db import USE_SUPABASE, db_client
+    # Using Supabase only
+    from db.db import db_client
     seven_days_ago = datetime.datetime.now() - datetime.timedelta(days=7)
     
-    if USE_SUPABASE:
-        # Using Supabase - need to process manually
-        all_orders = db_client.select('orders', {'status': 'completed'})
-        results = {}
-        
-        for order in all_orders:
-            if order.get('delivered'):
-                delivered_time = datetime.datetime.fromisoformat(order['delivered'])
-                if delivered_time >= seven_days_ago:
-                    products = json.loads(order['products'])
-                    for product in products:
-                        product_key = json.dumps([product], ensure_ascii=False)
-                        if product_key not in results:
-                            results[product_key] = 0
-                        results[product_key] += 1
-        
-        # Convert to list format
-        results_list = [(k, v) for k, v in results.items()]
-    else:
-        # Using SQLite
-        session = Session()
-        results = session.query(Order.products, func.count(Order.id)).filter(Order.delivered >= seven_days_ago).group_by(Order.products).all()
-        session.close()
+    all_orders = db_client.select('orders', {'status': 'completed'})
+    results = {}
+    
+    for order in all_orders:
+        if order.get('delivered'):
+            delivered_time = datetime.datetime.fromisoformat(order['delivered'])
+            if delivered_time >= seven_days_ago:
+                products = json.loads(order['products'])
+                for product in products:
+                    product_key = json.dumps([product], ensure_ascii=False)
+                    if product_key not in results:
+                        results[product_key] = 0
+                    results[product_key] += 1
+    
+    # Convert to list format
+    results_list = [(k, v) for k, v in results.items()]
 
     report = t("product_report_title", lang) + "\n\n"
     total_count = 0
@@ -213,29 +195,23 @@ async def report_by_client(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
 
-    from db.db import USE_SUPABASE, db_client
+    # Using Supabase only
+    from db.db import db_client
     seven_days_ago = datetime.datetime.now() - datetime.timedelta(days=7)
     
-    if USE_SUPABASE:
-        # Using Supabase
-        all_orders = db_client.select('orders', {'status': 'completed'})
-        client_orders = {}
-        
-        for order in all_orders:
-            if order.get('delivered'):
-                delivered_time = datetime.datetime.fromisoformat(order['delivered'])
-                if delivered_time >= seven_days_ago:
-                    key = (order['client_name'], order['client_username'], order['client_phone'])
-                    if key not in client_orders:
-                        client_orders[key] = 0
-                    client_orders[key] += 1
-        
-        results = [(name, username, phone, count) for (name, username, phone), count in client_orders.items()]
-    else:
-        # Using SQLite
-        session = Session()
-        results = session.query(Order.client_name, Order.client_username, Order.client_phone, func.count(Order.id)).filter(Order.delivered >= seven_days_ago).group_by(Order.client_username).all()
-        session.close()
+    all_orders = db_client.select('orders', {'status': 'completed'})
+    client_orders = {}
+    
+    for order in all_orders:
+        if order.get('delivered'):
+            delivered_time = datetime.datetime.fromisoformat(order['delivered'])
+            if delivered_time >= seven_days_ago:
+                key = (order['client_name'], order['client_username'], order['client_phone'])
+                if key not in client_orders:
+                    client_orders[key] = 0
+                client_orders[key] += 1
+    
+    results = [(name, username, phone, count) for (name, username, phone), count in client_orders.items()]
 
     report = t("client_report_title", lang) + "\n\n"
     total_orders = 0
@@ -254,26 +230,22 @@ async def report_by_price(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
 
-    from db.db import USE_SUPABASE, db_client
+    # Using Supabase only
+    from db.db import db_client
     seven_days_ago = datetime.datetime.now() - datetime.timedelta(days=7)
     
     # Get all orders delivered in the last 7 days
-    if USE_SUPABASE:
-        # Using Supabase
-        all_orders = db_client.select('orders', {'status': 'completed'})
-        results = []
-        for order in all_orders:
-            if order.get('delivered'):
-                delivered_time = datetime.datetime.fromisoformat(order['delivered'])
-                if delivered_time >= seven_days_ago:
-                    # Convert to object-like structure
-                    obj = type('Order', (), order)()
-                    results.append(obj)
-        session = None
-    else:
-        # Using SQLite
-        session = Session()
-        results = session.query(Order).filter(Order.delivered >= seven_days_ago).all()
+    all_orders = db_client.select('orders', {'status': 'completed'})
+    results = []
+    for order in all_orders:
+        if order.get('delivered'):
+            delivered_time = datetime.datetime.fromisoformat(order['delivered'])
+            if delivered_time >= seven_days_ago:
+                # Convert to object-like structure
+                obj = type('Order', (), order)()
+                # Ensure delivered is a datetime object
+                obj.delivered = delivered_time
+                results.append(obj)
 
     order_prices = []
 
@@ -291,9 +263,6 @@ async def report_by_price(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     for index, (order_id, client_name, client_username, client_phone, delivered, total) in enumerate(sorted_orders, start=1):
         report += f"{index}. {t('order', lang)} #{order_id} {client_name} {client_username} +{client_phone} {delivered.strftime('%d.%m.%Y, %H:%M:%S')} - {total} ₪.\n"
 
-    if session:
-        session.close()
-
     await send_message_with_cleanup(update, context, text=report)
 
 @is_admin
@@ -301,24 +270,20 @@ async def report_by_days(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
 
-    from db.db import USE_SUPABASE, db_client
+    # Using Supabase only
+    from db.db import db_client
     seven_days_ago = datetime.datetime.now() - datetime.timedelta(days=7)
 
     # Get all orders delivered in the last 7 days
-    if USE_SUPABASE:
-        all_orders = db_client.select('orders', {'status': 'completed'})
-        results = []
-        for order in all_orders:
-            if order.get('delivered'):
-                delivered_time = datetime.datetime.fromisoformat(order['delivered'])
-                if delivered_time >= seven_days_ago:
-                    obj = type('Order', (), order)()
-                    obj.delivered = delivered_time
-                    results.append(obj)
-        session = None
-    else:
-        session = Session()
-        results = session.query(Order).filter(Order.delivered >= seven_days_ago).all()
+    all_orders = db_client.select('orders', {'status': 'completed'})
+    results = []
+    for order in all_orders:
+        if order.get('delivered'):
+            delivered_time = datetime.datetime.fromisoformat(order['delivered'])
+            if delivered_time >= seven_days_ago:
+                obj = type('Order', (), order)()
+                obj.delivered = delivered_time
+                results.append(obj)
 
     weekday_count = {}
 
@@ -350,9 +315,6 @@ async def report_by_days(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     for index, (weekday, count) in enumerate(sorted_weekdays, start=1):
         report += f"{index}. {weekdays_translation[weekday]} - {count} {t('orders', lang)}.\n"
 
-    if session:
-        session.close()
-
     await send_message_with_cleanup(update, context, text=report)
 
 @is_admin
@@ -369,23 +331,16 @@ async def beginning(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # מחיקת הודעות קודמות
     await cleanup_old_messages(context)
     
-    from db.db import USE_SUPABASE, db_client, get_opened_shift
+    # Using Supabase only
+    from db.db import get_opened_shift
     
-    if USE_SUPABASE:
-        # Using Supabase
-        shift_data = get_opened_shift()
-        if shift_data:
-            # Convert dict to object
-            shift = type('Shift', (), shift_data)()
-            shift.opened_time = datetime.datetime.fromisoformat(shift_data['opened_time'])
-            session = None
-        else:
-            shift = None
-            session = None
+    shift_data = get_opened_shift()
+    if shift_data:
+        # Convert dict to object
+        shift = type('Shift', (), shift_data)()
+        shift.opened_time = datetime.datetime.fromisoformat(shift_data['opened_time'])
     else:
-        # Using SQLite
-        session = Session()
-        shift = session.query(Shift).filter(Shift.status==ShiftStatus.opened).first()
+        shift = None
 
     if shift:
         shift_start_date = shift.opened_time.strftime("%d.%m.%Y, %H:%M:%S")
@@ -400,9 +355,6 @@ async def beginning(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await send_message_with_cleanup(update, context, t('available_stock', lang).format(prod_txt), 
                                        reply_markup=get_operator_shift_start_kb(lang), 
                                        parse_mode=ParseMode.HTML)
-
-    if session:
-        session.close()
 
 
 @is_operator
@@ -451,36 +403,24 @@ async def filter_orders_by_date(update: Update, context: ContextTypes.DEFAULT_TY
         await send_message_with_cleanup(update, context, t("date_error", get_user_lang(update.effective_user.id)))
         return
 
-    from db.db import USE_SUPABASE, get_all_orders
+    # Using Supabase only
+    from db.db import get_all_orders
     import datetime
     
     # Filter orders by date
-    if USE_SUPABASE:
-        all_orders = get_all_orders()
-        orders = []
-        for order_dict in all_orders:
-            if order_dict.get('created'):
-                created_time = datetime.datetime.fromisoformat(order_dict['created'])
-                if start_date <= created_time <= end_date:
-                    obj = type('Order', (), order_dict)()
-                    orders.append(obj)
-        session = None
-    else:
-        from sqlalchemy import and_
-        session = Session()
-        orders = session.query(Order).filter(
-            and_(
-                Order.created >= start_date,
-                Order.created <= end_date
-            )
-        ).all()
+    all_orders = get_all_orders()
+    orders = []
+    for order_dict in all_orders:
+        if order_dict.get('created'):
+            created_time = datetime.datetime.fromisoformat(order_dict['created'])
+            if start_date <= created_time <= end_date:
+                obj = type('Order', (), order_dict)()
+                orders.append(obj)
 
     if not orders:
         lang = get_user_lang(update.effective_user.id)
         not_found = t("no_orders_found_dates", lang)
         await send_message_with_cleanup(update, context, f"{not_found}: {start_date} - {end_date}")
-        if session:
-            session.close()
         return
 
     lang = get_user_lang(update.effective_user.id)
@@ -489,9 +429,6 @@ async def filter_orders_by_date(update: Update, context: ContextTypes.DEFAULT_TY
 
     await send_message_with_cleanup(update, context, msg, parse_mode=ParseMode.HTML)
     await update.effective_message.delete()
-
-    if session:
-        session.close()
 
 
 async def filter_orders_by_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -499,38 +436,27 @@ async def filter_orders_by_product(update: Update, context: ContextTypes.DEFAULT
     product_names = update.effective_message.text.split('$')[1:]
     print(product_names)
 
-    from db.db import USE_SUPABASE, get_all_orders
+    # Using Supabase only
+    from db.db import get_all_orders
     
     # Example query to check products field content
     orders = []
     
-    if USE_SUPABASE:
-        all_orders = get_all_orders()
-        session = None
-        for order_dict in all_orders:
-            products = json.loads(order_dict.get('products', '[]'))
-            products_names_db = [p.get('name') for p in products]
-            found = bool(set(products_names_db).intersection(product_names))
-            if found:
-                obj = type('Order', (), order_dict)()
-                obj.get_products = lambda: products
-                obj.to_dict = lambda: order_dict
-                orders.append(obj)
-    else:
-        session = Session()
-        all_orders = session.query(Order).all()
-        for order in all_orders:
-            products_names_db = [p.get('name') for p in order.get_products()]
-            found = bool(set(products_names_db).intersection(product_names))
-            if found:
-                orders.append(order)
+    all_orders = get_all_orders()
+    for order_dict in all_orders:
+        products = json.loads(order_dict.get('products', '[]'))
+        products_names_db = [p.get('name') for p in products]
+        found = bool(set(products_names_db).intersection(product_names))
+        if found:
+            obj = type('Order', (), order_dict)()
+            obj.get_products = lambda: products
+            obj.to_dict = lambda: order_dict
+            orders.append(obj)
 
     if not orders:
         lang = get_user_lang(update.effective_user.id)
         not_found = t("no_orders_found_products", lang)
         await send_message_with_cleanup(update, context, f"{not_found}: {product_names}")
-        if session:
-            session.close()
         return
 
     lang = get_user_lang(update.effective_user.id)
@@ -539,9 +465,6 @@ async def filter_orders_by_product(update: Update, context: ContextTypes.DEFAULT
 
     await send_message_with_cleanup(update, context, msg, parse_mode=ParseMode.HTML)
     await update.effective_message.delete()
-
-    if session:
-        session.close()
 
 
 async def fetch_orders_excel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -557,36 +480,26 @@ async def filter_orders_by_client(update: Update, context: ContextTypes.DEFAULT_
     "order@username | order@phone"
     identifier = update.effective_message.text.replace("order@", "")
 
-    from db.db import USE_SUPABASE, get_all_orders
+    # Using Supabase only
+    from db.db import get_all_orders
     
-    if USE_SUPABASE:
-        all_orders = get_all_orders()
-        orders = []
-        for order_dict in all_orders:
-            if identifier.isdigit():
-                if order_dict.get('client_phone') == identifier:
-                    obj = type('Order', (), order_dict)()
-                    orders.append(obj)
-            else:
-                search_identifier = "@" + identifier
-                if order_dict.get('client_username') == search_identifier:
-                    obj = type('Order', (), order_dict)()
-                    orders.append(obj)
-        session = None
-    else:
-        session = Session()
+    all_orders = get_all_orders()
+    orders = []
+    for order_dict in all_orders:
         if identifier.isdigit():
-            orders = session.query(Order).filter(Order.client_phone==identifier).all()
+            if order_dict.get('client_phone') == identifier:
+                obj = type('Order', (), order_dict)()
+                orders.append(obj)
         else:
-            identifier = "@" + identifier
-            orders = session.query(Order).filter(Order.client_username==identifier).all()
+            search_identifier = "@" + identifier
+            if order_dict.get('client_username') == search_identifier:
+                obj = type('Order', (), order_dict)()
+                orders.append(obj)
 
     if not orders:
         lang = get_user_lang(update.effective_user.id)
         not_found = t("no_orders_found_param", lang)
         await send_message_with_cleanup(update, context, f"{not_found}: {identifier}")
-        if session:
-            session.close()
         return
 
     lang = get_user_lang(update.effective_user.id)
@@ -595,9 +508,6 @@ async def filter_orders_by_client(update: Update, context: ContextTypes.DEFAULT_
 
     await send_message_with_cleanup(update, context, msg, parse_mode=ParseMode.HTML)
     await update.effective_message.delete()
-
-    if session:
-        session.close()
 
 
 async def filter_orders_by_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -610,34 +520,25 @@ async def filter_orders_by_status(update: Update, context: ContextTypes.DEFAULT_
         if status.value == status_value:
             break
 
-    from db.db import USE_SUPABASE, get_all_orders
+    # Using Supabase only
+    from db.db import get_all_orders
     
-    if USE_SUPABASE:
-        all_orders = get_all_orders()
-        orders = []
-        for order_dict in all_orders:
-            if order_dict.get('status') == status.value:
-                obj = type('Order', (), order_dict)()
-                orders.append(obj)
-        session = None
-    else:
-        session = Session()
-        orders = session.query(Order).filter(Order.status==status).all()
+    all_orders = get_all_orders()
+    orders = []
+    for order_dict in all_orders:
+        if order_dict.get('status') == status.value:
+            obj = type('Order', (), order_dict)()
+            orders.append(obj)
 
     if not orders:
         not_found = t("no_orders_found_status", lang)
         await send_message_with_cleanup(update, context, f"{not_found}: {status}")
-        if session:
-            session.close()
         return
 
     msg = t("total_found", lang).format(len(orders))
     context.user_data["orders_filtered"] = [order.to_dict() for order in orders]
 
     await send_message_with_cleanup(update, context, msg, parse_mode=ParseMode.HTML)
-
-    if session:
-        session.close()
 
 
 @is_admin
@@ -666,29 +567,21 @@ async def erase_orders_before_date(update: Update, context: ContextTypes.DEFAULT
         # Convert strings to datetime objects
         date = datetime.datetime.strptime(start_date_str, '%d.%m.%Y')
 
-        from db.db import USE_SUPABASE, get_all_orders, db_client
+        # Using Supabase only
+        from db.db import get_all_orders, db_client
         
-        if USE_SUPABASE:
-            all_orders = get_all_orders()
-            orders_count = 0
-            for order in all_orders:
-                if order.get('created'):
-                    created_time = datetime.datetime.fromisoformat(order['created'])
-                    if created_time < date:
-                        db_client.delete('orders', {'id': order['id']})
-                        orders_count += 1
-            session = None
-        else:
-            session = Session()
-            orders_count = session.query(Order).filter(Order.created < date).delete()
-            session.commit()
+        all_orders = get_all_orders()
+        orders_count = 0
+        for order in all_orders:
+            if order.get('created'):
+                created_time = datetime.datetime.fromisoformat(order['created'])
+                if created_time < date:
+                    db_client.delete('orders', {'id': order['id']})
+                    orders_count += 1
     except Exception as e:
         await send_message_with_cleanup(update, context, f"{t('error', get_user_lang(update.effective_user.id))}: {repr(e)}")
         await update.effective_message.delete()
         return
-    finally:
-        if not USE_SUPABASE and session:
-            session.close()
 
     await send_message_with_cleanup(update, context, t("orders_deleted_success", get_user_lang(update.effective_user.id)).format(count=orders_count))
     await update.effective_message.delete()
@@ -786,26 +679,18 @@ async def confirm_stock_shift(update: Update, context: ContextTypes.DEFAULT_TYPE
     # מחיקת הודעות קודמות
     await cleanup_old_messages(context)
     
-    from db.db import USE_SUPABASE, get_opened_shift
+    # Using Supabase only
+    from db.db import get_opened_shift
     
-    if USE_SUPABASE:
-        shift_data = get_opened_shift()
-        shift = type('Shift', (), shift_data)() if shift_data else None
-        session = None
-    else:
-        session = Session()
-        shift = session.query(Shift).filter(Shift.status==ShiftStatus.opened).first()
+    shift_data = get_opened_shift()
+    shift = type('Shift', (), shift_data)() if shift_data else None
     
     if shift:
         await send_message_with_cleanup(update, context, t('close_previous_shift', lang))
-        if session:
-            session.close()
         return
     else:
         await send_shift_start_msg(update,context, lang)
         # send_shift_start_msg כבר מחזירה למסך הראשי ואוטומטית, לא צריך לעשות כלום נוסף
-        if session:
-            session.close()
         return
 
 
@@ -815,15 +700,11 @@ async def show_templates(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     lang = get_user_lang(update.effective_user.id)
     order_id = int(update.callback_query.data.replace('msg_', ''))
 
-    from db.db import USE_SUPABASE, db_client
+    # Using Supabase only
+    from db.db import db_client
     
-    if USE_SUPABASE:
-        orders = db_client.select('orders', {'id': order_id})
-        order = type('Order', (), orders[0])() if orders else None
-        session = None
-    else:
-        session = Session()
-        order = session.query(Order).filter(Order.id==order_id).first()
+    orders = db_client.select('orders', {'id': order_id})
+    order = type('Order', (), orders[0])() if orders else None
 
     mrkp = await form_operator_templates_kb(order, lang)
 
@@ -831,9 +712,6 @@ async def show_templates(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         text=t('choose_template', lang),
         reply_markup=mrkp,
     )
-    
-    if session:
-        session.close()
 
 
 @is_admin
@@ -852,32 +730,17 @@ async def make_tg_session_as_worker(update: Update, context: ContextTypes.DEFAUL
     lang = get_user_lang(update.effective_user.id)
     sess_id = int(update.callback_query.data.replace('worker_', ''))
 
-    from db.db import USE_SUPABASE, db_client
+    # Using Supabase only
+    from db.db import db_client
     
-    if USE_SUPABASE:
-        sessions = db_client.select('tgsessions', {'id': sess_id})
-        if sessions:
-            db_client.update('tgsessions', {'is_worker': True}, {'id': sess_id})
-            session_data = sessions[0]
-            await send_message_with_cleanup(update, context, t('session_now_worker', lang).format(session_data['name'], session_data['username']))
-            await update.effective_message.edit_reply_markup(reply_markup=create_tg_sessions_kb())
-        else:
-            await send_message_with_cleanup(update, context, t('session_not_found', lang))
-        session = None
+    sessions = db_client.select('tgsessions', {'id': sess_id})
+    if sessions:
+        db_client.update('tgsessions', {'is_worker': True}, {'id': sess_id})
+        session_data = sessions[0]
+        await send_message_with_cleanup(update, context, t('session_now_worker', lang).format(session_data['name'], session_data['username']))
+        await update.effective_message.edit_reply_markup(reply_markup=create_tg_sessions_kb())
     else:
-        session = Session()
-        tgsession: TgSession = session.query(TgSession).get(sess_id)
-
-        if tgsession:
-            tgsession.is_worker = True
-            session.commit()
-            await send_message_with_cleanup(update, context, t('session_now_worker', lang).format(tgsession.name, tgsession.username))
-            await update.effective_message.edit_reply_markup(reply_markup=create_tg_sessions_kb())
-        else:
-            await send_message_with_cleanup(update, context, t('session_not_found', lang))
-
-    if session:
-        session.close()
+        await send_message_with_cleanup(update, context, t('session_not_found', lang))
 
 @is_admin
 async def delete_tg_session(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -885,19 +748,17 @@ async def delete_tg_session(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     lang = get_user_lang(update.effective_user.id)
     sess_id = int(update.callback_query.data.replace('del_sess_', ''))
 
-    session = Session()
-    tgsession: TgSession = session.query(TgSession).get(sess_id)
-
-    if tgsession:
-        session.delete(tgsession)
-        session.flush()
-        session.commit()
-        await send_message_with_cleanup(update, context, t('session_deleted', lang).format(tgsession.name, tgsession.username))
+    # Using Supabase only
+    from db.db import db_client
+    
+    sessions = db_client.select('tgsessions', {'id': sess_id})
+    if sessions:
+        db_client.delete('tgsessions', {'id': sess_id})
+        session_data = sessions[0]
+        await send_message_with_cleanup(update, context, t('session_deleted', lang).format(session_data['name'], session_data['username']))
         await update.effective_message.edit_reply_markup(reply_markup=create_tg_sessions_kb())
     else:
         await send_message_with_cleanup(update, context, t('session_not_found', lang))
-
-    session.close()
 
 
 @is_admin
@@ -924,39 +785,49 @@ async def order_ready(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
 
-    session = Session()
-
+    # Using Supabase only
+    from db.db import db_client
+    
     try:
         order_id = int(update.callback_query.data.replace('ready_', ''))
-        order = session.query(Order).filter(Order.id==order_id).first()
-
-        order.courier_id = update.effective_user.id
-        order.courier_name = f"{update.effective_user.first_name} {update.effective_user.last_name if update.effective_user.last_name else ''}".strip()
-        order.courier_username = f"@{update.effective_user.username}" if update.effective_user.username else ""
-
-        order.status = Status.completed
-        order.delivered = datetime.datetime.now()
-
-        chosen_products = order.get_products()
-        for chosen_product in chosen_products:
-            chosen_product: dict
-            product = session.query(Product).filter(Product.name==chosen_product["name"]).first()
-            product.stock = product.stock - chosen_product["quantity"]
-
-        session.commit()
-
-        text = await form_confirm_order_courier(order, lang)
-        await update.effective_message.edit_text(text=text, parse_mode=ParseMode.HTML)
+        
+        orders = db_client.select('orders', {'id': order_id})
+        if orders:
+            order = orders[0]
+            # Update order
+            db_client.update('orders', {
+                'courier_id': update.effective_user.id,
+                'courier_name': f"{update.effective_user.first_name} {update.effective_user.last_name if update.effective_user.last_name else ''}".strip(),
+                'courier_username': f"@{update.effective_user.username}" if update.effective_user.username else "",
+                'status': Status.completed.value,
+                'delivered': datetime.datetime.now().isoformat()
+            }, {'id': order_id})
+            
+            # Update products stock
+            chosen_products = json.loads(order['products'])
+            for chosen_product in chosen_products:
+                products = db_client.select('products', {'name': chosen_product["name"]})
+                if products:
+                    product = products[0]
+                    new_stock = product['stock'] - chosen_product["quantity"]
+                    db_client.update('products', {'stock': new_stock}, {'id': product['id']})
+            
+            # Convert to object for form_confirm_order_courier
+            order_obj = type('Order', (), order)()
+            
+            text = await form_confirm_order_courier(order_obj, lang)
+            await update.effective_message.edit_text(text=text, parse_mode=ParseMode.HTML)
+        else:
+            await send_message_with_cleanup(update, context, t('order_not_found', lang))
+            return
 
         from db.db import get_bot_setting
         admin_chat = get_bot_setting('admin_chat') or links.ADMIN_CHAT
         if admin_chat:
-            text = await form_confirm_order_courier_info(order, 'ru')  # For admin group always in Russian
+            text = await form_confirm_order_courier_info(order_obj, 'ru')  # For admin group always in Russian
             await context.bot.send_message(admin_chat, text, parse_mode=ParseMode.HTML)
     except Exception as e:
         await send_message_with_cleanup(update, context, t('error', lang).format(repr(e)))
-    finally:
-        session.close()
 
 
 @is_operator
@@ -965,14 +836,16 @@ async def notif_client(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     lang = get_user_lang(update.effective_user.id)
     client_username = update.callback_query.data.replace('notif_', '')
 
-    session = Session()
-
-    tgsession = session.query(TgSession).filter_by(is_worker=True).first()
-
-    if not tgsession:
+    # Using Supabase only
+    from db.db import db_client
+    
+    sessions = db_client.select('tgsessions', {'is_worker': True})
+    if not sessions:
         await send_message_with_cleanup(update, context, t('no_worker_session', lang))
-        session.close()
         return
+    
+    tgsession_data = sessions[0]
+    tgsession = type('TgSession', (), tgsession_data)()
 
     try:
         client = Client(name='default', api_id=tgsession.api_id, api_hash=tgsession.api_hash, session_string=tgsession.string)
@@ -981,10 +854,8 @@ async def notif_client(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             await client.send_message(client_username, t('notif_client_order_active', lang))
     except Exception as e:
         await send_message_with_cleanup(update, context, t('send_message_error', lang).format(repr(e)))
-        session.close()
         return
 
-    session.close()
     await send_message_with_cleanup(update, context, t('notification_sent', lang))
 
 
@@ -1064,8 +935,12 @@ async def show_staff_list(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
     
-    session = Session()
-    users = session.query(User).all()
+    # Using Supabase only
+    from db.db import db_client
+    
+    # Get all users
+    users_data = db_client.select('users')
+    users = [type('User', (), user)() for user in users_data]
     
     # Group employees by role
     staff_by_role = {
@@ -1077,7 +952,7 @@ async def show_staff_list(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     }
     
     for user in users:
-        role = user.role.value if user.role else 'guest'
+        role = user.role.value if hasattr(user.role, 'value') else (user.role if user.role else 'guest')
         staff_by_role[role].append({
             'name': f"{user.firstname or ''} {user.lastname or ''}".strip(),
             'username': f"@{user.username}" if user.username else t("no_username", lang),
@@ -1104,5 +979,4 @@ async def show_staff_list(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 message += f"• {staff['name']} {staff['username']} (ID: {staff['user_id']})\n"
             message += "\n"
     
-    session.close()
     await send_message_with_cleanup(update, context, message, parse_mode=ParseMode.HTML)

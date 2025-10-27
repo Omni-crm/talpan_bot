@@ -98,31 +98,17 @@ async def send_shift_start_msg(update: Update, context: ContextTypes.DEFAULT_TYP
     shift.operator_username = update.effective_user.username
     shift.status = ShiftStatus.opened
     
-    if USE_SUPABASE:
-        # Using Supabase
-        shift_data = {
-            'operator_id': shift.operator_id,
-            'operator_username': shift.operator_username,
-            'status': shift.status.value,
-            'products_start': json.dumps(Shift.set_products()),
-            'opened_time': datetime.datetime.now().isoformat()
-        }
-        saved_shift = db_client.insert('shifts', shift_data)
-        shift.id = saved_shift['id']
-        shift.opened_time = datetime.datetime.fromisoformat(saved_shift['opened_time'])
-    else:
-        # Using SQLite
-        session = Session()
-        session.add(shift)
-        session.commit()
-        
-        # Verify the shift was saved
-        saved_shift = session.query(Shift).filter(Shift.id == shift.id).first()
-        if not saved_shift:
-            print("ERROR: Shift was not saved properly!")
-            session.close()
-            return
-        session.close()
+    # Using Supabase only
+    shift_data = {
+        'operator_id': shift.operator_id,
+        'operator_username': shift.operator_username,
+        'status': shift.status.value,
+        'products_start': json.dumps(Shift.set_products()),
+        'opened_time': datetime.datetime.now().isoformat()
+    }
+    saved_shift = db_client.insert('shifts', shift_data)
+    shift.id = saved_shift['id']
+    shift.opened_time = datetime.datetime.fromisoformat(saved_shift['opened_time'])
 
     products_text = " | ".join([((product.get("name") + ' ' + str(product.get("stock")))) for product in shift.get_products()])
 
@@ -262,38 +248,31 @@ async def form_week_report():
     Средние показатели:  
     Брутто: 3,907₪ в день | Нетто: 3,250₪ в день
     """
-    from db.db import USE_SUPABASE, db_client
+    # Using Supabase only
+    from db.db import db_client
     
     now = datetime.datetime.now()
     seven_days_ago = now - datetime.timedelta(days=7)
     
-    if USE_SUPABASE:
-        # Using Supabase
-        session = Session()
-        # Fetch all shifts and filter in Python (Supabase doesn't support >= directly)
-        all_shifts = db_client.select('shifts', {'status': 'closed'})
-        shifts = [
-            shift for shift in all_shifts 
-            if shift.get('closed_time') and 
-            datetime.datetime.fromisoformat(shift['closed_time']) >= seven_days_ago
-        ]
-        # Convert dicts to objects for compatibility
-        shift_objects = []
-        for s in shifts:
-            obj = type('Shift', (), {})()
-            obj.brutto = s.get('brutto', 0)
-            obj.netto = s.get('netto', 0)
-            obj.operator_paid = s.get('operator_paid', 0)
-            obj.runner_paid = s.get('runner_paid', 0)
-            obj.petrol_paid = s.get('petrol_paid', 0)
-            obj.get_summary = lambda: json.loads(s.get('summary', '{}'))
-            shift_objects.append(obj)
-        shifts = shift_objects
-        session.close()
-    else:
-        # Using SQLite
-        session = Session()
-        shifts = session.query(Shift).filter(Shift.closed_time >= seven_days_ago).all()
+    # Fetch all shifts and filter in Python (Supabase doesn't support >= directly)
+    all_shifts = db_client.select('shifts', {'status': 'closed'})
+    shifts = [
+        shift for shift in all_shifts 
+        if shift.get('closed_time') and 
+        datetime.datetime.fromisoformat(shift['closed_time']) >= seven_days_ago
+    ]
+    # Convert dicts to objects for compatibility
+    shift_objects = []
+    for s in shifts:
+        obj = type('Shift', (), {})()
+        obj.brutto = s.get('brutto', 0)
+        obj.netto = s.get('netto', 0)
+        obj.operator_paid = s.get('operator_paid', 0)
+        obj.runner_paid = s.get('runner_paid', 0)
+        obj.petrol_paid = s.get('petrol_paid', 0)
+        obj.get_summary = lambda: json.loads(s.get('summary', '{}'))
+        shift_objects.append(obj)
+    shifts = shift_objects
 
     brutto = sum([shift.brutto for shift in shifts])
     avg_brutto = brutto // 7
