@@ -948,7 +948,7 @@ def t(key: str, lang: str = 'ru') -> str:
 
 def get_user_lang(user_id: int) -> str:
     """
-    מחזיר את שפת המשתמש מה-DB
+    מחזיר את שפת המשתמש מה-DB - Supabase only
     
     Args:
         user_id: מזהה המשתמש
@@ -956,16 +956,12 @@ def get_user_lang(user_id: int) -> str:
     Returns:
         קוד השפה ('ru' או 'he')
     """
-    from db.db import Session, User
+    from db.db import db_client
     
-    session = Session()
-    try:
-        user = session.query(User).filter(User.user_id == user_id).first()
-        if user and user.lang:
-            return user.lang
-        return 'ru'  # ברירת מחדל
-    finally:
-        session.close()
+    users = db_client.select('users', {'user_id': user_id})
+    if users and users[0].get('lang'):
+        return users[0]['lang']
+    return 'ru'  # ברירת מחדל
 
 # תרגומים חדשים לתיקון דוחות
 TEXTS["product_report_title"] = {

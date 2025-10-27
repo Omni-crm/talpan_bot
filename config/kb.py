@@ -9,16 +9,16 @@ class Notifications(Enum):
 
 
 async def get_all_active_orders_to_msg_kb():
-    session = Session()
-
-    orders = session.query(Order).filter(Order.status.in_([Status.active, Status.delay, Status.pending])).all()
+    # Using Supabase only
+    from db.db import db_client
+    
+    all_orders = db_client.select('orders')
+    orders = [o for o in all_orders if o.get('status') in ['active', 'delay', 'pending']]
 
     if orders:
         mrkp = InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton(f"#{order.id}|{order.client_username}", callback_data=f"msg_{order.id}")] for order in orders]
+            inline_keyboard=[[InlineKeyboardButton(f"#{o['id']}|{o.get('client_username', '')}", callback_data=f"msg_{o['id']}")] for o in orders]
         )
-        session.close()
-
         return mrkp
 
 
@@ -33,12 +33,17 @@ def get_shift_end_kb(lang='ru'):
 SHIFT_END_KB = get_shift_end_kb('ru')
 
 async def build_start_menu(user_id):
-    session = Session()
-    user = session.query(User).filter(User.user_id==user_id).first()
-    shift = session.query(Shift).filter(Shift.status==ShiftStatus.opened).first()
+    # Using Supabase only
+    from db.db import db_client
+    
+    users = db_client.select('users', {'user_id': user_id})
+    user = users[0] if users else None
+    
+    shifts = db_client.select('shifts', {'status': 'opened'})
+    shift = shifts[0] if shifts else None
     
     # Get user's language
-    lang = user.lang if user and user.lang else 'ru'
+    lang = user.get('lang', 'ru') if user else 'ru'
     
     inline_keyboard=[
         [InlineKeyboardButton(t('btn_new_order', lang), callback_data="new")],
@@ -52,14 +57,15 @@ async def build_start_menu(user_id):
     if shift:
         inline_keyboard[1] = [InlineKeyboardButton(t('btn_end_shift', lang), callback_data="end_shift")]
 
-    if user and user.role != Role.GUEST:
-        if user.role == Role.ADMIN:
+    if user and user.get('role', 'guest') != 'guest':
+        user_role = user.get('role', 'guest')
+        if user_role == 'admin':
             inline_keyboard = inline_keyboard[:]
-        elif user.role == Role.OPERATOR:
+        elif user_role == 'operator':
             inline_keyboard = inline_keyboard[:-2]
-        elif user.role == Role.STOCKMAN:
+        elif user_role == 'stockman':
             inline_keyboard = inline_keyboard[-1:]
-        elif user.role == Role.RUNNER:
+        elif user_role == 'runner':
             from db.db import get_bot_setting
             order_chat = get_bot_setting('order_chat') or links.ORDER_CHAT
             if order_chat:
@@ -70,8 +76,6 @@ async def build_start_menu(user_id):
         START_KEYBOARD = InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
     else:
         START_KEYBOARD = None
-
-    session.close()
 
     return START_KEYBOARD
     

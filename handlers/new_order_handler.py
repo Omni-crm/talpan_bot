@@ -34,9 +34,9 @@ async def start_collect_data(update: Update, context: ContextTypes.DEFAULT_TYPE)
     # ניקוי הודעה קודמת
     await clean_previous_message(update, context)
 
-    session = Session()
-    shift = session.query(Shift).filter(Shift.status==ShiftStatus.opened).first()
-    session.close()
+    # Using Supabase only
+    from db.db import get_opened_shift
+    shift = get_opened_shift()
 
     if not shift:
         msg = await update.effective_message.reply_text(t("need_open_shift_for_order", lang))
