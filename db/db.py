@@ -472,15 +472,9 @@ def is_admin(func):
         user = update.effective_user
         msg = update.effective_message
         
-        # Check user role
-        if USE_SUPABASE:
-            results = db_client.select('users', {'user_id': user.id, 'role': 'admin'})
-            is_admin_role = len(results) > 0
-        else:
-            session = Session()
-            q = session.query(User).filter(User.user_id==user.id, User.role==Role.ADMIN)
-            is_admin_role = session.query(q.exists()).scalar()
-            session.close()
+        # Check user role - Supabase only
+        results = db_client.select('users', {'user_id': user.id, 'role': 'admin'})
+        is_admin_role = len(results) > 0
         
         if not is_admin_role:
             lang = get_user_lang(user.id)
@@ -498,19 +492,10 @@ def is_operator(func):
         user = update.effective_user
         msg = update.effective_message
         
-        # Check user role
-        if USE_SUPABASE:
-            results = db_client.select('users', {'user_id': user.id})
-            user_data = results[0] if results else None
-            is_operator_role = user_data and user_data['role'] in ['operator', 'admin']
-        else:
-            session = Session()
-            q = session.query(User).filter(
-                User.user_id == user.id,
-                User.role.in_([Role.OPERATOR, Role.ADMIN])
-            )
-            is_operator_role = session.query(q.exists()).scalar()
-            session.close()
+        # Check user role - Supabase only
+        results = db_client.select('users', {'user_id': user.id})
+        user_data = results[0] if results else None
+        is_operator_role = user_data and user_data['role'] in ['operator', 'admin']
         
         if not is_operator_role:
             lang = get_user_lang(user.id)
@@ -528,19 +513,10 @@ def is_stockman(func):
         user = update.effective_user
         msg = update.effective_message
         
-        # Check user role
-        if USE_SUPABASE:
-            results = db_client.select('users', {'user_id': user.id})
-            user_data = results[0] if results else None
-            is_stockman_role = user_data and user_data['role'] in ['stockman', 'admin']
-        else:
-            session = Session()
-            q = session.query(User).filter(
-                User.user_id == user.id,
-                User.role.in_([Role.STOCKMAN, Role.ADMIN])
-            )
-            is_stockman_role = session.query(q.exists()).scalar()
-            session.close()
+        # Check user role - Supabase only
+        results = db_client.select('users', {'user_id': user.id})
+        user_data = results[0] if results else None
+        is_stockman_role = user_data and user_data['role'] in ['stockman', 'admin']
         
         if not is_stockman_role:
             lang = get_user_lang(user.id)
@@ -558,19 +534,10 @@ def is_courier(func):
         user = update.effective_user
         msg = update.effective_message
         
-        # Check user role
-        if USE_SUPABASE:
-            results = db_client.select('users', {'user_id': user.id})
-            user_data = results[0] if results else None
-            is_courier_role = user_data and user_data['role'] in ['courier', 'admin']
-        else:
-            session = Session()
-            q = session.query(User).filter(
-                User.user_id == user.id,
-                User.role.in_([Role.RUNNER, Role.ADMIN])
-            )
-            is_courier_role = session.query(q.exists()).scalar()
-            session.close()
+        # Check user role - Supabase only
+        results = db_client.select('users', {'user_id': user.id})
+        user_data = results[0] if results else None
+        is_courier_role = user_data and user_data['role'] in ['courier', 'admin']
         
         if not is_courier_role:
             lang = get_user_lang(user.id)
@@ -590,18 +557,11 @@ def is_user_in_db(func):
         
         user = update.effective_user
         msg = update.effective_message
-        session = Session()
         
         try:
-            # Check if user exists in database
-            if USE_SUPABASE:
-                # Using Supabase
-                results = db_client.select('users', {'user_id': user.id})
-                user_db = results[0] if results else None
-            else:
-                # Using SQLite
-                q = session.query(User).filter(User.user_id==user.id)
-                user_db = q.first()
+            # Check if user exists in database - Supabase only
+            results = db_client.select('users', {'user_id': user.id})
+            user_db = results[0] if results else None
             
             if not user_db:
                 # משתמש חדש - צריך ליצור אותו
@@ -628,21 +588,8 @@ def is_user_in_db(func):
                     'role': role.value
                 }
                 
-                if USE_SUPABASE:
-                    # Using Supabase
-                    db_client.insert('users', user_data)
-                else:
-                    # Using SQLite
-                    new_user_db = User(
-                        firstname=user.first_name,
-                        lastname=user.last_name,
-                        username=user.username,
-                        user_id=user.id,
-                        lang='ru',  # ברירת מחדל, ישתנה אחרי בחירה
-                        role=role
-                    )
-                    session.add(new_user_db)
-                    session.commit()
+                # Using Supabase only
+                db_client.insert('users', user_data)
                 
                 print(f"New user created: {user}")
                 
@@ -686,14 +633,10 @@ def is_user_in_db(func):
                     )
                     # נחכה לבחירת השפה לפני שנמשיך
                     # הפונקציה set_language תטפל בהמשך
-                    if not USE_SUPABASE:
-                        session.close()
                     return
                 else:
                     # אורחים - הודעת ברוכים הבאים
                     await msg.reply_text(t("guest_welcome", "ru"))
-                    if not USE_SUPABASE:
-                        session.close()
                     return
                     
             else:
@@ -708,15 +651,12 @@ def is_user_in_db(func):
                 
                 if user_role == Role.GUEST:
                     await msg.reply_text(t("guest_welcome", user_lang or "ru"))
-                    if not USE_SUPABASE:
-                        session.close()
                     return
 
             await func(update, context, *args, **kwargs)
             
         finally:
-            if not USE_SUPABASE:
-                session.close()
+            pass
 
     return wrapper
 
@@ -727,128 +667,62 @@ def if_table():
 # Helper functions for Supabase migration
 
 def get_user_by_id(user_id: int):
-    """Get user by ID - works with both Supabase and SQLite"""
-    if USE_SUPABASE:
-        results = db_client.select('users', {'user_id': user_id})
-        if results:
-            return results[0]
-        return None
-    else:
-        session = Session()
-        user = session.query(User).filter(User.user_id == user_id).first()
-        session.close()
-        return user
+    """Get user by ID - Supabase only"""
+    results = db_client.select('users', {'user_id': user_id})
+    if results:
+        return results[0]
+    return None
 
 def get_product_by_id(product_id: int):
-    """Get product by ID - works with both Supabase and SQLite"""
-    if USE_SUPABASE:
-        results = db_client.select('products', {'id': product_id})
-        if results:
-            return results[0]
-        return None
-    else:
-        session = Session()
-        product = session.query(Product).filter(Product.id == product_id).first()
-        session.close()
-        return product
+    """Get product by ID - Supabase only"""
+    results = db_client.select('products', {'id': product_id})
+    if results:
+        return results[0]
+    return None
 
 def get_all_products():
-    """Get all products - works with both Supabase and SQLite"""
-    if USE_SUPABASE:
-        return db_client.select('products')
-    else:
-        session = Session()
-        products = session.query(Product).all()
-        session.close()
-        return products
+    """Get all products - Supabase only"""
+    return db_client.select('products')
 
 def create_shift(shift_data: dict):
-    """Create a new shift - works with both Supabase and SQLite"""
-    if USE_SUPABASE:
-        # Supabase will auto-generate the ID
-        result = db_client.insert('shifts', shift_data)
-        return result
-    else:
-        session = Session()
-        shift = Shift(**shift_data)
-        session.add(shift)
-        session.commit()
-        shift_id = shift.id
-        session.close()
-        return shift
+    """Create a new shift - Supabase only"""
+    result = db_client.insert('shifts', shift_data)
+    return result
 
 def get_opened_shift():
-    """Get the currently opened shift - works with both Supabase and SQLite"""
-    if USE_SUPABASE:
-        results = db_client.select('shifts', {'status': 'opened'})
-        if results:
-            return results[0]
-        return None
-    else:
-        session = Session()
-        shift = session.query(Shift).filter(Shift.status == ShiftStatus.opened).first()
-        session.close()
-        return shift
+    """Get the currently opened shift - Supabase only"""
+    results = db_client.select('shifts', {'status': 'opened'})
+    if results:
+        return results[0]
+    return None
 
 def update_shift(shift_id: int, updates: dict):
-    """Update a shift - works with both Supabase and SQLite"""
-    if USE_SUPABASE:
-        db_client.update('shifts', updates, {'id': shift_id})
-    else:
-        session = Session()
-        shift = session.query(Shift).filter(Shift.id == shift_id).first()
-        if shift:
-            for key, value in updates.items():
-                setattr(shift, key, value)
-            session.commit()
-        session.close()
+    """Update a shift - Supabase only"""
+    db_client.update('shifts', updates, {'id': shift_id})
 
 def get_orders_by_filter(filters: dict, sort_by: str = None):
-    """Get orders by filter - works with both Supabase and SQLite"""
-    if USE_SUPABASE:
-        # Get all orders and filter in Python
-        all_orders = db_client.select('orders')
-        filtered = all_orders
-        
-        if filters:
-            for key, value in filters.items():
-                if key == 'created' and isinstance(value, dict):
-                    # Handle date ranges
-                    if '>=' in value:
-                        filtered = [o for o in filtered if o.get('created') and o['created'] >= str(value['>='])]
-                    if '<=' in value:
-                        filtered = [o for o in filtered if o.get('created') and o['created'] <= str(value['<='])]
-                else:
-                    filtered = [o for o in filtered if o.get(key) == value]
-        
-        if sort_by:
-            filtered = sorted(filtered, key=lambda x: x.get(sort_by))
-        
-        # Convert to objects
-        return [type('Order', (), order)() for order in filtered]
-    else:
-        from sqlalchemy import and_
-        session = Session()
-        query = session.query(Order)
-        
-        if filters:
-            conditions = []
-            for key, value in filters.items():
-                if hasattr(Order, key):
-                    conditions.append(getattr(Order, key) == value)
-            if conditions:
-                query = query.filter(and_(*conditions))
-        
-        results = query.all()
-        session.close()
-        return results
+    """Get orders by filter - Supabase only"""
+    # Get all orders and filter in Python
+    all_orders = db_client.select('orders')
+    filtered = all_orders
+    
+    if filters:
+        for key, value in filters.items():
+            if key == 'created' and isinstance(value, dict):
+                # Handle date ranges
+                if '>=' in value:
+                    filtered = [o for o in filtered if o.get('created') and o['created'] >= str(value['>='])]
+                if '<=' in value:
+                    filtered = [o for o in filtered if o.get('created') and o['created'] <= str(value['<='])]
+            else:
+                filtered = [o for o in filtered if o.get(key) == value]
+    
+    if sort_by:
+        filtered = sorted(filtered, key=lambda x: x.get(sort_by))
+    
+    # Convert to objects
+    return [type('Order', (), order)() for order in filtered]
 
 def get_all_orders():
-    """Get all orders - works with both Supabase and SQLite"""
-    if USE_SUPABASE:
-        return db_client.select('orders')
-    else:
-        session = Session()
-        orders = session.query(Order).all()
-        session.close()
-        return orders
+    """Get all orders - Supabase only"""
+    return db_client.select('orders')
