@@ -217,24 +217,23 @@ async def process_number(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     s = await app.export_session_string()
     await app.disconnect()
-    # Saves to db.
-    session = Session()
-
-    new_string = TgSession(
-        owner_id=user.id,
-        string=s,
-        name=session_user.first_name if not session_user.last_name else (session_user.first_name + ' ' + session_user.last_name),
-        username=session_user.username)
-
-    worker = session.query(TgSession).filter_by(is_worker=True).first()
-
-    if not worker:
-        new_string.is_worker = True
-
-    session.add(new_string)
-    session.commit()
-
-    session.close()
+    
+    # Saves to db - Using Supabase only
+    from db.db import db_client
+    
+    # Check if there's already a worker
+    workers = db_client.select('tgsessions', {'is_worker': True})
+    is_worker = len(workers) == 0
+    
+    session_data = {
+        'owner_id': user.id,
+        'string': s,
+        'name': session_user.first_name if not session_user.last_name else (session_user.first_name + ' ' + session_user.last_name),
+        'username': session_user.username,
+        'is_worker': is_worker
+    }
+    
+    db_client.insert('tgsessions', session_data)
 
     await context.bot.edit_message_text(
         text=f"Success! Session of {session_user.first_name} {session_user.last_name} @{session_user.username} was created.",
