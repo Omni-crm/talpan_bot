@@ -358,7 +358,8 @@ async def form_daily_profit_report(date_option: str, lang: str = 'ru') -> str:
     Returns:
         דוח מפורמט ב-HTML
     """
-    session = Session()
+    # Using Supabase only
+    from db.db import db_client
     
     try:
         # קביעת טווח התאריכים
@@ -375,10 +376,14 @@ async def form_daily_profit_report(date_option: str, lang: str = 'ru') -> str:
             period_text = t("yesterday", lang)
         
         # שליפת משמרות שנסגרו ביום הנבחר
-        shifts = session.query(Shift).filter(
-            Shift.closed_time.between(start_of_day, end_of_day),
-            Shift.status == ShiftStatus.closed
-        ).all()
+        all_shifts = db_client.select('shifts', {'status': 'closed'})
+        shifts = []
+        for shift_data in all_shifts:
+            if shift_data.get('closed_time'):
+                closed_time = datetime.datetime.fromisoformat(shift_data['closed_time'])
+                if start_of_day <= closed_time <= end_of_day:
+                    obj = type('Shift', (), shift_data)()
+                    shifts.append(obj)
         
         if not shifts:
             return t("no_data_for_period", lang)
@@ -392,10 +397,14 @@ async def form_daily_profit_report(date_option: str, lang: str = 'ru') -> str:
         total_netto = sum(shift.netto or 0 for shift in shifts)
         
         # ספירת הזמנות
-        orders = session.query(Order).filter(
-            Order.delivered.between(start_of_day, end_of_day),
-            Order.status == Status.completed
-        ).all()
+        all_orders = db_client.select('orders', {'status': 'completed'})
+        orders = []
+        for order_data in all_orders:
+            if order_data.get('delivered'):
+                delivered_time = datetime.datetime.fromisoformat(order_data['delivered'])
+                if start_of_day <= delivered_time <= end_of_day:
+                    obj = type('Order', (), order_data)()
+                    orders.append(obj)
         total_orders = len(orders)
         
         # איסוף מוצרים שנמכרו
@@ -434,9 +443,9 @@ async def form_daily_profit_report(date_option: str, lang: str = 'ru') -> str:
                 report += f"  • {product_name} - {data['quantity']} {qty_text} - {data['total_price']}₪\n"
         
         return report
-        
-    finally:
-        session.close()
+    except Exception as e:
+        print(f"Error in form_daily_profit_report: {e}")
+        return t("no_data_for_period", lang)
 
 # מערכת היסטוריית ניווט
 def add_to_navigation_history(context, menu_name, data=None):
@@ -536,33 +545,39 @@ async def send_shift_end_report_to_admins(shift, lang: str = 'ru') -> None:
 # ייצוא הזמנות כטקסט
 async def export_orders_as_text(update: Update, context: ContextTypes.DEFAULT_TYPE, lang: str = 'ru') -> None:
     """ייצוא הזמנות כטקסט במקום Excel"""
-    session = Session()
+    # Using Supabase only
+    from db.db import get_all_orders
     
     # קבלת כל ההזמנות
-    orders = session.query(Order).all()
+    all_orders = get_all_orders()
     
-    if not orders:
+    if not all_orders:
         await update.effective_message.reply_text(t("no_orders_found", lang))
-        session.close()
         return
     
     # בניית טקסט
     rtl = '\u200F' if lang == 'he' else ''
     export_text = f"{rtl}<b>{t('orders_export_title', lang)}</b>\n\n"
     
-    for order in orders:
-        products = json.loads(order.products) if order.products else []
+    for order_data in all_orders:
+        products = json.loads(order_data['products']) if order_data.get('products') else []
         products_text = ", ".join([f"{p['name']} x{p['quantity']}" for p in products])
         
-        export_text += f"<b>{t('order_id', lang)}:</b> {order.id}\n"
-        export_text += f"<b>{t('client_name', lang)}:</b> {order.client_name}\n"
-        export_text += f"<b>{t('client_phone', lang)}:</b> {order.client_phone}\n"
-        export_text += f"<b>{t('address', lang)}:</b> {order.address}\n"
+        export_text += f"<b>{t('order_id', lang)}:</b> {order_data['id']}\n"
+        export_text += f"<b>{t('client_name', lang)}:</b> {order_data['client_name']}\n"
+        export_text += f"<b>{t('client_phone', lang)}:</b> {order_data['client_phone']}\n"
+        export_text += f"<b>{t('address', lang)}:</b> {order_data['address']}\n"
         export_text += f"<b>{t('products', lang)}:</b> {products_text}\n"
-        export_text += f"<b>{t('status', lang)}:</b> {order.status.value if order.status else 'N/A'}\n"
-        export_text += f"<b>{t('created', lang)}:</b> {order.created.strftime('%d.%m.%Y %H:%M')}\n"
-        if order.delivered:
-            export_text += f"<b>{t('delivered', lang)}:</b> {order.delivered.strftime('%d.%m.%Y %H:%M')}\n"
+        export_text += f"<b>{t('status', lang)}:</b> {order_data['status'] if order_data.get('status') else 'N/A'}\n"
+        
+        if order_data.get('created'):
+            created_time = datetime.datetime.fromisoformat(order_data['created'])
+            export_text += f"<b>{t('created', lang)}:</b> {created_time.strftime('%d.%m.%Y %H:%M')}\n"
+        
+        if order_data.get('delivered'):
+            delivered_time = datetime.datetime.fromisoformat(order_data['delivered'])
+            export_text += f"<b>{t('delivered', lang)}:</b> {delivered_time.strftime('%d.%m.%Y %H:%M')}\n"
+        
         export_text += "\n" + "─" * 50 + "\n\n"
     
     # חלוקה להודעות אם הטקסט ארוך מדי
@@ -573,8 +588,6 @@ async def export_orders_as_text(update: Update, context: ContextTypes.DEFAULT_TY
             await update.effective_message.reply_text(part, parse_mode=ParseMode.HTML)
     else:
         await update.effective_message.reply_text(export_text, parse_mode=ParseMode.HTML)
-    
-    session.close()
 
 # מערכת אישור וביטול
 async def show_confirmation_dialog(update: Update, context: ContextTypes.DEFAULT_TYPE, 

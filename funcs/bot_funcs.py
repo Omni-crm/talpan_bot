@@ -659,16 +659,16 @@ async def show_week_report(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         await update.callback_query.answer()
         await send_message_with_cleanup(update, context, week_report, parse_mode=ParseMode.HTML)
     else:
-        session = Session()
-        admins = session.query(User).filter(User.role==Role.ADMIN).all()
-
+        # Using Supabase only
+        from db.db import db_client
+        
+        admins = db_client.select('users', {'role': 'admin'})
+        
         for admin in admins:
             try:
-                await context.bot.send_message(admin.user_id, week_report, parse_mode=ParseMode.HTML,)
+                await context.bot.send_message(admin['user_id'], week_report, parse_mode=ParseMode.HTML,)
             except Exception as e:
                 print(repr(e))
-
-        session.close()
 
 
 @is_operator

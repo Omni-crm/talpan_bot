@@ -17,22 +17,21 @@ async def del_roles(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     data = update.callback_query.data
 
-    session = Session()
-
+    # Using Supabase only
+    from db.db import db_client
+    
     if data == 'del_o':
-        operators = session.query(User).filter(User.role==Role.OPERATOR).all()
-        dikb = [[InlineKeyboardButton(f"@{o.username}|{o.firstname}", callback_data=f"del_{o.user_id}") for o in operators]]
+        operators_data = db_client.select('users', {'role': 'operator'})
+        dikb = [[InlineKeyboardButton(f"@{u.get('username')}|{u.get('firstname')}", callback_data=f"del_{u.get('user_id')}") for u in operators_data]]
     elif data == 'del_c':
-        operators = session.query(User).filter(User.role==Role.RUNNER).all()
-        dikb = [[InlineKeyboardButton(f"@{o.username}|{o.firstname}", callback_data=f"del_{o.user_id}") for o in operators]]
+        operators_data = db_client.select('users', {'role': 'runner'})
+        dikb = [[InlineKeyboardButton(f"@{u.get('username')}|{u.get('firstname')}", callback_data=f"del_{u.get('user_id')}") for u in operators_data]]
     elif data == 'del_s':
-        operators = session.query(User).filter(User.role==Role.STOCKMAN).all()
-        dikb = [[InlineKeyboardButton(f"@{o.username}|{o.firstname}", callback_data=f"del_{o.user_id}") for o in operators]]
+        operators_data = db_client.select('users', {'role': 'stockman'})
+        dikb = [[InlineKeyboardButton(f"@{u.get('username')}|{u.get('firstname')}", callback_data=f"del_{u.get('user_id')}") for u in operators_data]]
 
     replkbmkp = InlineKeyboardMarkup(inline_keyboard=dikb)
     await update.effective_message.edit_text(t('click_to_remove', lang), reply_markup=replkbmkp, parse_mode=ParseMode.HTML)
-    
-    session.close()
 
 
 async def delete_staff_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -41,15 +40,14 @@ async def delete_staff_user(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     user_id = int(update.callback_query.data.replace('del_', ''))
 
-    session = Session()
+    # Using Supabase only
+    from db.db import db_client
+    
+    users = db_client.select('users', {'user_id': user_id})
+    
+    if users:
+        user = users[0]
+        role = user['role']
 
-    user = session.query(User).filter(User.user_id==user_id).first()
-
-    if user:
-        role = user.role.value
-
-        user.role = Role.GUEST
-        session.commit()
-        await update.effective_message.edit_text(t('staff_removed', lang).format(user.firstname, user.username, role), reply_markup=get_admin_action_kb(lang), parse_mode=ParseMode.HTML)
-
-    session.close()
+        db_client.update('users', {'role': 'guest'}, {'user_id': user_id})
+        await update.effective_message.edit_text(t('staff_removed', lang).format(user['firstname'], user['username'], role), reply_markup=get_admin_action_kb(lang), parse_mode=ParseMode.HTML)

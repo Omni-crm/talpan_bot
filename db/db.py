@@ -230,10 +230,16 @@ class Shift(Base):
 
     @staticmethod
     def set_products():
-        session = Session()
-        products = session.query(Product).all()
-        data = [{'id': product.id, 'name': product.name, 'stock': product.stock} for product in products]
-        session.close()
+        # Using Supabase only
+        if USE_SUPABASE:
+            products = db_client.select('products')
+            data = [{'id': product['id'], 'name': product['name'], 'stock': product['stock']} for product in products]
+        else:
+            # Fallback for SQLite (should not be used in production)
+            session = Session()
+            products = session.query(Product).all()
+            data = [{'id': product.id, 'name': product.name, 'stock': product.stock} for product in products]
+            session.close()
 
         return data
 
