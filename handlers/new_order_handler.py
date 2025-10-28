@@ -395,24 +395,54 @@ async def add_more_products(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 async def go_to_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Go to final confirming order."""
+    print(f"🔧 go_to_confirm called")
     lang = context.user_data["collect_order_data"]["lang"]
     await update.callback_query.answer()
 
     context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.ADD_MORE_PRODUCTS_OR_CONFIRM
 
-    order = Order(
-        client_name=context.user_data["collect_order_data"]["name"],
-        client_username=context.user_data["collect_order_data"]["username"],
-        client_phone=context.user_data["collect_order_data"]["phone"],
-        address=context.user_data["collect_order_data"]["address"],
-    )
-
-    order.set_products(context.user_data["collect_order_data"]["products"])
-    order.total_order_price = order.calculate_total_price()  # חישוב מחיר כולל
+    # Create an object-like structure for the order (not saved to DB yet)
+    import json
+    products_json = json.dumps(context.user_data["collect_order_data"]["products"])
+    
+    # Calculate total price
+    total_price = sum([product['total_price'] for product in context.user_data["collect_order_data"]["products"]])
+    
+    # Create object-like dict
+    order_data = {
+        'id': None,  # Not saved yet
+        'client_name': context.user_data["collect_order_data"]["name"],
+        'client_username': context.user_data["collect_order_data"]["username"],
+        'client_phone': context.user_data["collect_order_data"]["phone"],
+        'address': context.user_data["collect_order_data"]["address"],
+        'products': products_json,
+        'total_order_price': total_price,
+        'status': None  # Will be set when saved
+    }
+    
+    # Convert to object-like for form_confirm_order
+    class OrderPreview:
+        def __init__(self, data):
+            for key, value in data.items():
+                setattr(self, key, value)
+        
+        def get_products(self):
+            import json
+            return json.loads(self.products) if isinstance(self.products, str) else self.products
+    
+    order = OrderPreview(order_data)
+    print(f"🔧 Order preview created")
 
     msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
     text = t("confirm_order_check", lang) + (await form_confirm_order(order, lang))
-    context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(text, reply_markup=get_confirm_order_kb(lang), parse_mode=ParseMode.HTML)
+    from funcs.utils import edit_conversation_message
+    context.user_data["collect_order_data"]["start_msg"] = await edit_conversation_message(
+        msg,
+        text, 
+        reply_markup=get_confirm_order_kb(lang), 
+        parse_mode=ParseMode.HTML
+    )
+    print(f"🔧 Confirmation message edited")
 
     return CollectOrderDataStates.CONFIRM_OR_NOT
 
