@@ -10,6 +10,35 @@ from funcs.utils import *
 from funcs.bot_funcs import *
 import asyncio
 
+class DebugConversationHandler(ConversationHandler):
+    """ConversationHandler with debug logging"""
+    
+    async def handle_update(self, update, application, check_result, context):
+        """Override to add logging"""
+        print(f"🔍 NEW_ORDER: handle_update called")
+        print(f"🔍 NEW_ORDER: Check result: {check_result}")
+        
+        result = await super().handle_update(update, application, check_result, context)
+        
+        print(f"🔍 NEW_ORDER: After handling, result: {result}")
+        
+        return result
+    
+    def check_update(self, update):
+        """Override to add logging"""
+        print(f"🔍 NEW_ORDER: check_update called")
+        
+        # Try to see current conversations
+        try:
+            conv_dict = getattr(self, '_conversations', {})
+            print(f"🔍 NEW_ORDER: Active conversations: {list(conv_dict.keys())}")
+        except Exception as e:
+            print(f"🔍 NEW_ORDER: Could not access conversations: {e}")
+        
+        result = super().check_update(update)
+        print(f"🔍 NEW_ORDER: Check result: {result}")
+        return result
+
 class CollectOrderDataStates:
     START = 0
     NAME = 1
@@ -521,7 +550,7 @@ states = {
 }
 
 
-NEW_ORDER_HANDLER = ConversationHandler(
+NEW_ORDER_HANDLER = DebugConversationHandler(
     entry_points=[
         CallbackQueryHandler(start_collect_data, '^new$'),
     ],
