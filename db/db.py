@@ -1,8 +1,4 @@
-from sqlalchemy import create_engine, inspect
 import os
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.orm import declarative_base
-from sqlalchemy import Column, String, BigInteger, Boolean, UniqueConstraint, Integer, DateTime, Enum as SqlEnum
 from enum import Enum
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
@@ -11,87 +7,70 @@ from functools import wraps
 from config.config import *
 from config.translations import t, get_user_lang
 import datetime, json, io
-import pandas as pd
 
 # Import Supabase client
 from .supabase_client import get_supabase_client
 
-Base = declarative_base()
-
-# Check if we should use Supabase
-USE_SUPABASE = os.getenv("SUPABASE_URL") is not None
-
-if USE_SUPABASE:
-    db_client = get_supabase_client()
-    print("✅ Using Supabase database")
-else:
-    db_client = None
-    print("❌ Using SQLite database")
-
-# Determine SQLite database location in a portable way.
-# - Locally: defaults to ./database.db (or DB_NAME if provided)
-# - Railway: recommend setting DB_DIR=/data via railway.toml to persist on a volume
-# You can also override with DB_PATH to point directly to a file.
-db_path_env = os.getenv("DB_PATH")
-if db_path_env:
-    sqlite_path = db_path_env
-else:
-    db_dir = os.getenv("DB_DIR", ".")
-    db_name = os.getenv("DB_NAME", "database.db")
-    sqlite_path = os.path.join(db_dir, db_name)
-
-# Keep original Session for backward compatibility
-engine = create_engine(f"sqlite:///{sqlite_path}")
-Session = sessionmaker()
-Session.configure(bind=engine)
+# Initialize Supabase client only
+db_client = get_supabase_client()
+print("✅ Using Supabase database")
 
 
 def dump_db(format: str):
-    global engine
+    """
+    Export database to file using Supabase only
+    """
+    try:
+        import pandas as pd
+        from io import BytesIO
+        
+        # List of tables to export
+        tables = ['users', 'products', 'orders', 'shifts', 'tgsessions', 'templates']
+        output = BytesIO()
 
-    insp = inspect(engine)
-    tables = insp.get_table_names()
-    output = io.BytesIO()
+        if format == "xlsx":
+            filename = f'dump_db_{datetime.datetime.now().strftime("%d_%m_%Y")}.xlsx'
+            output.name = filename
 
-    if format == "xlsx":
-        filename = f'dump_db_{datetime.datetime.now().strftime("%d_%m_%Y")}.xlsx'
-        output.name = filename
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                for table_name in tables:
+                    try:
+                        data = db_client.select(table_name)
+                        if data:
+                            df = pd.DataFrame(data)
+                            df.to_excel(writer, sheet_name=table_name, index=False)
+                        else:
+                            print(f"Table '{table_name}' is empty and will not be added to Excel.")
+                    except Exception as e:
+                        print(f"Error exporting table '{table_name}': {e}")
 
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            output.seek(0)
+            return output
+        else:
+            filename = f'dump_db_{datetime.datetime.now().strftime("%d_%m_%Y")}.json'
+            output.name = filename
+
+            all_data = {}
+
             for table_name in tables:
-                df = pd.read_sql_table(table_name, con=engine)
+                try:
+                    data = db_client.select(table_name)
+                    if data:
+                        all_data[table_name] = data
+                    else:
+                        print(f"Table '{table_name}' is empty and will not be added to JSON.")
+                except Exception as e:
+                    print(f"Error exporting table '{table_name}': {e}")
 
-                if not df.empty:
-                    df.to_excel(writer, sheet_name=table_name, index=False)
-                else:
-                    print(f"Table '{table_name}' is empty and will not be added to Excel.")
+            # Save data to JSON in byte stream
+            json_data = json.dumps(all_data, ensure_ascii=False, indent=4, default=str)
+            output.write(json_data.encode('utf-8'))
+            output.seek(0)
 
-        output.seek(0)
-
-        return output
-    else:
-        filename = f'dump_db_{datetime.datetime.now().strftime("%d_%m_%Y")}.json'
-        output.name = filename
-
-        all_data = {}
-
-        for table_name in tables:
-            df = pd.read_sql_table(table_name, con=engine)
-
-            if not df.empty:
-                for column in df.select_dtypes(include=['datetime64[ns]']).columns:
-                    df[column] = df[column].dt.strftime('%Y-%m-%d %H:%M:%S')
-
-                all_data[table_name] = df.to_dict(orient='records')
-            else:
-                print(f"Table '{table_name}' is empty and will not be added to JSON.")
-
-        # Save data to JSON in byte stream
-        json_data = json.dumps(all_data, ensure_ascii=False, indent=4)
-        output.write(json_data.encode('utf-8'))
-        output.seek(0)
-
-        return output
+            return output
+    except Exception as e:
+        print(f"Error in dump_db: {e}")
+        return None
 
 
 class Status(Enum):
@@ -632,8 +611,8 @@ def is_user_in_db(func):
     return wrapper
 
 def if_table():
-    """Creates all tables if not existed yet."""
-    Base.metadata.create_all(engine)
+    """Creates all tables if not existed yet - Supabase only (tables managed in Supabase dashboard)."""
+    print("✅ Supabase - tables managed in cloud")
 
 # Helper functions for Supabase migration
 
