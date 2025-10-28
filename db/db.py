@@ -92,121 +92,37 @@ class Role(Enum):
     STOCKMAN = "stockman"
     RUNNER = "courier"
     GUEST = "guest"
+# Note: Models are now managed in Supabase, these classes are kept for type hints only
+class User:
+    """User model - Supabase managed"""
+    pass
 
+class Product:
+    """Product model - Supabase managed"""
+    pass
 
-class User(Base):
-    __tablename__ = "users"
+class Template:
+    """Template model - Supabase managed"""
+    pass
 
-    user_id = Column(Integer, primary_key=True)
-    firstname = Column(String)
-    lastname = Column(String)
-    username = Column(String)
-    lang = Column(String, default='ru')
-    role = Column(SqlEnum(Role), default=Role.GUEST,)
-
-
-class Product(Base):
-    """Products listed in db."""
-    __tablename__ = 'products'
-
-    id = Column(Integer, primary_key=True)
-    name = Column(String(22))
-    stock = Column(Integer, default=0)
-    crude = Column(Integer, default=0)
-    price = Column(Integer, default=0)  # מחיר המוצר
-
-
-class Template(Base):
-    """Template messages using to send to clients."""
-    __tablename__ = 'templates'
-
-    id = Column(Integer, primary_key=True)
-    name = Column(String)
-    text = Column(String)
-
-
-class TgSession(Base):
-    """Template messages using to send to clients."""
-    __tablename__ = 'tgsessions'
-
-    id = Column(Integer, primary_key=True)
-    name = Column(String)
-    username = Column(String)
-    api_id = Column(BigInteger, default=11858687)
-    api_hash = Column(String, default="c0bf09e63e57259cc0bd793727ec448b")
-    string = Column(String, nullable=False)
-    owner_id = Column(BigInteger)
-    is_worker = Column(Boolean, default=False)
-
+class TgSession:
+    """TgSession model - Supabase managed"""
     @staticmethod
     def get_api_id():
-        return TgSession.api_id.default.arg
-
+        import os
+        return os.getenv("API_ID")
+    
     @staticmethod
     def get_api_hash():
-        return TgSession.api_hash.default.arg
+        import os
+        return os.getenv("API_HASH")
 
+class Order:
+    """Order model - Supabase managed"""
+    pass
 
-class Order(Base):
-    """Orders in the system."""
-    __tablename__ = 'orders'
-
-    id = Column(Integer, primary_key=True)
-    client_name = Column(String)
-    client_username = Column(String)
-    client_phone = Column(String)
-    address = Column(String)
-    products = Column(String)  # JSON with total_price instead of price
-    total_order_price = Column(Integer, default=0)  # מחיר כולל להזמנה
-    courier_name = Column(String)
-    courier_username = Column(String)
-    courier_id = Column(BigInteger)
-    courier_minutes = Column(Integer)
-    delay_reason = Column(String)
-    delay_minutes = Column(Integer)
-    created = Column(DateTime, default=datetime.datetime.now())
-    delivered = Column(DateTime)
-    status = Column(SqlEnum(Status), default=Status.pending,)
-
-    def set_products(self, data):
-        self.products = json.dumps(data)  # Serialization
-
-    def get_products(self) -> list[dict]:
-        return json.loads(self.products)  # Deserialization
-    
-    def calculate_total_price(self) -> int:
-        """חישוב מחיר כולל של ההזמנה"""
-        products = self.get_products()
-        return sum([product.get('total_price', 0) for product in products])
-    
-    def to_dict(self):
-        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
-
-
-class Shift(Base):
-    __tablename__ = 'shifts'
-
-    id = Column(Integer, primary_key=True)
-    products_start = Column(String, default=lambda: json.dumps(Shift.set_products()))
-    summary = Column(String)
-    products_end = Column(String)
-    operator_id = Column(BigInteger)
-    operator_username = Column(String)
-    status = Column(SqlEnum(ShiftStatus), default=ShiftStatus.opened,)
-    opened_time = Column(DateTime, default=datetime.datetime.now())
-    closed_time = Column(DateTime)
-
-    operator_paid = Column(Integer)
-    runner_paid = Column(Integer)
-    petrol_paid = Column(Integer)
-    products_fetched_text = Column(String)
-
-    brutto = Column(Integer)
-    netto = Column(Integer)
-
-    operator_close_id = Column(BigInteger)
-    operator_close_username = Column(String)
-
+class Shift:
+    """Shift model - Supabase managed"""
     @staticmethod
     def set_products():
         # Using Supabase only
@@ -214,24 +130,9 @@ class Shift(Base):
         data = [{'id': product['id'], 'name': product['name'], 'stock': product['stock']} for product in products]
         return data
 
-    def get_products(self) -> list[dict]:
-        return json.loads(self.products_start)
-
-    def get_summary(self) -> list[dict]:
-        return json.loads(self.summary)
-
-
-class BotSettings(Base):
-    """הגדרות הבוט - קבוצות, משתמשים וכו'"""
-    __tablename__ = 'bot_settings'
-
-    id = Column(Integer, primary_key=True)
-    key = Column(String(50), unique=True, nullable=False)  # 'admin_chat', 'order_chat', 'bot_token', etc.
-    value = Column(String(500), nullable=False)  # ערך ההגדרה
-    value_type = Column(String(20), default='string')  # 'string', 'int', 'list', 'json'
-    description = Column(String(200))  # תיאור ההגדרה
-    updated_at = Column(DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now)
-    updated_by = Column(BigInteger)  # user_id של מי שעדכן
+class BotSettings:
+    """BotSettings model - Supabase managed"""
+    pass
 
 def get_bot_setting(key: str, default_value: str = "") -> str:
     """קבלת הגדרה מהמסד הנתונים - Supabase only"""
