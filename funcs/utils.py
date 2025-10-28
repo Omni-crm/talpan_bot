@@ -91,7 +91,7 @@ async def send_shift_start_msg(update: Update, context: ContextTypes.DEFAULT_TYP
     🔴 12 | ⚫️ 8 | 🛍️ 10 | 🍿 6
     """
     print(f"🔧 send_shift_start_msg called")
-    from db.db import USE_SUPABASE, db_client, get_opened_shift
+    from db.db import db_client, get_opened_shift
     import json
     
     shift = Shift()
