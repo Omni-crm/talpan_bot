@@ -546,7 +546,7 @@ def get_opened_shift():
     # Sort by id descending to get most recent first
     all_shifts.sort(key=lambda x: x.get('id', 0), reverse=True)
     print(f"🔧 get_opened_shift: Checking {len(all_shifts)} shifts")
-    opened_shift = None
+    
     for shift in all_shifts:
         status = shift.get('status', '')
         shift_id = shift.get('id', 'unknown')
@@ -570,13 +570,10 @@ def get_opened_shift():
         
         if is_opened and not is_closed:
             print(f"🔧 get_opened_shift: Found opened shift ID={shift_id}, Status='{status}'")
-            opened_shift = shift
+            return shift  # Return first (most recent) opened shift
     
-    if opened_shift:
-        return opened_shift
-    else:
-        print(f"🔧 get_opened_shift: No opened shift found")
-        return None
+    print(f"🔧 get_opened_shift: No opened shift found")
+    return None
 
 def update_shift(shift_id: int, updates: dict):
     """Update a shift - Supabase only"""
