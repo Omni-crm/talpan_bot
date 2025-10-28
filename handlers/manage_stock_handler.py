@@ -45,7 +45,8 @@ async def add_product_start(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         t("enter_product_name", lang),
         reply_markup=get_cancel_kb(lang)
     )
-    print(f"🔧 State set to ENTER_NAME")
+    print(f"🔧 State set to ENTER_NAME: {StockManagementStates.ENTER_NAME}")
+    print(f"🔧 Conversation will be active for state {StockManagementStates.ENTER_NAME}")
     
     return StockManagementStates.ENTER_NAME
 
