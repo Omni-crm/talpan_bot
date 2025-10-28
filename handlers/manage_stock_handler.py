@@ -52,8 +52,10 @@ async def add_product_start(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 async def add_product_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Process product name"""
-    print(f"🔧 add_product_name called")
+    print(f"🔧🔧🔧 add_product_name CALLED! 🔧🔧🔧")
     print(f"🔧 Update type: {type(update)}")
+    print(f"🔧 Update: {update}")
+    print(f"🔧 Context user_data: {context.user_data}")
     
     if update.message:
         product_name = update.message.text[:50]  # Limit to 50 characters
@@ -66,6 +68,7 @@ async def add_product_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         print(f"🔧 Message deleted")
         
         if "add_product" not in context.user_data:
+            print(f"⚠️ add_product not in context.user_data! Initializing...")
             context.user_data["add_product"] = {}
         
         context.user_data["add_product"]["name"] = product_name
@@ -78,6 +81,10 @@ async def add_product_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             )
             print(f"🔧 Asking for stock, returning to state {StockManagementStates.ENTER_STOCK}")
             return StockManagementStates.ENTER_STOCK
+        else:
+            print(f"❌ ERROR: msg not found in context.user_data!")
+    else:
+        print(f"❌ ERROR: update.message is None!")
     
     print(f"🔧 Something went wrong - returning END")
     return ConversationHandler.END
@@ -244,16 +251,20 @@ async def delete_product_execute(update: Update, context: ContextTypes.DEFAULT_T
     if "delete_product" in context.user_data:
         del context.user_data["delete_product"]
 
-async def debug_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def debug_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Debug handler to see what messages are received"""
-    print(f"🔧 DEBUG: Received message in stock management conversation")
+    print(f"🚨🚨🚨 DEBUG_MESSAGE_HANDLER CALLED! 🚨🚨🚨")
     print(f"🔧 Update type: {type(update)}")
+    print(f"🔧 Update: {update}")
+    print(f"🔧 Context user_data: {context.user_data}")
     if update.message:
         print(f"🔧 Message text: {update.message.text}")
     if update.callback_query:
         print(f"🔧 Callback data: {update.callback_query.data}")
     current_state = context.user_data.get('stock_management_state')
     print(f"🔧 Current state: {current_state}")
+    print(f"🚨 This means the message reached the fallback, not the state handler!")
+    return ConversationHandler.END
 
 async def cancel_stock_management(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Cancel stock management"""
