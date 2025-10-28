@@ -1,7 +1,7 @@
 from telegram.ext import CallbackQueryHandler, TypeHandler, ContextTypes, ConversationHandler, MessageHandler, filters
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
-from db.db import Status, Order, Shift, ShiftStatus, Session, Product
+from db.db import Status, Order, Shift, ShiftStatus, Product
 from config.config import *
 from config.translations import t, get_user_lang
 import datetime
