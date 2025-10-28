@@ -45,10 +45,33 @@ class DebugConversationHandler(ConversationHandler):
         """Override to add logging"""
         print(f"🔍 ConversationHandler.check_update called")
         print(f"🔍 Update type: {type(update).__name__}")
+        
+        # Extract user and chat info
+        user_id = None
+        chat_id = None
+        if hasattr(update, 'effective_user') and update.effective_user:
+            user_id = update.effective_user.id
+        if hasattr(update, 'effective_chat') and update.effective_chat:
+            chat_id = update.effective_chat.id
+        
+        print(f"🔍 User ID: {user_id}, Chat ID: {chat_id}")
+        
         if hasattr(update, 'message') and update.message:
             print(f"🔍 Message text: {update.message.text if update.message.text else 'NO TEXT'}")
+            print(f"🔍 Message chat ID: {update.message.chat.id}")
+            print(f"🔍 Message user ID: {update.message.from_user.id}")
         if hasattr(update, 'callback_query') and update.callback_query:
             print(f"🔍 Callback data: {update.callback_query.data}")
+            print(f"🔍 Callback chat ID: {update.callback_query.message.chat.id}")
+            print(f"🔍 Callback user ID: {update.callback_query.from_user.id}")
+        
+        # Try to see current conversations
+        try:
+            # Access the conversation dict through the parent class
+            conv_dict = getattr(self, '_conversations', {})
+            print(f"🔍 Active conversations: {list(conv_dict.keys())}")
+        except Exception as e:
+            print(f"🔍 Could not access conversations: {e}")
         
         result = super().check_update(update)
         print(f"🔍 Check result: {result}")
@@ -81,6 +104,9 @@ async def manage_stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 async def add_product_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Start adding a new product"""
     print(f"🔧 add_product_start called")
+    print(f"🔧 User ID: {update.effective_user.id}")
+    print(f"🔧 Chat ID: {update.effective_chat.id}")
+    
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
     print(f"🔧 Language: {lang}")
@@ -90,8 +116,13 @@ async def add_product_start(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         t("enter_product_name", lang),
         reply_markup=get_cancel_kb(lang)
     )
+    
+    # Explicitly store state in user_data for debugging
+    context.user_data["conversation_state"] = "ENTER_NAME"
+    
     print(f"🔧 State set to ENTER_NAME: {StockManagementStates.ENTER_NAME}")
     print(f"🔧 Conversation will be active for state {StockManagementStates.ENTER_NAME}")
+    print(f"🔧 Returning state: {StockManagementStates.ENTER_NAME}")
     
     return StockManagementStates.ENTER_NAME
 
