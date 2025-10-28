@@ -536,6 +536,12 @@ async def confirm_order(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         def __init__(self, data):
             for k, v in data.items():
                 setattr(self, k, v)
+        
+        def get_products(self):
+            import json
+            if isinstance(self.products, str):
+                return json.loads(self.products)
+            return self.products
     
     order_obj = OrderObj(result)
     new_text = await form_confirm_order(order_obj, lang)
@@ -546,8 +552,8 @@ async def confirm_order(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         from db.db import get_bot_setting
         order_chat = get_bot_setting('order_chat') or links.ORDER_CHAT
         if order_chat:
-            crourier_text = await form_confirm_order_courier(order, 'ru')  # לקבוצת קוריירים - ברוסית
-            markup = await form_courier_action_kb(order.id, 'ru')  # לקבוצת קוריירים - ברוסית
+            crourier_text = await form_confirm_order_courier(order_obj, 'ru')  # לקבוצת קוריירים - ברוסית
+            markup = await form_courier_action_kb(order_obj.id, 'ru')  # לקבוצת קוריירים - ברוסית
             await context.bot.send_message(order_chat, crourier_text, parse_mode=ParseMode.HTML, reply_markup=markup)
     except Exception as e:
         traceback.print_exc()
