@@ -19,7 +19,7 @@ from handlers.edit_crude_handler import EDIT_CRUDE_HANDLER
 from handlers.change_links_handler import CHANGE_LINK_HANDLER
 from handlers.make_tg_session_handler import MAKE_TG_SESSION_HANDLER
 from handlers.new_order_handler import collect_username
-from db.db import Base, engine, initialize_default_settings
+from db.db import initialize_default_settings
 
 # Global variable to store the application
 bot_application = None
