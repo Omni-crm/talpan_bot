@@ -26,10 +26,12 @@ class CollectOrderDataStates:
 
     ADD_MORE_PRODUCTS_OR_CONFIRM = 79
 
-async def start_collect_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def start_collect_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """START function of collecting data for new order."""
+    print(f"🔧 start_collect_data called")
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
+    print(f"🔧 Language: {lang}")
     
     # ניקוי הודעה קודמת
     await clean_previous_message(update, context)
@@ -37,10 +39,12 @@ async def start_collect_data(update: Update, context: ContextTypes.DEFAULT_TYPE)
     # Using Supabase only
     from db.db import get_opened_shift
     shift = get_opened_shift()
+    print(f"🔧 Shift found: {shift is not None}")
 
     if not shift:
         msg = await update.effective_message.reply_text(t("need_open_shift_for_order", lang))
         save_message_id(context, msg.message_id)
+        print(f"🔧 No shift, returning END")
         return ConversationHandler.END
 
     start_msg = await send_message_with_cleanup(update, context, t("enter_client_name", lang), reply_markup=get_cancel_kb(lang))
@@ -53,6 +57,7 @@ async def start_collect_data(update: Update, context: ContextTypes.DEFAULT_TYPE)
     # שמירת ID לניקוי עתידי
     save_message_id(context, start_msg.message_id)
 
+    print(f"🔧 Returning state: {CollectOrderDataStates.NAME}")
     return CollectOrderDataStates.NAME
 
 async def collect_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
