@@ -332,10 +332,12 @@ def is_admin(func):
             print(f"❌ Access denied - not admin")
             lang = get_user_lang(user.id)
             await msg.reply_text(t("admin_only", lang))
-            return
+            return None  # Explicitly return None for ConversationHandler
 
         print(f"✅ Access granted - executing admin function")
-        await func(update, context, *args, **kwargs)
+        result = await func(update, context, *args, **kwargs)
+        print(f"✅ Function returned: {result}")
+        return result  # CRITICAL: Return the function result!
 
     return wrapper
 
@@ -360,10 +362,11 @@ def is_operator(func):
             print(f"❌ Access denied - not operator")
             lang = get_user_lang(user.id)
             await msg.reply_text(t("operator_only", lang))
-            return
+            return None
 
         print(f"✅ Access granted - executing function")
-        await func(update, context, *args, **kwargs)
+        result = await func(update, context, *args, **kwargs)
+        return result
 
     return wrapper
 
@@ -382,9 +385,10 @@ def is_stockman(func):
         if not is_stockman_role:
             lang = get_user_lang(user.id)
             await msg.reply_text(t("stockman_only", lang))
-            return
+            return None
 
-        await func(update, context, *args, **kwargs)
+        result = await func(update, context, *args, **kwargs)
+        return result
 
     return wrapper
 
@@ -403,9 +407,10 @@ def is_courier(func):
         if not is_courier_role:
             lang = get_user_lang(user.id)
             await msg.reply_text(t("courier_only", lang))
-            return
+            return None
 
-        await func(update, context, *args, **kwargs)
+        result = await func(update, context, *args, **kwargs)
+        return result
 
     return wrapper
 
@@ -494,11 +499,11 @@ def is_user_in_db(func):
                     )
                     # נחכה לבחירת השפה לפני שנמשיך
                     # הפונקציה set_language תטפל בהמשך
-                    return
+                    return None
                 else:
                     # אורחים - הודעת ברוכים הבאים
                     await msg.reply_text(t("guest_welcome", "ru"))
-                    return
+                    return None
                     
             else:
                 # משתמש קיים
@@ -512,9 +517,10 @@ def is_user_in_db(func):
                 
                 if user_role == Role.GUEST:
                     await msg.reply_text(t("guest_welcome", user_lang or "ru"))
-                    return
+                    return None
 
-            await func(update, context, *args, **kwargs)
+            result = await func(update, context, *args, **kwargs)
+            return result
             
         finally:
             pass
