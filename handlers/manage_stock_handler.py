@@ -33,7 +33,7 @@ async def manage_stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     )
 
 @is_admin
-async def add_product_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def add_product_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Start adding a new product"""
     print(f"🔧 add_product_start called")
     await update.callback_query.answer()
@@ -49,7 +49,7 @@ async def add_product_start(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     
     return StockManagementStates.ENTER_NAME
 
-async def add_product_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def add_product_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Process product name"""
     print(f"🔧 add_product_name called")
     lang = get_user_lang(update.effective_user.id)
@@ -71,7 +71,7 @@ async def add_product_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     
     return StockManagementStates.ENTER_STOCK
 
-async def add_product_stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def add_product_stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Process product stock and ask for price"""
     lang = get_user_lang(update.effective_user.id)
     
@@ -93,7 +93,7 @@ async def add_product_stock(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         await update.effective_message.reply_text(t("invalid_stock", lang))
         return StockManagementStates.ENTER_STOCK
 
-async def add_product_price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def add_product_price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Process product price and save"""
     lang = get_user_lang(update.effective_user.id)
     
