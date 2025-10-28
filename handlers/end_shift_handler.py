@@ -16,7 +16,7 @@ class EndShiftStates:
     CONFIRM = 3
 
 
-async def start_end_shift(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def start_end_shift(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """
     Начало процесса завершения смены.
     """
@@ -31,7 +31,7 @@ async def start_end_shift(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     if not shift:
         await update.effective_message.edit_text(t("no_open_shifts", lang))
-        return
+        return ConversationHandler.END
 
     # Convert dict to object-like
     class ShiftObj:
@@ -71,10 +71,10 @@ async def start_end_shift(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         lang
     )
 
-    return ConversationHandler.END
+    return EndShiftStates.CONFIRM
 
 
-async def collect_operator_paid(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def collect_operator_paid(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.effective_message.delete()
     lang = context.user_data["end_shift_data"]["lang"]
 
@@ -84,7 +84,7 @@ async def collect_operator_paid(update: Update, context: ContextTypes.DEFAULT_TY
 
     return EndShiftStates.RUNNER_PAID
 
-async def collect_runner_paid(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def collect_runner_paid(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.effective_message.delete()
     lang = context.user_data["end_shift_data"]["lang"]
 
@@ -95,7 +95,7 @@ async def collect_runner_paid(update: Update, context: ContextTypes.DEFAULT_TYPE
     return EndShiftStates.PETROL_PAID
 
 
-async def collect_petrol_paid(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def collect_petrol_paid(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.effective_message.delete()
     lang = context.user_data["end_shift_data"]["lang"]
     context.user_data["end_shift_data"]["petrol_paid"] = int(update.effective_message.text)
@@ -192,7 +192,7 @@ async def collect_petrol_paid(update: Update, context: ContextTypes.DEFAULT_TYPE
     return EndShiftStates.CONFIRM
 
 
-async def confirm_end_shift(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def confirm_end_shift(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     print(f"🔧 confirm_end_shift called")
     await update.callback_query.answer()
     
@@ -323,7 +323,7 @@ async def confirm_end_shift(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     return ConversationHandler.END
 
 
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     lang = context.user_data["end_shift_data"]["lang"]
     await update.callback_query.answer(t('operation_cancelled', lang))
     msg: Message = context.user_data["end_shift_data"]["start_msg"]
@@ -332,7 +332,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     return ConversationHandler.END
 
-async def timeout_reached(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def timeout_reached(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     lang = context.user_data["end_shift_data"]["lang"]
     msg: Message = context.user_data["end_shift_data"]["start_msg"]
     await msg.edit_text(t("timeout_error", lang))

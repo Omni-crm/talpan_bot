@@ -19,7 +19,7 @@ class AuthStates:
     process_number_4 = 6
     process_number_5 = 7
 
-async def start_sessing_creation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def start_sessing_creation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """STARTING CREATION OF A SESSION VIA THE BOT BUTTONS."""
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
@@ -35,7 +35,7 @@ async def start_sessing_creation(update: Update, context: ContextTypes.DEFAULT_T
 
     return AuthStates.handle_acc_phone
 
-async def handle_acc_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def handle_acc_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     phone_number = update.message.text
     
     context.user_data["auth_data"]["phone_number"] = phone_number
@@ -50,7 +50,7 @@ async def handle_acc_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     return AuthStates.fetch_actions
 
-async def fetch_actions(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def fetch_actions(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.callback_query.answer("Processing.")
     lang = get_user_lang(update.effective_user.id)
     inline_keyboard = [
@@ -104,7 +104,7 @@ async def fetch_actions(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
         return AuthStates.process_number_1
 
-async def handle_password(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def handle_password(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     password = update.message.text
 
     context.user_data["auth_data"]["password"] = password
@@ -145,7 +145,7 @@ async def handle_password(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     return AuthStates.process_number_1
 
-async def process_number(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def process_number(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     phone_code = update.callback_query.data
     user = update.callback_query.from_user
 
@@ -248,7 +248,7 @@ async def process_number(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     return ConversationHandler.END
 
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     print("Cancelling.")
     await update.callback_query.answer("Operation cancelled.")
 
@@ -273,7 +273,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     return ConversationHandler.END
 
-async def timeout_reached(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def timeout_reached(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if context.user_data["auth_data"].get("message_id"):
         await context.bot.edit_message_text(
             chat_id=update.effective_chat.id,
@@ -293,6 +293,8 @@ async def timeout_reached(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         )
 
     del context.user_data["auth_data"]
+
+    return ConversationHandler.END
 
 states = {
         AuthStates.handle_acc_phone: [MessageHandler(filters.Regex(r"^\d+$"), handle_acc_phone)],

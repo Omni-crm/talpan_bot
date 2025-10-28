@@ -197,7 +197,7 @@ async def collect_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 
         return CollectOrderDataStates.ADDRESS
 
-async def collect_address(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def collect_address(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Collecting address."""
     lang = context.user_data["collect_order_data"]["lang"]
     
@@ -228,7 +228,7 @@ async def collect_address(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     return CollectOrderDataStates.PRODUCT
 
 
-async def new_product_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def new_product_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Start of creation of new product."""
     lang = context.user_data["collect_order_data"]["lang"]
     msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
@@ -237,7 +237,7 @@ async def new_product_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     return CollectOrderDataStates.NEW_PRODUCT_STOCK
 
 
-async def new_product_stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def new_product_stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Saving new prouct name and continue to adding stock for new product."""
     lang = context.user_data["collect_order_data"]["lang"]
     
@@ -251,7 +251,7 @@ async def new_product_stock(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     return CollectOrderDataStates.SAVE_NEW_PRODUCT
 
-async def save_new_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def save_new_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Saving new product. Returining choosing a product for new order."""
     lang = context.user_data["collect_order_data"]["lang"]
     
@@ -277,7 +277,7 @@ async def save_new_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     return CollectOrderDataStates.PRODUCT
 
-async def collect_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def collect_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Collecting product."""
     lang = context.user_data["collect_order_data"]["lang"]
     await update.callback_query.answer()
@@ -297,7 +297,7 @@ async def collect_product(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     return CollectOrderDataStates.QUANTITY
 
-async def collect_quantity(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def collect_quantity(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Collecting quantity."""
     lang = context.user_data["collect_order_data"]["lang"]
     
@@ -337,7 +337,7 @@ async def collect_quantity(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     return CollectOrderDataStates.TOTAL_PRICE
 
-async def collect_total_price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def collect_total_price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Collecting total_price."""
     lang = context.user_data["collect_order_data"]["lang"]
     context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.TOTAL_PRICE
@@ -383,7 +383,7 @@ async def collect_total_price(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     return CollectOrderDataStates.ADD_MORE_PRODUCTS_OR_CONFIRM
 
-async def add_more_products(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def add_more_products(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     lang = context.user_data["collect_order_data"]["lang"]
     await update.callback_query.answer()
     context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.PRODUCT
@@ -393,7 +393,7 @@ async def add_more_products(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     return CollectOrderDataStates.PRODUCT
 
-async def go_to_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def go_to_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Go to final confirming order."""
     print(f"🔧 go_to_confirm called")
     lang = context.user_data["collect_order_data"]["lang"]
@@ -446,7 +446,7 @@ async def go_to_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     return CollectOrderDataStates.CONFIRM_OR_NOT
 
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.callback_query.answer()
     msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
     await msg.delete()
@@ -454,44 +454,58 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     return ConversationHandler.END
 
-async def step_back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def step_back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    print(f"🔧 step_back called")
     await update.callback_query.answer()
 
-    step = context.user_data["collect_order_data"]["step"] - 1
+    current_step = context.user_data["collect_order_data"]["step"]
+    print(f"🔧 Current step: {current_step}")
+    
+    # If we're at the first step, end the conversation
+    if current_step == CollectOrderDataStates.NAME:
+        print(f"🔧 At first step, ending conversation")
+        msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+        await msg.delete()
+        del context.user_data["collect_order_data"]
+        return ConversationHandler.END
+    
+    # Go back one step
+    if current_step == CollectOrderDataStates.USERNAME:
+        print(f"🔧 Going back to NAME")
+        return await start_collect_data(update, context)
+    elif current_step == CollectOrderDataStates.PHONE:
+        print(f"🔧 Going back to USERNAME")
+        context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.NAME
+        return await collect_name(update, context)
+    elif current_step == CollectOrderDataStates.ADDRESS:
+        print(f"🔧 Going back to PHONE")
+        context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.USERNAME
+        return await collect_username(update, context)
+    elif current_step == CollectOrderDataStates.PRODUCT:
+        print(f"🔧 Going back to ADDRESS")
+        context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.PHONE
+        return await collect_phone(update, context)
+    elif current_step == CollectOrderDataStates.QUANTITY:
+        print(f"🔧 Going back to PRODUCT")
+        context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.ADDRESS
+        return await collect_address(update, context)
+    elif current_step == CollectOrderDataStates.TOTAL_PRICE:
+        print(f"🔧 Going back to QUANTITY")
+        context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.PRODUCT
+        return await collect_product(update, context)
+    elif current_step == CollectOrderDataStates.ADD_MORE_PRODUCTS_OR_CONFIRM:
+        print(f"🔧 Going back to TOTAL_PRICE")
+        context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.QUANTITY
+        return await collect_quantity(update, context)
+    elif current_step == CollectOrderDataStates.CONFIRM_OR_NOT:
+        print(f"🔧 Going back to ADD_MORE_PRODUCTS_OR_CONFIRM")
+        context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.TOTAL_PRICE
+        return await collect_total_price(update, context)
+    
+    print(f"🔧 Unknown step: {current_step}, ending conversation")
+    return ConversationHandler.END
 
-    if step == 0:
-        await update.effective_message.delete()
-        await start_collect_data(update,context,)
-        return step + 1
-    elif step == 1:
-        await collect_name(update,context,)
-        return step + 1
-    elif step == 2:
-        await collect_username(update,context,)
-        return step + 1
-    elif step == 3:
-        await collect_phone(update,context,)
-        return step + 1
-    elif step == 4:
-        await collect_address(update,context,)
-        return step + 1
-    elif step == 5:
-        await collect_product(update,context,)
-        return step + 1
-    elif step == 6:
-        await collect_quantity(update,context,)
-        return step + 1
-    elif step == 7 or step == 78:
-        await collect_total_price(update,context,)
-        return step + 1
-    elif step == 8:
-        await go_to_confirm(update,context,)
-        return step + 1
-
-    print(step)
-    return step
-
-async def confirm_order(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def confirm_order(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.callback_query.answer()
     lang = context.user_data["collect_order_data"]["lang"]
     context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.CONFIRM_OR_NOT
@@ -543,7 +557,7 @@ async def confirm_order(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     return ConversationHandler.END
 
-async def timeout_reached(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def timeout_reached(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
     await msg.reply_text(t("timeout_error", get_user_lang(update.effective_user.id)))
     del context.user_data["collect_order_data"]

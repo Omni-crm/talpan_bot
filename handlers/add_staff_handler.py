@@ -13,7 +13,7 @@ class AddStaffStates:
     ADD_STAFF = 0
 
 
-async def add_staff_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def add_staff_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
 
@@ -31,7 +31,7 @@ async def add_staff_start(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     return AddStaffStates.ADD_STAFF
 
-async def add_staff(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def add_staff(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.effective_message.delete()
     lang = context.user_data["add_staff_data"]["lang"]
 
@@ -70,7 +70,7 @@ async def add_staff(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     return ConversationHandler.END
 
 
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     lang = context.user_data["add_staff_data"]["lang"]
     await update.callback_query.answer(t('operation_cancelled', lang))
     msg: Message = context.user_data["add_staff_data"]["start_msg"]
@@ -79,7 +79,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     return ConversationHandler.END
 
-async def timeout_reached(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def timeout_reached(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     lang = context.user_data["add_staff_data"]["lang"]
     msg: Message = context.user_data["add_staff_data"]["start_msg"]
     await msg.edit_text(t("timeout_error", lang))

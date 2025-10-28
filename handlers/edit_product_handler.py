@@ -13,7 +13,7 @@ class EditProductStates:
     CHOOSE_ACTION = 0
     EDIT_STOCK_END = 1
 
-async def start_edit_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def start_edit_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """START function of collecting data for new order."""
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
@@ -34,7 +34,7 @@ async def start_edit_product(update: Update, context: ContextTypes.DEFAULT_TYPE)
     return EditProductStates.CHOOSE_ACTION
 
 
-async def edit_product_stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def edit_product_stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.callback_query.answer()
     lang = context.user_data["edit_product_data"]["lang"]
 
@@ -45,7 +45,7 @@ async def edit_product_stock(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     return EditProductStates.EDIT_STOCK_END
 
-async def edit_product_stock_end(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def edit_product_stock_end(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     lang = context.user_data["edit_product_data"]["lang"]
     new_stock = int(update.effective_message.text[:20])
     await update.effective_message.delete()
@@ -65,7 +65,7 @@ async def edit_product_stock_end(update: Update, context: ContextTypes.DEFAULT_T
 
     return ConversationHandler.END
 
-async def delete_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def delete_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.callback_query.answer()
     lang = context.user_data["edit_product_data"]["lang"]
 
@@ -84,7 +84,7 @@ async def delete_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     return ConversationHandler.END
 
 
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.callback_query.answer()
     msg: Message = context.user_data["edit_product_data"]["start_msg"]
     await msg.delete()
@@ -92,7 +92,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     return ConversationHandler.END
 
-async def timeout_reached(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def timeout_reached(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     msg: Message = context.user_data["edit_product_data"]["start_msg"]
     await msg.reply_text(t("timeout_error", get_user_lang(update.effective_user.id)))
     del context.user_data["edit_product_data"]

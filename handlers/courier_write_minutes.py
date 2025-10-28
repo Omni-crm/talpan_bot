@@ -13,7 +13,7 @@ class WriteMinStates:
     WRITE_MIN = 0
 
 
-async def choose_minutes_courier(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def choose_minutes_courier(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """
     Выбрать минуты нажатием по кнопке для курьера до выполнения заказа.
     """
@@ -39,7 +39,7 @@ async def choose_minutes_courier(update: Update, context: ContextTypes.DEFAULT_T
 
     return WriteMinStates.WRITE_MIN
 
-async def write_minutes_courier_end(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def write_minutes_courier_end(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     minutes = int(update.effective_message.text)
     lang = context.user_data["choose_min_data"]["lang"]
 
@@ -93,7 +93,7 @@ async def write_minutes_courier_end(update: Update, context: ContextTypes.DEFAUL
     return ConversationHandler.END
 
 
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.callback_query.answer()
     lang = context.user_data["choose_min_data"]["lang"]
     msg: Message = context.user_data["choose_min_data"]["start_msg"]
@@ -104,7 +104,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     return ConversationHandler.END
 
-async def timeout_reached(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def timeout_reached(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     lang = context.user_data["choose_min_data"]["lang"]
     msg: Message = context.user_data["choose_min_data"]["start_msg"]
     order_id: int = context.user_data["choose_min_data"]["order_id"]
