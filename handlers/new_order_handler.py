@@ -91,6 +91,7 @@ async def start_collect_data(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 async def collect_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Collecting name and go to next step @username."""
+    print(f"🔧 collect_name called")
     lang = context.user_data["collect_order_data"]["lang"]
     
     if update.callback_query:
@@ -100,15 +101,31 @@ async def collect_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     else:
         try:
             await update.effective_message.delete()
-        except:
+            print(f"🔧 Deleted user message")
+        except Exception as e:
+            print(f"⚠️ Could not delete message: {e}")
             pass
 
         context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.NAME
         name = update.message.text[:100]
         context.user_data["collect_order_data"]["name"] = name
+        print(f"🔧 Name collected: {name}")
 
+        # Edit the bot's message, not the user's message
         msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-        context.user_data["collect_order_data"]["start_msg"] = await edit_message_with_cleanup(update, context, t("enter_client_username", lang), reply_markup=get_username_kb(lang))
+        try:
+            context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
+                t("enter_client_username", lang), 
+                reply_markup=get_username_kb(lang)
+            )
+            print(f"🔧 Edited bot message to ask for username")
+        except Exception as e:
+            print(f"❌ Error editing message: {e}")
+            # If edit fails, send a new message
+            context.user_data["collect_order_data"]["start_msg"] = await update.effective_chat.send_message(
+                t("enter_client_username", lang), 
+                reply_markup=get_username_kb(lang)
+            )
 
         return CollectOrderDataStates.USERNAME
 
