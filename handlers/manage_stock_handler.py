@@ -12,9 +12,10 @@ import asyncio
 class StockManagementStates:
     ENTER_NAME = 0
     ENTER_STOCK = 1
-    EDIT_NAME = 2
-    EDIT_STOCK = 3
-    EDIT_PRICE = 4
+    ENTER_PRICE = 2
+    EDIT_NAME = 3
+    EDIT_STOCK = 4
+    EDIT_PRICE_FIELD = 5
 
 @is_admin
 async def manage_stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -63,14 +64,37 @@ async def add_product_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     return StockManagementStates.ENTER_STOCK
 
 async def add_product_stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Process product stock and save"""
+    """Process product stock and ask for price"""
     lang = get_user_lang(update.effective_user.id)
     
     try:
         stock = int(update.message.text[:10])
         await update.effective_message.delete()
         
+        context.user_data["add_product"]["stock"] = stock
+        
+        msg = context.user_data["add_product"]["msg"]
+        await msg.edit_text(
+            t("enter_product_price", lang),
+            reply_markup=get_cancel_kb(lang)
+        )
+        
+        return StockManagementStates.ENTER_PRICE
+        
+    except ValueError:
+        await update.effective_message.reply_text(t("invalid_stock", lang))
+        return StockManagementStates.ENTER_STOCK
+
+async def add_product_price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Process product price and save"""
+    lang = get_user_lang(update.effective_user.id)
+    
+    try:
+        price = int(update.message.text[:10])
+        await update.effective_message.delete()
+        
         product_name = context.user_data["add_product"]["name"]
+        stock = context.user_data["add_product"]["stock"]
         
         # Using Supabase only
         from db.db import db_client
@@ -78,14 +102,14 @@ async def add_product_stock(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         product_data = {
             'name': product_name,
             'stock': stock,
-            'price': 0,
+            'price': price,
             'crude': 0
         }
         result = db_client.insert('products', product_data)
         
         msg = context.user_data["add_product"]["msg"]
         await msg.edit_text(
-            t("product_added", lang).format(product_name, stock),
+            t("product_added_full", lang).format(product_name, stock, price),
             reply_markup=get_cancel_kb(lang)
         )
         
@@ -94,8 +118,8 @@ async def add_product_stock(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         return ConversationHandler.END
         
     except ValueError:
-        await update.effective_message.reply_text(t("invalid_stock", lang))
-        return StockManagementStates.ENTER_STOCK
+        await update.effective_message.reply_text(t("invalid_price", lang))
+        return StockManagementStates.ENTER_PRICE
 
 async def list_products(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Show all products"""
@@ -222,6 +246,10 @@ states = {
     StockManagementStates.ENTER_STOCK: [
         MessageHandler(filters.Regex(r'^\d+$'), add_product_stock),
         MessageHandler(~filters.Regex(r'^\d+$'), add_product_stock),
+    ],
+    StockManagementStates.ENTER_PRICE: [
+        MessageHandler(filters.Regex(r'^\d+$'), add_product_price),
+        MessageHandler(~filters.Regex(r'^\d+$'), add_product_price),
     ],
     ConversationHandler.TIMEOUT: [TypeHandler(Update, cancel_stock_management)]
 }
