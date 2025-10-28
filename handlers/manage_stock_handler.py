@@ -53,24 +53,34 @@ async def add_product_start(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 async def add_product_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Process product name"""
     print(f"🔧 add_product_name called")
-    lang = get_user_lang(update.effective_user.id)
-    print(f"🔧 Language: {lang}")
+    print(f"🔧 Update type: {type(update)}")
     
-    product_name = update.message.text[:50]  # Limit to 50 characters
-    print(f"🔧 Product name: {product_name}")
-    await update.effective_message.delete()
-    print(f"🔧 Message deleted")
+    if update.message:
+        product_name = update.message.text[:50]  # Limit to 50 characters
+        print(f"🔧 Product name: {product_name}")
+        
+        lang = get_user_lang(update.effective_user.id)
+        print(f"🔧 Language: {lang}")
+        
+        await update.effective_message.delete()
+        print(f"🔧 Message deleted")
+        
+        if "add_product" not in context.user_data:
+            context.user_data["add_product"] = {}
+        
+        context.user_data["add_product"]["name"] = product_name
+        
+        msg = context.user_data.get("add_product", {}).get("msg")
+        if msg:
+            await msg.edit_text(
+                t("enter_product_stock", lang).format(product_name),
+                reply_markup=get_cancel_kb(lang)
+            )
+            print(f"🔧 Asking for stock, returning to state {StockManagementStates.ENTER_STOCK}")
+            return StockManagementStates.ENTER_STOCK
     
-    context.user_data["add_product"]["name"] = product_name
-    
-    msg = context.user_data["add_product"]["msg"]
-    await msg.edit_text(
-        t("enter_product_stock", lang).format(product_name),
-        reply_markup=get_cancel_kb(lang)
-    )
-    print(f"🔧 Asking for stock")
-    
-    return StockManagementStates.ENTER_STOCK
+    print(f"🔧 Something went wrong - returning END")
+    return ConversationHandler.END
 
 async def add_product_stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Process product stock and ask for price"""
@@ -262,8 +272,7 @@ async def cancel_stock_management(update: Update, context: ContextTypes.DEFAULT_
 
 states = {
     StockManagementStates.ENTER_NAME: [
-        MessageHandler(filters.TEXT & ~filters.COMMAND, add_product_name),
-        MessageHandler(filters.TEXT, add_product_name)
+        MessageHandler(filters.ALL, add_product_name)
     ],
     StockManagementStates.ENTER_STOCK: [
         MessageHandler(filters.Regex(r'^\d+$'), add_product_stock),
