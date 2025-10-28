@@ -662,7 +662,9 @@ def create_shift(shift_data: dict):
 
 def get_opened_shift():
     """Get the currently opened shift - Supabase only"""
-    all_shifts = db_client.select('shifts', order='id', ascending=False)  # Get most recent first
+    all_shifts = db_client.select('shifts')  # Get all shifts
+    # Sort by id descending to get most recent first
+    all_shifts.sort(key=lambda x: x.get('id', 0), reverse=True)
     print(f"🔧 get_opened_shift: Checking {len(all_shifts)} shifts")
     opened_shift = None
     for shift in all_shifts:
