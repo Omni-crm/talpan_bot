@@ -52,17 +52,30 @@ async def send_message_with_cleanup(update: Update, context: ContextTypes.DEFAUL
     return msg
 
 
-async def edit_message_with_cleanup(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str, **kwargs):
+async def edit_message_with_cleanup(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str, message_to_edit=None, **kwargs):
     """
     פונקציה כללית לעריכת הודעה עם ניקוי אוטומטי של הודעות קודמות
+    
+    Args:
+        update: Telegram Update object
+        context: Bot context
+        text: Text to set in the message
+        message_to_edit: Optional - specific message to edit. If not provided, tries to infer from update.
+        **kwargs: Additional arguments for edit_text
     """
     # מחיקת הודעות קודמות
     await cleanup_old_messages(context)
     
     # עריכת הודעה קיימת
-    if update.callback_query:
+    if message_to_edit:
+        # If a specific message was provided, edit it
+        msg = await message_to_edit.edit_text(text, **kwargs)
+    elif update.callback_query:
+        # If it's a callback query, edit the message that contains the button
         msg = await update.callback_query.message.edit_text(text, **kwargs)
     else:
+        # WARNING: This will fail if update.effective_message is from the user!
+        # Only works if the effective_message is from the bot
         msg = await update.effective_message.edit_text(text, **kwargs)
     
     # שמירת הודעה למחיקה עתידית

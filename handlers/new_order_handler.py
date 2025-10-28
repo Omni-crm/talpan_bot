@@ -113,19 +113,14 @@ async def collect_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
         # Edit the bot's message, not the user's message
         msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-        try:
-            context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
-                t("enter_client_username", lang), 
-                reply_markup=get_username_kb(lang)
-            )
-            print(f"🔧 Edited bot message to ask for username")
-        except Exception as e:
-            print(f"❌ Error editing message: {e}")
-            # If edit fails, send a new message
-            context.user_data["collect_order_data"]["start_msg"] = await update.effective_chat.send_message(
-                t("enter_client_username", lang), 
-                reply_markup=get_username_kb(lang)
-            )
+        context.user_data["collect_order_data"]["start_msg"] = await edit_message_with_cleanup(
+            update, 
+            context, 
+            t("enter_client_username", lang), 
+            message_to_edit=msg,  # Pass the specific message to edit
+            reply_markup=get_username_kb(lang)
+        )
+        print(f"🔧 Edited bot message to ask for username")
 
         return CollectOrderDataStates.USERNAME
 
@@ -194,7 +189,13 @@ async def collect_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         context.user_data["collect_order_data"]["phone"] = phone
 
         msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-        context.user_data["collect_order_data"]["start_msg"] = await edit_message_with_cleanup(update, context, t("enter_address", lang), reply_markup=get_back_cancel_kb(lang))
+        context.user_data["collect_order_data"]["start_msg"] = await edit_message_with_cleanup(
+            update, 
+            context, 
+            t("enter_address", lang), 
+            message_to_edit=msg,  # Pass the specific message to edit
+            reply_markup=get_back_cancel_kb(lang)
+        )
 
         return CollectOrderDataStates.ADDRESS
 
