@@ -113,11 +113,10 @@ async def collect_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
         # Edit the bot's message, not the user's message
         msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-        context.user_data["collect_order_data"]["start_msg"] = await edit_message_with_cleanup(
-            update, 
-            context, 
+        from funcs.utils import edit_conversation_message
+        context.user_data["collect_order_data"]["start_msg"] = await edit_conversation_message(
+            msg,
             t("enter_client_username", lang), 
-            message_to_edit=msg,  # Pass the specific message to edit
             reply_markup=get_username_kb(lang)
         )
         print(f"🔧 Edited bot message to ask for username")
@@ -189,11 +188,10 @@ async def collect_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         context.user_data["collect_order_data"]["phone"] = phone
 
         msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-        context.user_data["collect_order_data"]["start_msg"] = await edit_message_with_cleanup(
-            update, 
-            context, 
+        from funcs.utils import edit_conversation_message
+        context.user_data["collect_order_data"]["start_msg"] = await edit_conversation_message(
+            msg,
             t("enter_address", lang), 
-            message_to_edit=msg,  # Pass the specific message to edit
             reply_markup=get_back_cancel_kb(lang)
         )
 

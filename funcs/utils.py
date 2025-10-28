@@ -84,6 +84,22 @@ async def edit_message_with_cleanup(update: Update, context: ContextTypes.DEFAUL
     return msg
 
 
+async def edit_conversation_message(message_to_edit, text: str, **kwargs):
+    """
+    פונקציה פשוטה לעריכת הודעה ב-ConversationHandler
+    ללא cleanup אוטומטי שיכול למחוק את ההודעה שאנחנו רוצים לערוך!
+    
+    Args:
+        message_to_edit: The message object to edit
+        text: Text to set in the message
+        **kwargs: Additional arguments for edit_text (reply_markup, parse_mode, etc.)
+    
+    Returns:
+        The edited message
+    """
+    return await message_to_edit.edit_text(text, **kwargs)
+
+
 def dicts_to_xlsx(dicts_list):
     df = pd.DataFrame(dicts_list)
     
