@@ -233,9 +233,21 @@ async def delete_product_execute(update: Update, context: ContextTypes.DEFAULT_T
     if "delete_product" in context.user_data:
         del context.user_data["delete_product"]
 
+async def debug_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Debug handler to see what messages are received"""
+    print(f"🔧 DEBUG: Received message in stock management conversation")
+    print(f"🔧 Update type: {type(update)}")
+    if update.message:
+        print(f"🔧 Message text: {update.message.text}")
+    if update.callback_query:
+        print(f"🔧 Callback data: {update.callback_query.data}")
+    current_state = context.user_data.get('stock_management_state')
+    print(f"🔧 Current state: {current_state}")
+
 async def cancel_stock_management(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Cancel stock management"""
-    await update.callback_query.answer()
+    if update.callback_query:
+        await update.callback_query.answer()
     
     if "add_product" in context.user_data:
         msg = context.user_data["add_product"]["msg"]
@@ -249,7 +261,8 @@ async def cancel_stock_management(update: Update, context: ContextTypes.DEFAULT_
 
 states = {
     StockManagementStates.ENTER_NAME: [
-        MessageHandler(filters.TEXT & ~filters.COMMAND, add_product_name)
+        MessageHandler(filters.TEXT & ~filters.COMMAND, add_product_name),
+        MessageHandler(filters.TEXT, add_product_name)
     ],
     StockManagementStates.ENTER_STOCK: [
         MessageHandler(filters.Regex(r'^\d+$'), add_product_stock),
@@ -270,6 +283,7 @@ MANAGE_STOCK_HANDLER = ConversationHandler(
     fallbacks=[
         CallbackQueryHandler(cancel_stock_management, '^cancel$'),
         CallbackQueryHandler(list_products, '^list_products$'),
+        MessageHandler(filters.ALL, debug_message_handler),  # Debug handler to catch all unmatched messages
     ],
     conversation_timeout=120,
     per_chat=True,
