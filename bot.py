@@ -106,6 +106,20 @@ def main() -> None:
     if application.job_queue:
         application.job_queue.run_daily(show_week_report, time=datetime.time(hour=12), days=(6,),)
 
+    # CONVERSATION HANDLERS - MUST BE BEFORE MESSAGE HANDLERS!
+    application.add_handler(MANAGE_STOCK_HANDLER)
+    application.add_handler(NEW_ORDER_HANDLER)
+    application.add_handler(EDIT_PRODUCT_HANDLER)
+    application.add_handler(CHOOSE_MINUTES_HANDLER)
+    application.add_handler(WRITE_MINUTES_HANDLER)
+    application.add_handler(DELAY_MINUTES_HANDLER)
+    application.add_handler(CREATE_NEW_TEMPLATE)
+    application.add_handler(SEND_OR_EDIT_TEMPLATE)
+    application.add_handler(END_SHIFT_HANDLER)
+    application.add_handler(EDIT_CRUDE_HANDLER)
+    application.add_handler(CHANGE_LINK_HANDLER)
+    application.add_handler(MAKE_TG_SESSION_HANDLER)
+
     # Filter orders by date
     application.add_handler(MessageHandler(filters.Regex(r'^order:\d{2}\.\d{2}\.\d{4}:\d{2}\.\d{2}\.\d{4}$'), filter_orders_by_date))
 
@@ -150,19 +164,6 @@ def main() -> None:
     # application.add_handler(CallbackQueryHandler(approve_user, pattern=FuncEnums.APPROVE_USER.value))
     # application.add_handler(MessageHandler(filters.Regex(FuncEnums.USER_AGENT_REGEXP.value), handle_user_agent)) # ua@123456
     # application.job_queue.run_repeating(send_new_orders, interval=5, first=0)
-
-    application.add_handler(MANAGE_STOCK_HANDLER)  # Must be added before other handlers!
-    application.add_handler(NEW_ORDER_HANDLER)
-    application.add_handler(EDIT_PRODUCT_HANDLER)
-    application.add_handler(CHOOSE_MINUTES_HANDLER)
-    application.add_handler(WRITE_MINUTES_HANDLER)
-    application.add_handler(DELAY_MINUTES_HANDLER)
-    application.add_handler(CREATE_NEW_TEMPLATE)
-    application.add_handler(SEND_OR_EDIT_TEMPLATE)
-    application.add_handler(END_SHIFT_HANDLER)
-    application.add_handler(EDIT_CRUDE_HANDLER)
-    application.add_handler(CHANGE_LINK_HANDLER)
-    application.add_handler(MAKE_TG_SESSION_HANDLER)
 
 
 
