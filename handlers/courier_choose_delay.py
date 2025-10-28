@@ -43,7 +43,7 @@ async def choose_minutes_courier(update: Update, context: ContextTypes.DEFAULT_T
     return DelayMinStates.WRITE_REASON
 
 
-async def write_delay_reason(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def write_delay_reason(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if update.effective_message.voice:
         chat_id = str(update.effective_chat.id).replace('-100', '')
         link_to_message = f'https://t.me/c/{chat_id}/{update.effective_message.id}'
@@ -65,7 +65,7 @@ async def write_delay_reason(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     return DelayMinStates.CHOOSE_MIN
 
-async def delay_minutes_courier_end(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def delay_minutes_courier_end(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.callback_query.answer()
     lang = context.user_data["delay_min_data"]["lang"]
 
@@ -123,7 +123,7 @@ async def delay_minutes_courier_end(update: Update, context: ContextTypes.DEFAUL
 
     return ConversationHandler.END
 
-async def write_delay_minutes_courier(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def write_delay_minutes_courier(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """
     Написать текстом количество минут
     """
@@ -136,7 +136,7 @@ async def write_delay_minutes_courier(update: Update, context: ContextTypes.DEFA
 
     return DelayMinStates.WRITE_MY
 
-async def write_delay_minutes_courier_end(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def write_delay_minutes_courier_end(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     minutes = int(update.effective_message.text)
     lang = context.user_data["delay_min_data"]["lang"]
 

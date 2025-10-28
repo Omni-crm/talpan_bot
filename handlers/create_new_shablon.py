@@ -14,7 +14,7 @@ class CreateTemplateStates:
     WRITE_TEXT = 1
 
 
-async def start_template_creation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def start_template_creation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
 
@@ -28,7 +28,7 @@ async def start_template_creation(update: Update, context: ContextTypes.DEFAULT_
 
     return CreateTemplateStates.WRITE_NAME
 
-async def collecting_new_template_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def collecting_new_template_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.effective_message.delete()
     lang = context.user_data["create_new_shab_data"]["lang"]
 
@@ -45,7 +45,7 @@ async def collecting_new_template_name(update: Update, context: ContextTypes.DEF
     return CreateTemplateStates.WRITE_TEXT
 
 
-async def collecting_new_template_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def collecting_new_template_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.effective_message.delete()
     lang = context.user_data["create_new_shab_data"]["lang"]
 
@@ -73,7 +73,7 @@ async def collecting_new_template_text(update: Update, context: ContextTypes.DEF
     return ConversationHandler.END
 
 
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.callback_query.answer()
     lang = context.user_data["create_new_shab_data"]["lang"]
     msg: Message = context.user_data["create_new_shab_data"]["start_msg"]
@@ -82,7 +82,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     return ConversationHandler.END
 
-async def timeout_reached(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def timeout_reached(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     lang = context.user_data["create_new_shab_data"]["lang"]
     msg: Message = context.user_data["create_new_shab_data"]["start_msg"]
     await msg.reply_text(t("timeout_error", lang))

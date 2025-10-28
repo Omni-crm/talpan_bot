@@ -49,7 +49,7 @@ async def start_dealing_template(update: Update, context: ContextTypes.DEFAULT_T
 
     return DealTemplateStates.CHOOSE_ACTION
 
-async def send_template(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def send_template(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.callback_query.answer()
     lang = context.user_data["dealing_template_data"]["lang"]
 
@@ -89,7 +89,7 @@ async def send_template(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
         return ConversationHandler.END
 
-async def delete_template(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def delete_template(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.callback_query.answer()
     lang = context.user_data["dealing_template_data"]["lang"]
 
@@ -108,7 +108,7 @@ async def delete_template(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     return ConversationHandler.END
 
-async def editing_template_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def editing_template_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.callback_query.answer()
     lang = context.user_data["dealing_template_data"]["lang"]
 
@@ -118,7 +118,7 @@ async def editing_template_start(update: Update, context: ContextTypes.DEFAULT_T
 
     return DealTemplateStates.EDIT_ACTIONS
 
-async def editing_template_name_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def editing_template_name_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     lang = context.user_data["dealing_template_data"]["lang"]
     await update.callback_query.answer(t('btn_edit_name', lang))
     await update.effective_message.edit_reply_markup(get_cancel_kb(lang))
@@ -126,7 +126,7 @@ async def editing_template_name_start(update: Update, context: ContextTypes.DEFA
     return DealTemplateStates.EDIT_NAME
 
 
-async def editing_template_name_end(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def editing_template_name_end(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.effective_message.delete()
     lang = context.user_data["dealing_template_data"]["lang"]
 
@@ -154,7 +154,7 @@ async def editing_template_name_end(update: Update, context: ContextTypes.DEFAUL
 
     return DealTemplateStates.CHOOSE_ACTION
 
-async def editing_template_text_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def editing_template_text_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     lang = context.user_data["dealing_template_data"]["lang"]
     await update.callback_query.answer(t('btn_edit_text', lang))
 
@@ -162,7 +162,7 @@ async def editing_template_text_start(update: Update, context: ContextTypes.DEFA
 
     return DealTemplateStates.EDIT_TEXT
 
-async def editing_template_text_end(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def editing_template_text_end(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.effective_message.delete()
     lang = context.user_data["dealing_template_data"]["lang"]
 
@@ -191,7 +191,7 @@ async def editing_template_text_end(update: Update, context: ContextTypes.DEFAUL
     return DealTemplateStates.CHOOSE_ACTION
 
 
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.callback_query.answer()
     lang = context.user_data["dealing_template_data"]["lang"]
     msg: Message = context.user_data["dealing_template_data"]["start_msg"]
@@ -200,7 +200,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     return ConversationHandler.END
 
-async def timeout_reached(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def timeout_reached(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     lang = context.user_data["dealing_template_data"]["lang"]
     msg: Message = context.user_data["dealing_template_data"]["start_msg"]
     await msg.reply_text(t("timeout_error", lang))
