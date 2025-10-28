@@ -460,49 +460,97 @@ async def step_back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     current_step = context.user_data["collect_order_data"]["step"]
     print(f"🔧 Current step: {current_step}")
+    lang = context.user_data["collect_order_data"]["lang"]
     
-    # If we're at the first step, end the conversation
-    if current_step == CollectOrderDataStates.NAME:
-        print(f"🔧 At first step, ending conversation")
+    # If we're at the first or second step, end the conversation
+    # (NAME is the entry point, USERNAME is the first real step)
+    if current_step in [CollectOrderDataStates.NAME, CollectOrderDataStates.USERNAME]:
+        print(f"🔧 At early step ({current_step}), ending conversation")
         msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
         await msg.delete()
         del context.user_data["collect_order_data"]
         return ConversationHandler.END
     
     # Go back one step
-    if current_step == CollectOrderDataStates.USERNAME:
-        print(f"🔧 Going back to NAME")
-        return await start_collect_data(update, context)
-    elif current_step == CollectOrderDataStates.PHONE:
+    if current_step == CollectOrderDataStates.PHONE:
         print(f"🔧 Going back to USERNAME")
-        context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.NAME
-        return await collect_name(update, context)
+        msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+        context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
+            t("enter_client_username", lang), 
+            reply_markup=get_skip_back_cancel_kb(lang)
+        )
+        context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.USERNAME
+        return CollectOrderDataStates.USERNAME
     elif current_step == CollectOrderDataStates.ADDRESS:
         print(f"🔧 Going back to PHONE")
-        context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.USERNAME
-        return await collect_username(update, context)
+        msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+        context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
+            t("enter_client_phone", lang), 
+            reply_markup=get_back_cancel_kb(lang)
+        )
+        context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.PHONE
+        return CollectOrderDataStates.PHONE
     elif current_step == CollectOrderDataStates.PRODUCT:
         print(f"🔧 Going back to ADDRESS")
-        context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.PHONE
-        return await collect_phone(update, context)
+        msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+        from config.kb import get_back_cancel_kb
+        context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
+            t("enter_client_address", lang), 
+            reply_markup=get_back_cancel_kb(lang)
+        )
+        context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.ADDRESS
+        return CollectOrderDataStates.ADDRESS
     elif current_step == CollectOrderDataStates.QUANTITY:
         print(f"🔧 Going back to PRODUCT")
-        context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.ADDRESS
-        return await collect_address(update, context)
+        msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+        from config.kb import get_products_markup
+        context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
+            t("choose_product", lang), 
+            reply_markup=get_products_markup(update.effective_user)
+        )
+        context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.PRODUCT
+        return CollectOrderDataStates.PRODUCT
     elif current_step == CollectOrderDataStates.TOTAL_PRICE:
         print(f"🔧 Going back to QUANTITY")
-        context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.PRODUCT
-        return await collect_product(update, context)
+        # Need to restore the last product selection
+        msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+        products = context.user_data["collect_order_data"].get("products", [])
+        if products:
+            # Remove the last product
+            products.pop()
+            context.user_data["collect_order_data"]["products"] = products
+        from config.kb import get_back_cancel_kb
+        context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
+            t("enter_quantity", lang), 
+            reply_markup=get_back_cancel_kb(lang)
+        )
+        context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.QUANTITY
+        return CollectOrderDataStates.QUANTITY
     elif current_step == CollectOrderDataStates.ADD_MORE_PRODUCTS_OR_CONFIRM:
         print(f"🔧 Going back to TOTAL_PRICE")
-        context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.QUANTITY
-        return await collect_quantity(update, context)
+        msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+        from config.kb import get_back_cancel_kb
+        context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
+            t("enter_total_price", lang), 
+            reply_markup=get_back_cancel_kb(lang)
+        )
+        context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.TOTAL_PRICE
+        return CollectOrderDataStates.TOTAL_PRICE
     elif current_step == CollectOrderDataStates.CONFIRM_OR_NOT:
         print(f"🔧 Going back to ADD_MORE_PRODUCTS_OR_CONFIRM")
-        context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.TOTAL_PRICE
-        return await collect_total_price(update, context)
+        msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+        from config.kb import get_more_product_confirm_kb
+        context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
+            t("add_more_or_confirm", lang), 
+            reply_markup=get_more_product_confirm_kb(lang)
+        )
+        context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.ADD_MORE_PRODUCTS_OR_CONFIRM
+        return CollectOrderDataStates.ADD_MORE_PRODUCTS_OR_CONFIRM
     
     print(f"🔧 Unknown step: {current_step}, ending conversation")
+    msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+    await msg.delete()
+    del context.user_data["collect_order_data"]
     return ConversationHandler.END
 
 async def confirm_order(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
