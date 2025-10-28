@@ -9,74 +9,6 @@ from funcs.utils import *
 from funcs.bot_funcs import *
 import asyncio
 
-class DebugConversationHandler(ConversationHandler):
-    """ConversationHandler with debug logging"""
-    
-    async def handle_update(self, update, application, check_result, context):
-        """Override to add logging"""
-        print(f"🔍 ConversationHandler.handle_update called")
-        print(f"🔍 Update ID: {update.update_id}")
-        print(f"🔍 Check result: {check_result}")
-        
-        # Try to get conversation key safely
-        try:
-            key = self._get_key(update)
-            current_state = self.conversations.get(key, 'NO STATE')
-            print(f"🔍 Conversation key: {key}")
-            print(f"🔍 Current conversation state: {current_state}")
-        except Exception as e:
-            print(f"🔍 Could not get conversation key: {e}")
-        
-        result = await super().handle_update(update, application, check_result, context)
-        
-        # Try to get state after handling
-        try:
-            key = self._get_key(update)
-            new_state = self.conversations.get(key, 'NO STATE')
-            print(f"🔍 After handling, conversation state: {new_state}")
-        except Exception as e:
-            print(f"🔍 Could not get conversation state after handling: {e}")
-        
-        print(f"🔍 Result: {result}")
-        
-        return result
-    
-    def check_update(self, update):
-        """Override to add logging"""
-        print(f"🔍 ConversationHandler.check_update called")
-        print(f"🔍 Update type: {type(update).__name__}")
-        
-        # Extract user and chat info
-        user_id = None
-        chat_id = None
-        if hasattr(update, 'effective_user') and update.effective_user:
-            user_id = update.effective_user.id
-        if hasattr(update, 'effective_chat') and update.effective_chat:
-            chat_id = update.effective_chat.id
-        
-        print(f"🔍 User ID: {user_id}, Chat ID: {chat_id}")
-        
-        if hasattr(update, 'message') and update.message:
-            print(f"🔍 Message text: {update.message.text if update.message.text else 'NO TEXT'}")
-            print(f"🔍 Message chat ID: {update.message.chat.id}")
-            print(f"🔍 Message user ID: {update.message.from_user.id}")
-        if hasattr(update, 'callback_query') and update.callback_query:
-            print(f"🔍 Callback data: {update.callback_query.data}")
-            print(f"🔍 Callback chat ID: {update.callback_query.message.chat.id}")
-            print(f"🔍 Callback user ID: {update.callback_query.from_user.id}")
-        
-        # Try to see current conversations
-        try:
-            # Access the conversation dict through the parent class
-            conv_dict = getattr(self, '_conversations', {})
-            print(f"🔍 Active conversations: {list(conv_dict.keys())}")
-        except Exception as e:
-            print(f"🔍 Could not access conversations: {e}")
-        
-        result = super().check_update(update)
-        print(f"🔍 Check result: {result}")
-        return result
-
 class StockManagementStates:
     ENTER_NAME = 0
     ENTER_STOCK = 1
@@ -117,11 +49,6 @@ async def add_product_start(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         reply_markup=get_cancel_kb(lang)
     )
     
-    # Explicitly store state in user_data for debugging
-    context.user_data["conversation_state"] = "ENTER_NAME"
-    
-    print(f"🔧 State set to ENTER_NAME: {StockManagementStates.ENTER_NAME}")
-    print(f"🔧 Conversation will be active for state {StockManagementStates.ENTER_NAME}")
     print(f"🔧 Returning state: {StockManagementStates.ENTER_NAME}")
     
     return StockManagementStates.ENTER_NAME
@@ -327,20 +254,13 @@ async def delete_product_execute(update: Update, context: ContextTypes.DEFAULT_T
     if "delete_product" in context.user_data:
         del context.user_data["delete_product"]
 
-async def debug_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def debug_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Debug handler to see what messages are received"""
-    print(f"🚨🚨🚨 DEBUG_MESSAGE_HANDLER CALLED! 🚨🚨🚨")
-    print(f"🔧 Update type: {type(update)}")
-    print(f"🔧 Update: {update}")
-    print(f"🔧 Context user_data: {context.user_data}")
+    print(f"🚨 DEBUG_MESSAGE_HANDLER CALLED!")
     if update.message:
         print(f"🔧 Message text: {update.message.text}")
     if update.callback_query:
         print(f"🔧 Callback data: {update.callback_query.data}")
-    current_state = context.user_data.get('stock_management_state')
-    print(f"🔧 Current state: {current_state}")
-    print(f"🚨 This means the message reached the fallback, not the state handler!")
-    return ConversationHandler.END
 
 async def cancel_stock_management(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Cancel stock management"""
@@ -372,7 +292,7 @@ states = {
     ConversationHandler.TIMEOUT: [TypeHandler(Update, cancel_stock_management)]
 }
 
-MANAGE_STOCK_HANDLER = DebugConversationHandler(
+MANAGE_STOCK_HANDLER = ConversationHandler(
     entry_points=[
         CallbackQueryHandler(add_product_start, '^add_product$'),
     ],
