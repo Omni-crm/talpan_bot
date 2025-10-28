@@ -129,6 +129,16 @@ class Shift:
         products = db_client.select('products')
         data = [{'id': product['id'], 'name': product['name'], 'stock': product['stock']} for product in products]
         return data
+    
+    def get_products(self):
+        """Get products from shift's products_start field"""
+        if hasattr(self, 'products_start') and self.products_start:
+            try:
+                import json
+                return json.loads(self.products_start)
+            except:
+                return []
+        return []
 
 class BotSettings:
     """BotSettings model - Supabase managed"""
