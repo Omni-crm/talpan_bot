@@ -15,24 +15,42 @@ class DebugConversationHandler(ConversationHandler):
     async def handle_update(self, update, application, check_result, context):
         """Override to add logging"""
         print(f"🔍 ConversationHandler.handle_update called")
-        print(f"🔍 Update: {update}")
+        print(f"🔍 Update ID: {update.update_id}")
         print(f"🔍 Check result: {check_result}")
-        print(f"🔍 Current conversation state: {self.conversations.get(self._get_key(update), 'NO STATE')}")
+        
+        # Try to get conversation key safely
+        try:
+            key = self._get_key(update)
+            current_state = self.conversations.get(key, 'NO STATE')
+            print(f"🔍 Conversation key: {key}")
+            print(f"🔍 Current conversation state: {current_state}")
+        except Exception as e:
+            print(f"🔍 Could not get conversation key: {e}")
         
         result = await super().handle_update(update, application, check_result, context)
         
-        print(f"🔍 After handling, conversation state: {self.conversations.get(self._get_key(update), 'NO STATE')}")
+        # Try to get state after handling
+        try:
+            key = self._get_key(update)
+            new_state = self.conversations.get(key, 'NO STATE')
+            print(f"🔍 After handling, conversation state: {new_state}")
+        except Exception as e:
+            print(f"🔍 Could not get conversation state after handling: {e}")
+        
         print(f"🔍 Result: {result}")
         
         return result
     
     def check_update(self, update):
         """Override to add logging"""
-        result = super().check_update(update)
         print(f"🔍 ConversationHandler.check_update called")
-        print(f"🔍 Update type: {type(update)}")
-        if update.message:
-            print(f"🔍 Message text: {update.message.text}")
+        print(f"🔍 Update type: {type(update).__name__}")
+        if hasattr(update, 'message') and update.message:
+            print(f"🔍 Message text: {update.message.text if update.message.text else 'NO TEXT'}")
+        if hasattr(update, 'callback_query') and update.callback_query:
+            print(f"🔍 Callback data: {update.callback_query.data}")
+        
+        result = super().check_update(update)
         print(f"🔍 Check result: {result}")
         return result
 
