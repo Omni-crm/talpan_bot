@@ -204,7 +204,7 @@ async def form_confirm_order(order: Order, lang: str = 'ru') -> str:
 {t("products", lang).format(products_text)}
 {t("total_price", lang).format(price_all_text)}
 
-{(t("order_status", lang).format(order.status.value) if order.status else '')}
+{(t("order_status", lang).format(order.status if isinstance(order.status, str) else order.status.value) if order.status else '')}
 """
 
     return msg
@@ -237,7 +237,7 @@ async def form_confirm_order_courier_info(order: Order, lang: str = 'ru') -> str
 {(t('delay_reason', lang).format(order.delay_reason)) if order.delay_reason else ''}
 {(t('delay_time', lang).format(order.delay_minutes)) if order.delay_minutes else ''}
 
-{(t('order_status', lang).format(order.status.value)) if order.status else ''}
+{(t('order_status', lang).format(order.status if isinstance(order.status, str) else order.status.value)) if order.status else ''}
 """
 
     return msg
@@ -265,7 +265,7 @@ async def form_confirm_order_courier(order: Order, lang: str = 'ru') -> str:
 {(t('delay_reason', lang).format(order.delay_reason)) if order.delay_reason else ''}
 {(t('delay_time', lang).format(order.delay_minutes)) if order.delay_minutes else ''}
 
-{(t('order_status', lang).format(order.status.value)) if order.status else ''}
+{(t('order_status', lang).format(order.status if isinstance(order.status, str) else order.status.value)) if order.status else ''}
 """
 
     return msg
