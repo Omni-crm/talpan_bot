@@ -151,6 +151,7 @@ def main() -> None:
     # application.add_handler(MessageHandler(filters.Regex(FuncEnums.USER_AGENT_REGEXP.value), handle_user_agent)) # ua@123456
     # application.job_queue.run_repeating(send_new_orders, interval=5, first=0)
 
+    application.add_handler(MANAGE_STOCK_HANDLER)  # Must be added before other handlers!
     application.add_handler(NEW_ORDER_HANDLER)
     application.add_handler(EDIT_PRODUCT_HANDLER)
     application.add_handler(CHOOSE_MINUTES_HANDLER)
@@ -162,7 +163,6 @@ def main() -> None:
     application.add_handler(EDIT_CRUDE_HANDLER)
     application.add_handler(CHANGE_LINK_HANDLER)
     application.add_handler(MAKE_TG_SESSION_HANDLER)
-    application.add_handler(MANAGE_STOCK_HANDLER)
 
 
 

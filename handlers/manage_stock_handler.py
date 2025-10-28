@@ -35,23 +35,30 @@ async def manage_stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 @is_admin
 async def add_product_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Start adding a new product"""
+    print(f"🔧 add_product_start called")
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
+    print(f"🔧 Language: {lang}")
     
     context.user_data["add_product"] = {}
     context.user_data["add_product"]["msg"] = await update.effective_message.edit_text(
         t("enter_product_name", lang),
         reply_markup=get_cancel_kb(lang)
     )
+    print(f"🔧 State set to ENTER_NAME")
     
     return StockManagementStates.ENTER_NAME
 
 async def add_product_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Process product name"""
+    print(f"🔧 add_product_name called")
     lang = get_user_lang(update.effective_user.id)
+    print(f"🔧 Language: {lang}")
     
     product_name = update.message.text[:50]  # Limit to 50 characters
+    print(f"🔧 Product name: {product_name}")
     await update.effective_message.delete()
+    print(f"🔧 Message deleted")
     
     context.user_data["add_product"]["name"] = product_name
     
@@ -60,6 +67,7 @@ async def add_product_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         t("enter_product_stock", lang).format(product_name),
         reply_markup=get_cancel_kb(lang)
     )
+    print(f"🔧 Asking for stock")
     
     return StockManagementStates.ENTER_STOCK
 
@@ -261,7 +269,10 @@ MANAGE_STOCK_HANDLER = ConversationHandler(
     states=states,
     fallbacks=[
         CallbackQueryHandler(cancel_stock_management, '^cancel$'),
+        CallbackQueryHandler(list_products, '^list_products$'),
     ],
     conversation_timeout=120,
+    per_chat=True,
+    per_user=True
 )
 
