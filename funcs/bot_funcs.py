@@ -1,6 +1,4 @@
 import datetime, traceback
-from sqlalchemy import and_, func
-from sqlalchemy.exc import IntegrityError
 from telegram import InlineKeyboardMarkup, InlineKeyboardButton, Update, ReplyKeyboardMarkup
 from telegram.ext import ContextTypes, Job, ExtBot
 from telegram.constants import ParseMode

@@ -4,8 +4,6 @@ from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, Message
 from telegram.error import BadRequest
 from pyrogram.errors import BadRequest, SessionPasswordNeeded
 from pyrogram.types import User as PyrogramUser
-from sqlalchemy import or_
-from sqlalchemy.exc import IntegrityError
 from db.db import *
 from config.kb import TWO_STEP_ASK_KB, DIGITS_KB, get_cancel_kb
 from config.translations import t, get_user_lang

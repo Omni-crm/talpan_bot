@@ -1,7 +1,6 @@
 from telegram.ext import CallbackQueryHandler, TypeHandler, ContextTypes, ConversationHandler, MessageHandler, filters
 from telegram import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram import Update
-from sqlalchemy import or_
 from geopy.geocoders import Nominatim
 from db.db import *
 from config.config import *
