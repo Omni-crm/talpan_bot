@@ -19,6 +19,7 @@ from handlers.edit_crude_handler import EDIT_CRUDE_HANDLER
 from handlers.change_links_handler import CHANGE_LINK_HANDLER
 from handlers.make_tg_session_handler import MAKE_TG_SESSION_HANDLER
 from handlers.new_order_handler import collect_username
+from handlers.manage_stock_handler import MANAGE_STOCK_HANDLER, manage_stock, list_products
 from db.db import initialize_default_settings
 
 # Global variable to store the application
@@ -65,6 +66,8 @@ def main() -> None:
     application.add_handler(CallbackQueryHandler(show_rest_from_last_day, pattern="rest"))
     application.add_handler(CallbackQueryHandler(beginning, pattern="beginning"))
     application.add_handler(CallbackQueryHandler(msg_client, pattern="msg_client"))
+    application.add_handler(CallbackQueryHandler(manage_stock, pattern="manage_stock"))
+    application.add_handler(CallbackQueryHandler(list_products, pattern="list_products"))
 
     # templates
     application.add_handler(CallbackQueryHandler(show_templates, pattern="msg_*[0-9]"))
@@ -156,6 +159,7 @@ def main() -> None:
     application.add_handler(EDIT_CRUDE_HANDLER)
     application.add_handler(CHANGE_LINK_HANDLER)
     application.add_handler(MAKE_TG_SESSION_HANDLER)
+    application.add_handler(MANAGE_STOCK_HANDLER)
 
 
 

@@ -50,6 +50,7 @@ async def build_start_menu(user_id):
         [InlineKeyboardButton(t('btn_new_order', lang), callback_data="new")],
         [InlineKeyboardButton(t('btn_start_shift', lang), callback_data="beginning")],
         [InlineKeyboardButton(t('btn_current_stock', lang), callback_data="rest")],
+        [InlineKeyboardButton(t('btn_manage_stock', lang), callback_data="manage_stock")],
         [InlineKeyboardButton(t('btn_msg_client', lang), callback_data="msg_client")],
         [InlineKeyboardButton(t('btn_admin', lang), callback_data="show_admin_menu")],
         [InlineKeyboardButton(t('btn_change_language', lang), callback_data="change_language")],
@@ -596,3 +597,30 @@ def get_username_kb(lang='ru'):
             [InlineKeyboardButton(t("btn_home", lang), callback_data="home")],
         ]
     )
+
+def get_stock_management_kb(lang='ru'):
+    """כפתורים לניהול מלאי"""
+    from db.db import get_all_products
+    
+    products = get_all_products()
+    
+    inline_keyboard = [
+        [InlineKeyboardButton(t('btn_add_product', lang), callback_data="add_product")],
+        [InlineKeyboardButton(t('btn_view_all_products', lang), callback_data="list_products")],
+    ]
+    
+    # Add products list
+    if products:
+        for product in products[:10]:  # Show first 10 products
+            product_text = f"{product.get('name', '')[:20]} - {product.get('stock', 0)}"
+            inline_keyboard.append([
+                InlineKeyboardButton(product_text, callback_data=f"edit_{product.get('id')}")
+            ])
+    
+    # Add navigation buttons
+    inline_keyboard.append([
+        InlineKeyboardButton(t("btn_back", lang), callback_data="back"),
+        InlineKeyboardButton(t("btn_home", lang), callback_data="home")
+    ])
+    
+    return InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
