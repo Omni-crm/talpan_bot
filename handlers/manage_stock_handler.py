@@ -9,6 +9,33 @@ from funcs.utils import *
 from funcs.bot_funcs import *
 import asyncio
 
+class DebugConversationHandler(ConversationHandler):
+    """ConversationHandler with debug logging"""
+    
+    async def handle_update(self, update, application, check_result, context):
+        """Override to add logging"""
+        print(f"🔍 ConversationHandler.handle_update called")
+        print(f"🔍 Update: {update}")
+        print(f"🔍 Check result: {check_result}")
+        print(f"🔍 Current conversation state: {self.conversations.get(self._get_key(update), 'NO STATE')}")
+        
+        result = await super().handle_update(update, application, check_result, context)
+        
+        print(f"🔍 After handling, conversation state: {self.conversations.get(self._get_key(update), 'NO STATE')}")
+        print(f"🔍 Result: {result}")
+        
+        return result
+    
+    def check_update(self, update):
+        """Override to add logging"""
+        result = super().check_update(update)
+        print(f"🔍 ConversationHandler.check_update called")
+        print(f"🔍 Update type: {type(update)}")
+        if update.message:
+            print(f"🔍 Message text: {update.message.text}")
+        print(f"🔍 Check result: {result}")
+        return result
+
 class StockManagementStates:
     ENTER_NAME = 0
     ENTER_STOCK = 1
@@ -296,7 +323,7 @@ states = {
     ConversationHandler.TIMEOUT: [TypeHandler(Update, cancel_stock_management)]
 }
 
-MANAGE_STOCK_HANDLER = ConversationHandler(
+MANAGE_STOCK_HANDLER = DebugConversationHandler(
     entry_points=[
         CallbackQueryHandler(add_product_start, '^add_product$'),
     ],
@@ -308,6 +335,7 @@ MANAGE_STOCK_HANDLER = ConversationHandler(
     ],
     conversation_timeout=120,
     per_chat=True,
-    per_user=True
+    per_user=True,
+    name="manage_stock_conversation"  # Add name for debugging
 )
 
