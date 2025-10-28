@@ -12,6 +12,9 @@ import asyncio
 class StockManagementStates:
     ENTER_NAME = 0
     ENTER_STOCK = 1
+    EDIT_NAME = 2
+    EDIT_STOCK = 3
+    EDIT_PRICE = 4
 
 @is_admin
 async def manage_stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -120,6 +123,84 @@ async def list_products(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         reply_markup=get_cancel_kb(lang)
     )
 
+@is_admin
+async def edit_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Start editing a product"""
+    await update.callback_query.answer()
+    lang = get_user_lang(update.effective_user.id)
+    
+    product_id = int(update.callback_query.data.replace('edit_', ''))
+    
+    from db.db import get_product_by_id
+    product = get_product_by_id(product_id)
+    
+    if not product:
+        await update.effective_message.reply_text(t("product_not_found", lang))
+        return
+    
+    from config.kb import get_edit_product_actions_kb
+    reply_markup = get_edit_product_actions_kb(lang, product_id)
+    
+    await update.effective_message.edit_text(
+        t("edit_product_menu", lang).format(product.get('name'), product.get('stock'), product.get('price', 0)),
+        reply_markup=reply_markup,
+        parse_mode="HTML"
+    )
+
+@is_admin
+async def delete_product_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Confirm product deletion"""
+    await update.callback_query.answer()
+    lang = get_user_lang(update.effective_user.id)
+    
+    product_id = int(update.callback_query.data.replace('delete_product_', ''))
+    
+    from db.db import get_product_by_id
+    product = get_product_by_id(product_id)
+    
+    if not product:
+        await update.effective_message.reply_text(t("product_not_found", lang))
+        return
+    
+    # Store product ID for confirmation
+    context.user_data["delete_product"] = product_id
+    
+    from config.kb import get_confirm_delete_kb
+    reply_markup = get_confirm_delete_kb(lang, product_id)
+    
+    await update.effective_message.edit_text(
+        t("confirm_delete_product", lang).format(product.get('name')),
+        reply_markup=reply_markup,
+        parse_mode="HTML"
+    )
+
+@is_admin
+async def delete_product_execute(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Execute product deletion"""
+    await update.callback_query.answer()
+    lang = get_user_lang(update.effective_user.id)
+    
+    product_id = context.user_data.get("delete_product")
+    
+    if not product_id:
+        await update.effective_message.edit_text(t("error", lang))
+        return
+    
+    from db.db import db_client, get_product_by_id
+    product = get_product_by_id(product_id)
+    
+    if product:
+        db_client.delete('products', {'id': product_id})
+        await update.effective_message.edit_text(
+            t("product_deleted", lang).format(product.get('name')),
+            parse_mode="HTML"
+        )
+    else:
+        await update.effective_message.edit_text(t("product_not_found", lang))
+    
+    if "delete_product" in context.user_data:
+        del context.user_data["delete_product"]
+
 async def cancel_stock_management(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Cancel stock management"""
     await update.callback_query.answer()
@@ -128,6 +209,9 @@ async def cancel_stock_management(update: Update, context: ContextTypes.DEFAULT_
         msg = context.user_data["add_product"]["msg"]
         await msg.delete()
         del context.user_data["add_product"]
+    
+    if "delete_product" in context.user_data:
+        del context.user_data["delete_product"]
     
     await update.effective_message.delete()
 

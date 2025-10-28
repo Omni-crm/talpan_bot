@@ -19,7 +19,7 @@ from handlers.edit_crude_handler import EDIT_CRUDE_HANDLER
 from handlers.change_links_handler import CHANGE_LINK_HANDLER
 from handlers.make_tg_session_handler import MAKE_TG_SESSION_HANDLER
 from handlers.new_order_handler import collect_username
-from handlers.manage_stock_handler import MANAGE_STOCK_HANDLER, manage_stock, list_products
+from handlers.manage_stock_handler import MANAGE_STOCK_HANDLER, manage_stock, list_products, edit_product, delete_product_confirm, delete_product_execute
 from db.db import initialize_default_settings
 
 # Global variable to store the application
@@ -68,6 +68,9 @@ def main() -> None:
     application.add_handler(CallbackQueryHandler(msg_client, pattern="msg_client"))
     application.add_handler(CallbackQueryHandler(manage_stock, pattern="manage_stock"))
     application.add_handler(CallbackQueryHandler(list_products, pattern="list_products"))
+    application.add_handler(CallbackQueryHandler(edit_product, pattern="edit_*[0-9]"))
+    application.add_handler(CallbackQueryHandler(delete_product_confirm, pattern="delete_product_*[0-9]"))
+    application.add_handler(CallbackQueryHandler(delete_product_execute, pattern="confirm_delete_*[0-9]"))
 
     # templates
     application.add_handler(CallbackQueryHandler(show_templates, pattern="msg_*[0-9]"))

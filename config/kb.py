@@ -624,3 +624,25 @@ def get_stock_management_kb(lang='ru'):
     ])
     
     return InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
+
+def get_edit_product_actions_kb(lang='ru', product_id=0):
+    """כפתורים לעריכת מוצר"""
+    inline_keyboard = [
+        [InlineKeyboardButton(t('btn_edit_name', lang), callback_data=f"edit_name_{product_id}")],
+        [InlineKeyboardButton(t('btn_edit_stock', lang), callback_data=f"edit_stock_{product_id}")],
+        [InlineKeyboardButton(t('btn_edit_price', lang), callback_data=f"edit_price_{product_id}")],
+        [InlineKeyboardButton(t('btn_delete_product', lang), callback_data=f"delete_product_{product_id}")],
+        [
+            InlineKeyboardButton(t("btn_back", lang), callback_data="back"),
+            InlineKeyboardButton(t("btn_home", lang), callback_data="home")
+        ]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
+
+def get_confirm_delete_kb(lang='ru', product_id=0):
+    """כפתורים לאישור מחיקת מוצר"""
+    inline_keyboard = [
+        [InlineKeyboardButton(t('btn_confirm_delete', lang), callback_data=f"confirm_delete_{product_id}")],
+        [InlineKeyboardButton(t('btn_cancel', lang), callback_data=f"cancel_delete_{product_id}")],
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
