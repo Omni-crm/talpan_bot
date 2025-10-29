@@ -100,7 +100,6 @@ def main() -> None:
     application.add_handler(CallbackQueryHandler(handle_navigation, pattern="back|home"))
     application.add_handler(CallbackQueryHandler(show_staff_list, pattern="view_staff"))
     application.add_handler(CallbackQueryHandler(handle_confirmation, pattern="confirm_|cancel_"))
-    application.add_handler(CallbackQueryHandler(collect_username, pattern="skip_username"))
 
     # Schedule weekly report (only if job_queue is available)
     if application.job_queue:

@@ -124,45 +124,38 @@ async def collect_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         return CollectOrderDataStates.USERNAME
 
 async def collect_username(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Collecting @username or skip."""
+    """Collecting @username or skip (empty string)."""
     try:
         print(f"🔧 collect_username called")
         lang = context.user_data["collect_order_data"]["lang"]
-        print(f"🔧 Language: {lang}")
         
+        # Check if this is skip button or text message
         if update.callback_query:
-            print(f"🔧 Callback query detected")
+            # Skip button clicked
             await update.callback_query.answer()
-            
-            if update.callback_query.data == "skip_username":
-                print(f"🔧 Skip username clicked")
-                # דילוג על username
-                context.user_data["collect_order_data"]["username"] = ""
-                context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.PHONE
-                
-                msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-                context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(t("enter_client_phone", lang), reply_markup=get_back_cancel_kb(lang))
-                print(f"🔧 Updated message to phone input")
-                print(f"🔧 Returning PHONE state: {CollectOrderDataStates.PHONE}")
-                
-                return CollectOrderDataStates.PHONE
-        
+            username = ""
+            print(f"🔧 Username skipped via button")
         else:
-            # User typed username
+            # Username typed
             try:
                 await update.effective_message.delete()
             except:
                 pass
-            
-            context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.USERNAME
             username = update.message.text[:36]
-            context.user_data["collect_order_data"]["username"] = username
-
-            msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-            context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(t("enter_client_phone", lang), reply_markup=get_back_cancel_kb(lang))
-            print(f"🔧 Updated message to phone input (with username)")
-
-            return CollectOrderDataStates.PHONE
+            print(f"🔧 Username collected: {username}")
+        
+        # Save username and update state
+        context.user_data["collect_order_data"]["username"] = username
+        context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.PHONE
+        
+        # Update message to ask for phone
+        msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+        context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
+            t("enter_client_phone", lang), 
+            reply_markup=get_back_cancel_kb(lang)
+        )
+        
+        return CollectOrderDataStates.PHONE
     except Exception as e:
         print(f"❌ ERROR in collect_username: {e}")
         import traceback
@@ -625,8 +618,8 @@ states = {
         MessageHandler(filters.Regex('^.+$'), collect_name)
     ],
     CollectOrderDataStates.USERNAME: [
-        CallbackQueryHandler(collect_username, '^skip_username$'),
-        MessageHandler(filters.Regex('^@.+$'), collect_username)
+        CallbackQueryHandler(collect_username, '^skip_username$'),  # כפתור דלג
+        MessageHandler(filters.Regex('^@.+$'), collect_username)     # הודעה עם @
     ],
     CollectOrderDataStates.PHONE: [
         MessageHandler(filters.Regex('^.+$'), collect_phone)
