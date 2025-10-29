@@ -598,6 +598,17 @@ def get_username_kb(lang='ru'):
         ]
     )
 
+def get_skip_back_cancel_kb(lang='ru'):
+    """כפתורים לשלב הזנת username עם כפתורי חזרה וביטול"""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(t('btn_skip_username', lang), callback_data="skip_username")],
+            [InlineKeyboardButton(t('btn_back', lang), callback_data="back")],
+            [InlineKeyboardButton(t('btn_cancel', lang), callback_data="cancel")],
+            [InlineKeyboardButton(t("btn_home", lang), callback_data="home")],
+        ]
+    )
+
 def get_stock_management_kb(lang='ru'):
     """כפתורים לניהול מלאי"""
     from db.db import get_all_products

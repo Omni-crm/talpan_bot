@@ -342,7 +342,7 @@ async def debug_message_handler(update: Update, context: ContextTypes.DEFAULT_TY
     print(f"🚨 This means the message reached the fallback, not the state handler!")
     return ConversationHandler.END
 
-async def cancel_stock_management(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def cancel_stock_management(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Cancel stock management"""
     if update.callback_query:
         await update.callback_query.answer()
@@ -356,6 +356,8 @@ async def cancel_stock_management(update: Update, context: ContextTypes.DEFAULT_
         del context.user_data["delete_product"]
     
     await update.effective_message.delete()
+    
+    return ConversationHandler.END
 
 states = {
     StockManagementStates.ENTER_NAME: [
@@ -379,6 +381,8 @@ MANAGE_STOCK_HANDLER = DebugConversationHandler(
     states=states,
     fallbacks=[
         CallbackQueryHandler(cancel_stock_management, '^cancel$'),
+        CallbackQueryHandler(cancel_stock_management, '^back$'),  # Handle back button - cancel the conversation
+        CallbackQueryHandler(cancel_stock_management, '^home$'),  # Handle home button - cancel the conversation
         CallbackQueryHandler(list_products, '^list_products$'),
         MessageHandler(filters.ALL, debug_message_handler),  # Debug handler to catch all unmatched messages
     ],

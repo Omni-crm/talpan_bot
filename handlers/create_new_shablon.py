@@ -109,6 +109,8 @@ CREATE_NEW_TEMPLATE = ConversationHandler(
     states=states,
     fallbacks=[
         CallbackQueryHandler(cancel, '^cancel$'),
+        CallbackQueryHandler(cancel, '^back$'),  # Terminate conversation on back
+        CallbackQueryHandler(cancel, '^home$'),  # Terminate conversation on home
     ],
     conversation_timeout=120,
 )

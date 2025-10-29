@@ -6,6 +6,7 @@ from geopy.geocoders import Nominatim
 from db.db import *
 from config.config import *
 from config.translations import t, get_user_lang
+from config.kb import get_skip_back_cancel_kb
 from funcs.utils import *
 from funcs.bot_funcs import *
 import asyncio
@@ -509,6 +510,14 @@ async def step_back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     elif current_step == CollectOrderDataStates.QUANTITY:
         print(f"🔧 Going back to PRODUCT")
         msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+        
+        # Remove the last product since user is going back to choose a different one
+        products = context.user_data["collect_order_data"].get("products", [])
+        if products:
+            removed_product = products.pop()
+            context.user_data["collect_order_data"]["products"] = products
+            print(f"🔧 Removed last product: {removed_product}, {len(products)} products remaining")
+        
         from config.kb import get_products_markup
         context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
             t("choose_product", lang), 
@@ -518,27 +527,45 @@ async def step_back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         return CollectOrderDataStates.PRODUCT
     elif current_step == CollectOrderDataStates.TOTAL_PRICE:
         print(f"🔧 Going back to QUANTITY")
-        # Need to restore the last product selection
         msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+        
+        # Don't remove anything - we're just going back to edit the quantity
+        # The current product is still in the list, we just want to change its quantity
         products = context.user_data["collect_order_data"].get("products", [])
-        if products:
-            # Remove the last product
-            products.pop()
-            context.user_data["collect_order_data"]["products"] = products
-        from config.kb import get_back_cancel_kb
+        
+        # Show the current product name
+        if products and len(products) > 0:
+            current_product = products[-1]
+            product_name = current_product.get("name", "")
+            prompt = f"{t('choose_or_enter_quantity', lang)}\n\n📦 {product_name}"
+        else:
+            prompt = t("choose_or_enter_quantity", lang)
+        
+        from config.kb import SELECT_QUANTITY_KB
         context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
-            t("enter_quantity", lang), 
-            reply_markup=get_back_cancel_kb(lang)
+            prompt,
+            reply_markup=SELECT_QUANTITY_KB
         )
         context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.QUANTITY
         return CollectOrderDataStates.QUANTITY
     elif current_step == CollectOrderDataStates.ADD_MORE_PRODUCTS_OR_CONFIRM:
         print(f"🔧 Going back to TOTAL_PRICE")
         msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-        from config.kb import get_back_cancel_kb
+        
+        # Show previous value if exists
+        products = context.user_data["collect_order_data"].get("products", [])
+        old_value = ""
+        if products and len(products) > 0:
+            old_value = products[-1].get("total_price", "")
+        
+        prompt = t("choose_or_enter_total_price", lang)
+        if old_value:
+            prompt += f"\n\n📝 {t('previous_value', lang)}: {old_value}₪"
+        
+        from config.kb import SELECT_PRICE_KB
         context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
-            t("enter_total_price", lang), 
-            reply_markup=get_back_cancel_kb(lang)
+            prompt,
+            reply_markup=SELECT_PRICE_KB
         )
         context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.TOTAL_PRICE
         return CollectOrderDataStates.TOTAL_PRICE

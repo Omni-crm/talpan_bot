@@ -910,22 +910,22 @@ async def show_menu_edit_crude_stock(update: Update, context: ContextTypes.DEFAU
 
 # Central navigation handler
 async def handle_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle navigation buttons (back and home)"""
+    """Handle navigation buttons (back and home) - ONLY for regular menus"""
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
     
-    # Clean previous message
-    await clean_previous_message(update, context)
-    
     if update.callback_query.data == "back":
-        # Back logic
+        # בדיקה אם יש תפריט קודם לפני מחיקת המסך הנוכחי
         previous_menu = get_previous_menu(context)
         if not previous_menu:
-            msg = await send_message_with_cleanup(update, context, t("no_previous_menu", lang))
-            save_message_id(context, msg.message_id)
+            # אין לאן לחזור - הצג הודעה ואל תמחק את המסך!
+            await update.callback_query.answer(t("no_previous_menu", lang), show_alert=True)
             return
         
-        # Restore previous menu
+        # יש לאן לחזור - עכשיו אפשר למחוק את המסך הנוכחי
+        await clean_previous_message(update, context)
+        
+        # חזרה לתפריט הקודם
         menu_name = previous_menu['menu']
         if menu_name == 'main_menu':
             await start(update, context)
@@ -934,11 +934,21 @@ async def handle_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         elif menu_name == 'admin_menu':
             await show_admin_action_kb(update, context)
         else:
-            msg = await send_message_with_cleanup(update, context, t("no_previous_menu", lang))
-            save_message_id(context, msg.message_id)
+            # תפריט לא מוכר - חזור לעמוד הבית
+            await start(update, context)
     
     elif update.callback_query.data == "home":
-        # Return to home page
+        # ניקוי היסטוריה וחזרה לעמוד הבית
+        if 'navigation_history' in context.user_data:
+            context.user_data['navigation_history'].clear()
+        
+        # ניקוי נתוני ConversationHandler אם יש
+        for key in list(context.user_data.keys()):
+            if key.endswith("_data"):
+                del context.user_data[key]
+                print(f"🔍 Cleaned up conversation data: {key}")
+        
+        await clean_previous_message(update, context)
         await start(update, context)
 
 @is_admin

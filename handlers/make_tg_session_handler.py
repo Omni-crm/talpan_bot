@@ -24,8 +24,7 @@ async def start_sessing_creation(update: Update, context: ContextTypes.DEFAULT_T
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
     inline_keyboard = [
-        [InlineKeyboardButton("Cancel", callback_data="cancel")],
-        [InlineKeyboardButton(t("btn_back", lang), callback_data="back"), InlineKeyboardButton(t("btn_home", lang), callback_data="home")]
+        [InlineKeyboardButton("Cancel", callback_data="cancel")]
     ]
     reply_markup = InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
 
@@ -54,8 +53,7 @@ async def fetch_actions(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     await update.callback_query.answer("Processing.")
     lang = get_user_lang(update.effective_user.id)
     inline_keyboard = [
-        [InlineKeyboardButton("Cancel", callback_data="cancel")],
-        [InlineKeyboardButton(t("btn_back", lang), callback_data="back"), InlineKeyboardButton(t("btn_home", lang), callback_data="home")]
+        [InlineKeyboardButton("Cancel", callback_data="cancel")]
     ]
     reply_markup = InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
 
@@ -311,6 +309,10 @@ states = {
 MAKE_TG_SESSION_HANDLER = ConversationHandler(
     entry_points=[CallbackQueryHandler(start_sessing_creation, pattern='make_tg_session')],
     states=states,
-    fallbacks=[CallbackQueryHandler(cancel, pattern='cancel')],
+    fallbacks=[
+        CallbackQueryHandler(cancel, pattern='cancel'),
+        CallbackQueryHandler(cancel, pattern='back'),  # Terminate conversation on back
+        CallbackQueryHandler(cancel, pattern='home'),  # Terminate conversation on home
+    ],
     conversation_timeout=120
 )

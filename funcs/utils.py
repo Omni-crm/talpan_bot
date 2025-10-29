@@ -495,21 +495,29 @@ async def form_daily_profit_report(date_option: str, lang: str = 'ru') -> str:
         return t("no_data_for_period", lang)
 
 # מערכת היסטוריית ניווט
-def add_to_navigation_history(context, menu_name, data=None):
-    """הוספת תפריט להיסטוריית הניווט"""
+def add_to_navigation_history(context, menu_name, data=None, max_history=5):
+    """הוספת תפריט להיסטוריית הניווט (מקסימום 5 מסכים)"""
     if 'navigation_history' not in context.user_data:
         context.user_data['navigation_history'] = []
+    
+    # הגבלה ל-5 מסכים אחרונים
+    if len(context.user_data['navigation_history']) >= max_history:
+        context.user_data['navigation_history'].pop(0)
     
     context.user_data['navigation_history'].append({
         'menu': menu_name,
         'data': data,
         'timestamp': datetime.datetime.now()
     })
+    print(f"🔍 Navigation history: {[m['menu'] for m in context.user_data['navigation_history']]}")
 
 def get_previous_menu(context):
     """קבלת התפריט הקודם"""
-    if 'navigation_history' in context.user_data and len(context.user_data['navigation_history']) > 1:
-        return context.user_data['navigation_history'].pop()
+    if 'navigation_history' in context.user_data and len(context.user_data['navigation_history']) > 0:
+        menu = context.user_data['navigation_history'].pop()
+        print(f"🔍 Going back to: {menu['menu']}")
+        return menu
+    print(f"🔍 No previous menu")
     return None
 
 def add_back_button_to_keyboard(keyboard, lang):

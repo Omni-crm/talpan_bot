@@ -96,16 +96,11 @@ def main() -> None:
     application.add_handler(CallbackQueryHandler(manage_roles, pattern="manage_roles"))
     application.add_handler(CallbackQueryHandler(show_security_menu, pattern="security_menu"))
     
-    # Handler ניווט
-    application.add_handler(CallbackQueryHandler(handle_navigation, pattern="back|home"))
-    application.add_handler(CallbackQueryHandler(show_staff_list, pattern="view_staff"))
-    application.add_handler(CallbackQueryHandler(handle_confirmation, pattern="confirm_|cancel_"))
-
     # Schedule weekly report (only if job_queue is available)
     if application.job_queue:
         application.job_queue.run_daily(show_week_report, time=datetime.time(hour=12), days=(6,),)
 
-    # CONVERSATION HANDLERS - MUST BE BEFORE MESSAGE HANDLERS!
+    # CONVERSATION HANDLERS - MUST BE BEFORE MESSAGE HANDLERS AND NAVIGATION HANDLERS!
     application.add_handler(MANAGE_STOCK_HANDLER)
     application.add_handler(NEW_ORDER_HANDLER)
     application.add_handler(EDIT_PRODUCT_HANDLER)
@@ -118,6 +113,11 @@ def main() -> None:
     application.add_handler(EDIT_CRUDE_HANDLER)
     application.add_handler(CHANGE_LINK_HANDLER)
     application.add_handler(MAKE_TG_SESSION_HANDLER)
+
+    # Handler ניווט - MUST BE AFTER ConversationHandlers!
+    application.add_handler(CallbackQueryHandler(handle_navigation, pattern="back|home"))
+    application.add_handler(CallbackQueryHandler(show_staff_list, pattern="view_staff"))
+    application.add_handler(CallbackQueryHandler(handle_confirmation, pattern="confirm_|cancel_"))
 
     # Filter orders by date
     application.add_handler(MessageHandler(filters.Regex(r'^order:\d{2}\.\d{2}\.\d{4}:\d{2}\.\d{2}\.\d{4}$'), filter_orders_by_date))
