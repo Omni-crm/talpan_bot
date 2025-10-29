@@ -305,8 +305,14 @@ async def collect_quantity(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
         if context.user_data["collect_order_data"]["product_stock"] < int(quantity):
             msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-            await msg.edit_text(t("not_enough_stock", lang))
-
+            # הצג הודעת שגיאה עם כפתורים לחזרה או ביטול
+            from config.kb import get_back_cancel_kb
+            await msg.edit_text(
+                t("not_enough_stock", lang) + "\n" + 
+                t("available_stock", lang).format(context.user_data["collect_order_data"]["product_stock"]),
+                reply_markup=get_back_cancel_kb(lang)
+            )
+            # נשאר באותו state כדי שהמשתמש יוכל לנסות שוב
             return CollectOrderDataStates.QUANTITY
 
         context.user_data["collect_order_data"]["quantity"] = quantity
@@ -318,8 +324,14 @@ async def collect_quantity(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
             if context.user_data["collect_order_data"]["product_stock"] < int(quantity):
                 msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-                await msg.edit_text(t("not_enough_stock", lang))
-
+                # הצג הודעת שגיאה עם כפתורים לחזרה או ביטול
+                from config.kb import get_back_cancel_kb
+                await msg.edit_text(
+                    t("not_enough_stock", lang) + "\n" + 
+                    t("available_stock", lang).format(context.user_data["collect_order_data"]["product_stock"]),
+                    reply_markup=get_back_cancel_kb(lang)
+                )
+                # נשאר באותו state כדי שהמשתמש יוכל לנסות שוב
                 return CollectOrderDataStates.QUANTITY
 
             context.user_data["collect_order_data"]["quantity"] = quantity
