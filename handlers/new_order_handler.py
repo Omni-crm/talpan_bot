@@ -624,6 +624,7 @@ states = {
         MessageHandler(filters.Regex('^.+$'), collect_name)
     ],
     CollectOrderDataStates.USERNAME: [
+        CallbackQueryHandler(collect_username, '^skip_username$'),
         MessageHandler(filters.Regex('^@.+$'), collect_username)
     ],
     CollectOrderDataStates.PHONE: [
