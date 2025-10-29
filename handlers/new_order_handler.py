@@ -138,11 +138,12 @@ async def collect_username(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                 print(f"🔧 Skip username clicked")
                 # דילוג על username
                 context.user_data["collect_order_data"]["username"] = ""
-                context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.USERNAME
+                context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.PHONE
                 
                 msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
                 context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(t("enter_client_phone", lang), reply_markup=get_back_cancel_kb(lang))
                 print(f"🔧 Updated message to phone input")
+                print(f"🔧 Returning PHONE state: {CollectOrderDataStates.PHONE}")
                 
                 return CollectOrderDataStates.PHONE
         
