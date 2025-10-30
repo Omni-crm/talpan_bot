@@ -231,23 +231,28 @@ async def new_product_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         }
         print(f"🔧 Saved order state before product creation")
     
-    # End this conversation temporarily
-    await update.callback_query.answer("מעביר ליצירת מוצר חדש...")
-    
-    # Import and call the add_product_start function from manage_stock_handler
-    from handlers.manage_stock_handler import add_product_start
-    
     # We need to modify context to include a flag that we're coming from order creation
     context.user_data["creating_product_from_order"] = True
     
-    # Call the add_product_start function directly
-    result = await add_product_start(update, context)
+    # End this conversation temporarily
+    await update.callback_query.answer("מעביר ליצירת מוצר חדש...")
     
-    # This will start the product creation flow
-    # When it completes, the product will be created and we'll return to the order flow
-    # via the cancel_stock_management function which we'll modify
+    # Create a button that will trigger the MANAGE_STOCK_HANDLER
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+    keyboard = [
+        [InlineKeyboardButton("➕ הוסף מוצר", callback_data="add_product")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
     
-    return ConversationHandler.END  # End this conversation, the other one takes over
+    # Update the message to show the add_product button
+    msg = context.user_data["collect_order_data"]["start_msg"]
+    await msg.edit_text(
+        "לחץ על הכפתור להוספת מוצר חדש:",
+        reply_markup=reply_markup
+    )
+    
+    # End this conversation so the other one can take over
+    return ConversationHandler.END
 
 
 async def return_to_order_after_product_creation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
