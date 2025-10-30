@@ -263,7 +263,6 @@ async def return_to_order_after_product_creation(update: Update, context: Contex
         # Restore the order state
         saved_state = context.user_data["order_state_before_product_creation"]
         context.user_data["collect_order_data"] = saved_state["collect_order_data"]
-        return_state = saved_state["return_to_state"]
         
         # Clean up
         del context.user_data["order_state_before_product_creation"]
@@ -273,18 +272,23 @@ async def return_to_order_after_product_creation(update: Update, context: Contex
         # Get the language
         lang = context.user_data["collect_order_data"]["lang"]
         
+        print(f"🔧 Product created successfully, now showing product selection")
+        
+        # Set a flag to indicate we have a pending order
+        context.user_data["pending_order_with_data"] = True
+        
         try:
             # Try to get the original message from saved state
             original_msg = context.user_data["collect_order_data"].get("start_msg")
             
             if original_msg:
-                # Try to edit the original message
+                # Try to edit the original message to show product selection
                 try:
                     msg = await original_msg.edit_text(
                         t("choose_product", lang), 
                         reply_markup=get_products_markup(update.effective_user)
                     )
-                    # Update the message reference in context
+                    # Update the message reference
                     context.user_data["collect_order_data"]["start_msg"] = msg
                 except Exception as e:
                     print(f"🔧 Error editing original message: {e}")
@@ -293,7 +297,6 @@ async def return_to_order_after_product_creation(update: Update, context: Contex
                         t("choose_product", lang),
                         reply_markup=get_products_markup(update.effective_user)
                     )
-                    # Update the message reference in context
                     context.user_data["collect_order_data"]["start_msg"] = msg
             else:
                 # If no original message, send a new one
@@ -301,7 +304,6 @@ async def return_to_order_after_product_creation(update: Update, context: Contex
                     t("choose_product", lang),
                     reply_markup=get_products_markup(update.effective_user)
                 )
-                # Update the message reference in context
                 context.user_data["collect_order_data"]["start_msg"] = msg
         except Exception as e:
             print(f"🔧 Error in return_to_order_after_product_creation: {e}")
@@ -311,22 +313,41 @@ async def return_to_order_after_product_creation(update: Update, context: Contex
                     t("choose_product", lang),
                     reply_markup=get_products_markup(update.effective_user)
                 )
-                # Update the message reference in context
                 context.user_data["collect_order_data"]["start_msg"] = msg
             except Exception as e2:
                 print(f"🔧 Critical error returning to order: {e2}")
-                # If all else fails, just return to the state and hope for the best
         
-        print(f"🔧 Returned to order creation at state {return_state}")
+        print(f"🔧 User can now select product to continue with order (name={context.user_data['collect_order_data'].get('name')})")
         
-        # Add a special flag to indicate we're waiting for product selection
-        context.user_data["waiting_for_product_selection"] = True
-        
-        # Return to the appropriate state in the order flow
-        return CollectOrderDataStates.PRODUCT
+        # End this conversation, but the entry point will catch the next product selection
+        return ConversationHandler.END
     
     # If no saved state, just end the conversation
     return ConversationHandler.END
+
+
+async def resume_order_with_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Resume order creation when a product is selected after product creation."""
+    print(f"🔧 resume_order_with_product called")
+    print(f"🔧 User data keys: {list(context.user_data.keys())}")
+    
+    # Check if we have pending order data
+    if "pending_order_with_data" in context.user_data and "collect_order_data" in context.user_data:
+        print(f"🔧 Resuming order with existing data: {context.user_data['collect_order_data'].get('name')}")
+        
+        # Remove the pending flag
+        del context.user_data["pending_order_with_data"]
+        
+        # Set the step to PRODUCT
+        context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.PRODUCT
+        
+        # Call collect_product to handle the product selection
+        return await collect_product(update, context)
+    
+    # No pending order - this might be a regular "new order" flow trying to use this entry point
+    # Just return END and let the other entry point handle it
+    print(f"🔧 No pending order found, returning END to let other handlers process")
+    return None  # Return None to let other handlers process this update
 
 
 async def collect_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -334,12 +355,6 @@ async def collect_product(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     lang = context.user_data["collect_order_data"]["lang"]
     await update.callback_query.answer()
     context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.PRODUCT
-    
-    # Check if we're coming back from product creation
-    if "waiting_for_product_selection" in context.user_data:
-        print(f"🔧 Handling product selection after product creation")
-        # Remove the flag
-        del context.user_data["waiting_for_product_selection"]
 
     if update.callback_query.data.isdigit():
         # Using Supabase only
@@ -753,9 +768,16 @@ states = {
 }
 
 
+def check_pending_order(update: Update) -> bool:
+    """Check if there's a pending order with data."""
+    # This is a filter function for the entry point
+    return False  # We'll handle this differently
+
 NEW_ORDER_HANDLER = DebugConversationHandler(
     entry_points=[
         CallbackQueryHandler(start_collect_data, '^new$'),
+        # Add entry point for resuming order after product creation
+        CallbackQueryHandler(resume_order_with_product, r'^\d+$')
     ],
     states=states,
     fallbacks=[
