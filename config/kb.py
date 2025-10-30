@@ -240,7 +240,9 @@ def get_confirm_order_kb(lang='ru'):
 def get_edit_product_kb(lang='ru'):
     return InlineKeyboardMarkup(
         inline_keyboard=[
+            [InlineKeyboardButton(t('btn_edit_name', lang), callback_data="edit_name")],
             [InlineKeyboardButton(t('btn_edit_stock', lang), callback_data="edit_stock")],
+            [InlineKeyboardButton(t('btn_edit_price', lang), callback_data="edit_price")],
             [InlineKeyboardButton(t('btn_delete', lang), callback_data="delete")],
             [InlineKeyboardButton(t('btn_cancel', lang), callback_data="cancel")],
             [InlineKeyboardButton(t("btn_back", lang), callback_data="back"), InlineKeyboardButton(t("btn_home", lang), callback_data="home")],
