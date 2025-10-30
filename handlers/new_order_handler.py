@@ -319,8 +319,11 @@ async def return_to_order_after_product_creation(update: Update, context: Contex
         
         print(f"🔧 Returned to order creation at state {return_state}")
         
+        # Add a special flag to indicate we're waiting for product selection
+        context.user_data["waiting_for_product_selection"] = True
+        
         # Return to the appropriate state in the order flow
-        return return_state
+        return CollectOrderDataStates.PRODUCT
     
     # If no saved state, just end the conversation
     return ConversationHandler.END
@@ -331,6 +334,12 @@ async def collect_product(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     lang = context.user_data["collect_order_data"]["lang"]
     await update.callback_query.answer()
     context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.PRODUCT
+    
+    # Check if we're coming back from product creation
+    if "waiting_for_product_selection" in context.user_data:
+        print(f"🔧 Handling product selection after product creation")
+        # Remove the flag
+        del context.user_data["waiting_for_product_selection"]
 
     if update.callback_query.data.isdigit():
         # Using Supabase only
