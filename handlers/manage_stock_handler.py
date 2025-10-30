@@ -209,6 +209,19 @@ async def add_product_price(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         }
         result = db_client.insert('products', product_data)
         
+        # Check if we're coming from order creation
+        if "creating_product_from_order" in context.user_data:
+            print(f"🔧 Product created from order flow: {product_name}")
+            # Import the return function from new_order_handler
+            from handlers.new_order_handler import return_to_order_after_product_creation
+            
+            # Clean up add_product data
+            del context.user_data["add_product"]
+            
+            # Return to order flow
+            return await return_to_order_after_product_creation(update, context)
+        
+        # Normal flow - show success message
         msg = context.user_data["add_product"]["msg"]
         await msg.edit_text(
             t("product_added_full", lang).format(product_name, stock, price),
@@ -355,6 +368,15 @@ async def cancel_stock_management(update: Update, context: ContextTypes.DEFAULT_
     if "delete_product" in context.user_data:
         del context.user_data["delete_product"]
     
+    # Check if we're coming from order creation
+    if "creating_product_from_order" in context.user_data:
+        print(f"🔧 Returning to order creation after product creation")
+        # Import the return function from new_order_handler
+        from handlers.new_order_handler import return_to_order_after_product_creation
+        # Don't delete the message, we'll need it for the order flow
+        return await return_to_order_after_product_creation(update, context)
+    
+    # Normal flow - delete the message and end
     await update.effective_message.delete()
     
     return ConversationHandler.END

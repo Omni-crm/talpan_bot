@@ -50,10 +50,6 @@ class CollectOrderDataStates:
     QUANTITY = 6
     TOTAL_PRICE = 7
     CONFIRM_OR_NOT = 8
-
-    NEW_PRODUCT_STOCK = 77
-    SAVE_NEW_PRODUCT = 78
-
     ADD_MORE_PRODUCTS_OR_CONFIRM = 79
 
 async def start_collect_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -224,53 +220,71 @@ async def collect_address(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 
 async def new_product_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Start of creation of new product."""
-    lang = context.user_data["collect_order_data"]["lang"]
-    msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-    context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(t("enter_new_product_name", lang), reply_markup=get_cancel_kb(lang))
-
-    return CollectOrderDataStates.NEW_PRODUCT_STOCK
-
-
-async def new_product_stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Saving new prouct name and continue to adding stock for new product."""
+    """Redirect to the full product creation flow in manage_stock_handler.py."""
     lang = context.user_data["collect_order_data"]["lang"]
     
-    if not update.callback_query:
-        await update.effective_message.delete()
-
-    context.user_data["collect_order_data"]["new_product_name"] = update.message.text[:22]
-
-    msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-    context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(t("enter_new_product_stock", lang), reply_markup=get_cancel_kb(lang))
-
-    return CollectOrderDataStates.SAVE_NEW_PRODUCT
-
-async def save_new_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Saving new product. Returining choosing a product for new order."""
-    lang = context.user_data["collect_order_data"]["lang"]
+    # Save current order state to return to later
+    if "order_state_before_product_creation" not in context.user_data:
+        context.user_data["order_state_before_product_creation"] = {
+            "collect_order_data": context.user_data["collect_order_data"].copy(),
+            "return_to_state": CollectOrderDataStates.PRODUCT
+        }
+        print(f"🔧 Saved order state before product creation")
     
-    if not update.callback_query:
-        await update.effective_message.delete()
-
-    stock = int(update.message.text[:10])
-
-    # Using Supabase only
-    from db.db import db_client
+    # End this conversation temporarily
+    await update.callback_query.answer("מעביר ליצירת מוצר חדש...")
     
-    product_data = {
-        'name': context.user_data["collect_order_data"]["new_product_name"],
-        'stock': stock,
-        'price': 0,
-        'crude': 0
-    }
-    result = db_client.insert('products', product_data)
-    print(f"Created product: {result}")
+    # Import and call the add_product_start function from manage_stock_handler
+    from handlers.manage_stock_handler import add_product_start
+    
+    # We need to modify context to include a flag that we're coming from order creation
+    context.user_data["creating_product_from_order"] = True
+    
+    # Call the add_product_start function directly
+    result = await add_product_start(update, context)
+    
+    # This will start the product creation flow
+    # When it completes, the product will be created and we'll return to the order flow
+    # via the cancel_stock_management function which we'll modify
+    
+    return ConversationHandler.END  # End this conversation, the other one takes over
 
-    msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-    context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(t("choose_product", lang), reply_markup=get_products_markup(update.effective_user))
 
-    return CollectOrderDataStates.PRODUCT
+async def return_to_order_after_product_creation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Return to order creation after product creation is complete."""
+    
+    # Check if we have saved order state
+    if "order_state_before_product_creation" in context.user_data:
+        # Restore the order state
+        saved_state = context.user_data["order_state_before_product_creation"]
+        context.user_data["collect_order_data"] = saved_state["collect_order_data"]
+        return_state = saved_state["return_to_state"]
+        
+        # Clean up
+        del context.user_data["order_state_before_product_creation"]
+        if "creating_product_from_order" in context.user_data:
+            del context.user_data["creating_product_from_order"]
+        
+        # Get the language
+        lang = context.user_data["collect_order_data"]["lang"]
+        
+        # Update the message to show product selection
+        msg = await update.effective_message.edit_text(
+            t("choose_product", lang), 
+            reply_markup=get_products_markup(update.effective_user)
+        )
+        
+        # Update the message reference in context
+        context.user_data["collect_order_data"]["start_msg"] = msg
+        
+        print(f"🔧 Returned to order creation at state {return_state}")
+        
+        # Return to the appropriate state in the order flow
+        return return_state
+    
+    # If no saved state, just end the conversation
+    return ConversationHandler.END
+
 
 async def collect_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Collecting product."""
@@ -670,14 +684,6 @@ states = {
     CollectOrderDataStates.PRODUCT: [
         CallbackQueryHandler(new_product_name, '^create$'),
         CallbackQueryHandler(collect_product, r'^\d+$'),
-    ],
-    CollectOrderDataStates.NEW_PRODUCT_STOCK: [
-        # Extract new product name from message and ask for stock quantity.
-        MessageHandler(filters.Regex('^.+$'), new_product_stock)
-    ],
-    CollectOrderDataStates.SAVE_NEW_PRODUCT: [
-        # Incoming message - number of available stock quantity for new product, save product.
-        MessageHandler(filters.Regex(r'^\d+$'), save_new_product)
     ],
     CollectOrderDataStates.QUANTITY: [
         CallbackQueryHandler(collect_quantity, r'^\d+$'),
