@@ -68,7 +68,10 @@ Thumbs.db
 bot_pid.txt
 .cursor/
 
-# Documentation - exclude all md files except migration plans
+# Documentation - exclude all md files except migration plans and fix tracking
 *.md
 !SUPABASE_MIGRATION_PLAN.md
+!BACK_BUTTON_FIX.md
+!CONVERSATION_STATE_SYNC_FIX.md
 
+logs.*.json

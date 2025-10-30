@@ -29,12 +29,15 @@ class DebugConversationHandler(ConversationHandler):
         """Override to add logging"""
         print(f"🔍 NEW_ORDER: check_update called")
         
-        # Try to see current conversations
+        # Safely try to access conversation state
         try:
-            conv_dict = getattr(self, '_conversations', {})
-            print(f"🔍 NEW_ORDER: Active conversations: {list(conv_dict.keys())}")
+            # For python-telegram-bot v20+, use self._conversation_key(update)
+            # This is more reliable than trying to access internal attributes
+            conv_key = self._conversation_key(update) if hasattr(self, '_conversation_key') else None
+            if conv_key:
+                print(f"🔍 NEW_ORDER: Conversation key: {conv_key}")
         except Exception as e:
-            print(f"🔍 NEW_ORDER: Could not access conversations: {e}")
+            print(f"🔍 NEW_ORDER: Could not get conversation key: {e}")
         
         result = super().check_update(update)
         print(f"🔍 NEW_ORDER: Check result: {result}")
@@ -256,83 +259,116 @@ async def new_product_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 
 async def return_to_order_after_product_creation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Return to order creation after product creation is complete."""
+    """Return to order creation after product creation is complete.
+    
+    This function:
+    1. Restores the saved order state
+    2. Sets the pending_order_with_data flag
+    3. Shows the product selection menu
+    4. Ends the MANAGE_STOCK conversation
+    
+    The next product selection will trigger resume_order_with_product entry point.
+    """
+    print(f"🔧 return_to_order_after_product_creation called")
     
     # Check if we have saved order state
-    if "order_state_before_product_creation" in context.user_data:
-        # Restore the order state
-        saved_state = context.user_data["order_state_before_product_creation"]
-        context.user_data["collect_order_data"] = saved_state["collect_order_data"]
-        
-        # Clean up
-        del context.user_data["order_state_before_product_creation"]
-        if "creating_product_from_order" in context.user_data:
-            del context.user_data["creating_product_from_order"]
-        
-        # Get the language
-        lang = context.user_data["collect_order_data"]["lang"]
-        
-        print(f"🔧 Product created successfully, now showing product selection")
-        
-        # Set a flag to indicate we have a pending order
-        context.user_data["pending_order_with_data"] = True
-        
-        try:
-            # Try to get the original message from saved state
-            original_msg = context.user_data["collect_order_data"].get("start_msg")
-            
-            if original_msg:
-                # Try to edit the original message to show product selection
-                try:
-                    msg = await original_msg.edit_text(
-                        t("choose_product", lang), 
-                        reply_markup=get_products_markup(update.effective_user)
-                    )
-                    # Update the message reference
-                    context.user_data["collect_order_data"]["start_msg"] = msg
-                except Exception as e:
-                    print(f"🔧 Error editing original message: {e}")
-                    # If editing fails, send a new message
-                    msg = await update.effective_chat.send_message(
-                        t("choose_product", lang),
-                        reply_markup=get_products_markup(update.effective_user)
-                    )
-                    context.user_data["collect_order_data"]["start_msg"] = msg
-            else:
-                # If no original message, send a new one
-                msg = await update.effective_chat.send_message(
-                    t("choose_product", lang),
-                    reply_markup=get_products_markup(update.effective_user)
-                )
-                context.user_data["collect_order_data"]["start_msg"] = msg
-        except Exception as e:
-            print(f"🔧 Error in return_to_order_after_product_creation: {e}")
-            # Last resort - send a completely new message
-            try:
-                msg = await update.effective_chat.send_message(
-                    t("choose_product", lang),
-                    reply_markup=get_products_markup(update.effective_user)
-                )
-                context.user_data["collect_order_data"]["start_msg"] = msg
-            except Exception as e2:
-                print(f"🔧 Critical error returning to order: {e2}")
-        
-        print(f"🔧 User can now select product to continue with order (name={context.user_data['collect_order_data'].get('name')})")
-        
-        # End this conversation, but the entry point will catch the next product selection
+    if "order_state_before_product_creation" not in context.user_data:
+        print(f"🔧 No saved order state found - returning END")
         return ConversationHandler.END
     
-    # If no saved state, just end the conversation
+    # Restore the order state
+    saved_state = context.user_data["order_state_before_product_creation"]
+    context.user_data["collect_order_data"] = saved_state["collect_order_data"]
+    
+    # Clean up
+    del context.user_data["order_state_before_product_creation"]
+    if "creating_product_from_order" in context.user_data:
+        del context.user_data["creating_product_from_order"]
+    
+    # Get the language
+    lang = context.user_data["collect_order_data"]["lang"]
+    
+    print(f"🔧 Product created successfully, now showing product selection")
+    print(f"🔧 Restored order data: name={context.user_data['collect_order_data'].get('name')}, phone={context.user_data['collect_order_data'].get('phone')}")
+    
+    # CRITICAL: Set a flag to indicate we have a pending order
+    # This flag will be checked by resume_order_with_product
+    context.user_data["pending_order_with_data"] = True
+    print(f"🔧 Set pending_order_with_data flag")
+    
+    try:
+        # Try to get the original message from saved state
+        original_msg = context.user_data["collect_order_data"].get("start_msg")
+        
+        if original_msg:
+            # Try to edit the original message to show product selection
+            try:
+                msg = await original_msg.edit_text(
+                    t("choose_product", lang), 
+                    reply_markup=get_products_markup(update.effective_user)
+                )
+                # Update the message reference
+                context.user_data["collect_order_data"]["start_msg"] = msg
+                print(f"🔧 Successfully edited original message")
+            except Exception as e:
+                print(f"🔧 Error editing original message: {e}")
+                # If editing fails, send a new message
+                msg = await update.effective_chat.send_message(
+                    t("choose_product", lang),
+                    reply_markup=get_products_markup(update.effective_user)
+                )
+                context.user_data["collect_order_data"]["start_msg"] = msg
+                print(f"🔧 Sent new message instead")
+        else:
+            # If no original message, send a new one
+            msg = await update.effective_chat.send_message(
+                t("choose_product", lang),
+                reply_markup=get_products_markup(update.effective_user)
+            )
+            context.user_data["collect_order_data"]["start_msg"] = msg
+            print(f"🔧 No original message, sent new one")
+    except Exception as e:
+        print(f"🔧 Error in return_to_order_after_product_creation: {e}")
+        import traceback
+        traceback.print_exc()
+        # Last resort - send a completely new message
+        try:
+            msg = await update.effective_chat.send_message(
+                t("choose_product", lang),
+                reply_markup=get_products_markup(update.effective_user)
+            )
+            context.user_data["collect_order_data"]["start_msg"] = msg
+            print(f"🔧 Last resort: sent new message")
+        except Exception as e2:
+            print(f"🔧 Critical error returning to order: {e2}")
+            traceback.print_exc()
+    
+    print(f"🔧 Ending MANAGE_STOCK conversation - next product selection will resume NEW_ORDER")
+    
+    # End this conversation, but the entry point will catch the next product selection
     return ConversationHandler.END
 
 
-async def resume_order_with_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Resume order creation when a product is selected after product creation."""
+async def resume_order_with_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Resume order creation when a product is selected after product creation.
+    
+    Returns:
+        int: The next conversation state if resuming
+        None: If this update should not be handled by this entry point
+    """
     print(f"🔧 resume_order_with_product called")
     print(f"🔧 User data keys: {list(context.user_data.keys())}")
     
-    # Check if we have pending order data
-    if "pending_order_with_data" in context.user_data and "collect_order_data" in context.user_data:
+    # CRITICAL: Only handle this if we have a pending order
+    # This prevents conflicts with other handlers
+    if "pending_order_with_data" not in context.user_data:
+        print(f"🔧 No pending order found, NOT handling this update")
+        # Return None to signal that this entry point should not handle this update
+        # This allows other handlers or entry points to process it
+        return None
+    
+    # We have a pending order - proceed with resumption
+    if "collect_order_data" in context.user_data:
         print(f"🔧 Resuming order with existing data: {context.user_data['collect_order_data'].get('name')}")
         
         # Remove the pending flag
@@ -343,11 +379,12 @@ async def resume_order_with_product(update: Update, context: ContextTypes.DEFAUL
         
         # Call collect_product to handle the product selection
         return await collect_product(update, context)
-    
-    # No pending order - this might be a regular "new order" flow trying to use this entry point
-    # Just return END and let the other entry point handle it
-    print(f"🔧 No pending order found, returning END to let other handlers process")
-    return None  # Return None to let other handlers process this update
+    else:
+        # We have a pending flag but no order data - this is an error state
+        print(f"🔧 ERROR: pending_order_with_data set but no collect_order_data found!")
+        if "pending_order_with_data" in context.user_data:
+            del context.user_data["pending_order_with_data"]
+        return None
 
 
 async def collect_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
