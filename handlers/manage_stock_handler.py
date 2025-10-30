@@ -216,19 +216,31 @@ async def add_product_price(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             from handlers.new_order_handler import return_to_order_after_product_creation
             
             # Clean up add_product data
-            del context.user_data["add_product"]
+            if "add_product" in context.user_data:
+                del context.user_data["add_product"]
             
             # Return to order flow
             return await return_to_order_after_product_creation(update, context)
         
         # Normal flow - show success message
-        msg = context.user_data["add_product"]["msg"]
-        await msg.edit_text(
-            t("product_added_full", lang).format(product_name, stock, price),
-            reply_markup=get_cancel_kb(lang)
-        )
+        success_message = t("product_added_full", lang).format(product_name, stock, price)
         
-        del context.user_data["add_product"]
+        try:
+            # Try to edit the existing message if it exists
+            if "add_product" in context.user_data and "msg" in context.user_data["add_product"]:
+                msg = context.user_data["add_product"]["msg"]
+                await msg.edit_text(success_message, reply_markup=get_cancel_kb(lang))
+            else:
+                # If message not found, send a new one
+                await update.effective_chat.send_message(success_message, reply_markup=get_cancel_kb(lang))
+        except Exception as e:
+            print(f"🔧 Error editing message: {e}")
+            # If editing fails, send a new message
+            await update.effective_chat.send_message(success_message, reply_markup=get_cancel_kb(lang))
+        
+        # Clean up regardless of whether editing succeeded
+        if "add_product" in context.user_data:
+            del context.user_data["add_product"]
         
         return ConversationHandler.END
         
