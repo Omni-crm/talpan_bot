@@ -8,8 +8,7 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Set up basic config
-os.environ['USE_SUPABASE'] = 'true'
+# Supabase is the only database in use
 
 from telegram.ext import Application
 from handlers.manage_stock_handler import MANAGE_STOCK_HANDLER, manage_stock
