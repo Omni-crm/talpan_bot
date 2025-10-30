@@ -273,14 +273,49 @@ async def return_to_order_after_product_creation(update: Update, context: Contex
         # Get the language
         lang = context.user_data["collect_order_data"]["lang"]
         
-        # Update the message to show product selection
-        msg = await update.effective_message.edit_text(
-            t("choose_product", lang), 
-            reply_markup=get_products_markup(update.effective_user)
-        )
-        
-        # Update the message reference in context
-        context.user_data["collect_order_data"]["start_msg"] = msg
+        try:
+            # Try to get the original message from saved state
+            original_msg = context.user_data["collect_order_data"].get("start_msg")
+            
+            if original_msg:
+                # Try to edit the original message
+                try:
+                    msg = await original_msg.edit_text(
+                        t("choose_product", lang), 
+                        reply_markup=get_products_markup(update.effective_user)
+                    )
+                    # Update the message reference in context
+                    context.user_data["collect_order_data"]["start_msg"] = msg
+                except Exception as e:
+                    print(f"🔧 Error editing original message: {e}")
+                    # If editing fails, send a new message
+                    msg = await update.effective_chat.send_message(
+                        t("choose_product", lang),
+                        reply_markup=get_products_markup(update.effective_user)
+                    )
+                    # Update the message reference in context
+                    context.user_data["collect_order_data"]["start_msg"] = msg
+            else:
+                # If no original message, send a new one
+                msg = await update.effective_chat.send_message(
+                    t("choose_product", lang),
+                    reply_markup=get_products_markup(update.effective_user)
+                )
+                # Update the message reference in context
+                context.user_data["collect_order_data"]["start_msg"] = msg
+        except Exception as e:
+            print(f"🔧 Error in return_to_order_after_product_creation: {e}")
+            # Last resort - send a completely new message
+            try:
+                msg = await update.effective_chat.send_message(
+                    t("choose_product", lang),
+                    reply_markup=get_products_markup(update.effective_user)
+                )
+                # Update the message reference in context
+                context.user_data["collect_order_data"]["start_msg"] = msg
+            except Exception as e2:
+                print(f"🔧 Critical error returning to order: {e2}")
+                # If all else fails, just return to the state and hope for the best
         
         print(f"🔧 Returned to order creation at state {return_state}")
         
