@@ -20,7 +20,9 @@ async def start_edit_product(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
 
-    product_id = int(update.callback_query.data.split('_')[1])
+    # Extract product_id from callback_data (format: edit_stock_5, edit_name_5, etc.)
+    callback_data = update.callback_query.data
+    product_id = int(callback_data.split('_')[-1])  # Get last part after last underscore
 
     # Using Supabase only
     from db.db import get_product_by_id
@@ -195,7 +197,7 @@ states = {
 
 EDIT_PRODUCT_HANDLER = ConversationHandler(
     entry_points=[
-        CallbackQueryHandler(start_edit_product, '^edit_*[0-9]$'),
+        CallbackQueryHandler(start_edit_product, '^edit_(stock|name|price|delete_product)_[0-9]+$'),
     ],
     states=states,
     fallbacks=[
