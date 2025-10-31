@@ -68,7 +68,7 @@ def main() -> None:
     application.add_handler(CallbackQueryHandler(msg_client, pattern="msg_client"))
     application.add_handler(CallbackQueryHandler(manage_stock, pattern="manage_stock"))
     application.add_handler(CallbackQueryHandler(list_products, pattern="list_products"))
-    application.add_handler(CallbackQueryHandler(edit_product, pattern="edit_*[0-9]"))
+    # OLD: application.add_handler(CallbackQueryHandler(edit_product, pattern="edit_*[0-9]"))  # Replaced by EDIT_PRODUCT_HANDLER ConversationHandler
     application.add_handler(CallbackQueryHandler(delete_product_confirm, pattern="delete_product_*[0-9]"))
     application.add_handler(CallbackQueryHandler(delete_product_execute, pattern="confirm_delete_*[0-9]"))
 
