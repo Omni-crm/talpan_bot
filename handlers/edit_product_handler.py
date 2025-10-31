@@ -43,9 +43,9 @@ async def edit_product_stock(update: Update, context: ContextTypes.DEFAULT_TYPE)
     lang = context.user_data["edit_product_data"]["lang"]
 
     msg = context.user_data["edit_product_data"]["start_msg"]
-    product: Product = context.user_data["edit_product_data"]["product"]
+    product = context.user_data["edit_product_data"]["product"]
 
-    await msg.edit_text(t("enter_new_stock", lang).format(product.name))
+    await msg.edit_text(t("enter_new_stock", lang).format(product.get('name')))
 
     return EditProductStates.EDIT_STOCK_END
 
