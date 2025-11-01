@@ -158,6 +158,7 @@ def get_products_markup(user):
 def get_products_markup_left_edit_stock():
     # Using Supabase only
     from db.db import db_client
+    from config.translations import t
     
     products = db_client.select('products')
     
@@ -182,6 +183,11 @@ def get_products_markup_left_edit_stock():
     # Add last row if there are remaining buttons
     if delimiter:
         inline_keyboard.append(delimiter)
+    
+    # Add navigation buttons - home button
+    inline_keyboard.append([
+        InlineKeyboardButton(t("btn_home", 'ru'), callback_data="home")
+    ])
 
     reply_markup = InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
 
@@ -465,6 +471,16 @@ def get_quick_reports_kb(lang='ru'):
 
 # Backward compatibility
 QUICK_REPORTS_KB = get_quick_reports_kb('ru')
+
+
+def get_filter_instruction_kb(lang='ru'):
+    """Keyboard for filter instruction messages with navigation buttons"""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(t("btn_back", lang), callback_data="back"), 
+             InlineKeyboardButton(t("btn_home", lang), callback_data="home")]
+        ]
+    )
 
 
 def get_change_links_kb(lang='ru'):

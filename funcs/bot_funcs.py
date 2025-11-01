@@ -384,6 +384,10 @@ async def show_security_menu(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def all_orders(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
+    
+    # Add to navigation history
+    add_to_navigation_history(context, 'orders_filter_menu')
+    
     await update.effective_message.edit_text(t("filter_by", lang), reply_markup=get_orders_filter_kb(lang))
 
 async def filter_orders_by_date(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -605,48 +609,34 @@ async def filter_orders_by_param(update: Update, context: ContextTypes.DEFAULT_T
     "Filter params: fdate|fproduct|fclient|fstatus"
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
+    
+    # Import the keyboard function
+    from config.kb import get_filter_instruction_kb
+    
     if update.callback_query.data == "fdate":
-        await send_message_with_cleanup(update, context, """
-<b>Чтобы показать список заказов по дате напишите боту сообщение такого формата -</b> <i>order:dd.mm.yyyy:dd.mm.yyyy</i>
-
-<b>Пример:</b>
-<pre>order:06.05.2025:16.05.2025</pre>
-
-<i>
-Будет сформирован список заказов с 6 Мая 2025 по 16 Мая 2025.
-P.S.: Эта команда всегда доступна в чате бота, а это сообщение просто подсказка.
-</i>
-""", parse_mode=ParseMode.HTML)
+        await send_message_with_cleanup(
+            update, 
+            context, 
+            t('filter_by_date_instruction', lang),
+            reply_markup=get_filter_instruction_kb(lang),
+            parse_mode=ParseMode.HTML
+        )
     elif update.callback_query.data == "fproduct":
-        await send_message_with_cleanup(update, context, """
-<b>Чтобы показать список заказов по товару напишите боту сообщение такого формата -</b> <i>order$название_товара</i>
-
-<b>Пример:</b>
-<pre>order$🟣</pre>
-
-<b>Если по нескольким товарам, то перечисляем товары через знак $:</b>
-<pre>order$🟣$🟠</pre>
-
-<i>
-Будет сформирован список заказов с указанными товарами.
-P.S.: Эта команда всегда доступна в чате бота, а это сообщение просто подсказка.
-</i>
-""", parse_mode=ParseMode.HTML)
+        await send_message_with_cleanup(
+            update, 
+            context, 
+            t('filter_by_product_instruction', lang),
+            reply_markup=get_filter_instruction_kb(lang),
+            parse_mode=ParseMode.HTML
+        )
     elif update.callback_query.data == "fclient":
-        await send_message_with_cleanup(update, context, """
-<b>Чтобы показать список заказов по КЛИЕНТУ напишите боту сообщение такого формата -</b> <i>order@username или order@phone</i>
-
-<b>Пример:</b>
-<pre>order@JimmyBone</pre>
-
-<b>Или по номеру, который вводился изначально в заказе:</b>
-<pre>order@79831639136</pre>
-
-<i>
-Будет сформирован список заказов по указанному юзернейму клиента или номеру телефона клиента
-P.S.: Эта команда всегда доступна в чате бота, а это сообщение просто подсказка.
-</i>
-""", parse_mode=ParseMode.HTML)
+        await send_message_with_cleanup(
+            update, 
+            context, 
+            t('filter_by_client_instruction', lang),
+            reply_markup=get_filter_instruction_kb(lang),
+            parse_mode=ParseMode.HTML
+        )
     elif update.callback_query.data == "fstatus":
         await edit_message_with_cleanup(update, context, t("choose_status", lang), reply_markup=FILTER_ORDERS_BY_STATUS_KB)
 
@@ -881,6 +871,9 @@ async def show_rest_from_last_day(update: Update, context: ContextTypes.DEFAULT_
     """
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
+    
+    # Add to navigation history
+    add_to_navigation_history(context, 'stock_list_menu')
 
     inline_markup = get_products_markup_left_edit_stock()
 
@@ -931,8 +924,12 @@ async def handle_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             await start(update, context)
         elif menu_name == 'stock_menu':
             await show_menu_edit_crude_stock(update, context)
+        elif menu_name == 'stock_list_menu':
+            await show_rest_from_last_day(update, context)
         elif menu_name == 'admin_menu':
             await show_admin_action_kb(update, context)
+        elif menu_name == 'orders_filter_menu':
+            await all_orders(update, context)
         else:
             # תפריט לא מוכר - חזור לעמוד הבית
             await start(update, context)
