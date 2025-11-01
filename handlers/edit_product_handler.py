@@ -197,6 +197,9 @@ states = {
 
 EDIT_PRODUCT_HANDLER = ConversationHandler(
     entry_points=[
+        # When clicking on product from list (edit_7)
+        CallbackQueryHandler(start_edit_product, '^edit_[0-9]+$'),
+        # When clicking on specific action from edit menu (edit_stock_7, edit_price_7, etc.)
         CallbackQueryHandler(start_edit_product, '^edit_(stock|name|price|delete_product)_[0-9]+$'),
     ],
     states=states,
