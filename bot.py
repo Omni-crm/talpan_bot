@@ -166,14 +166,26 @@ def main() -> None:
 
 
 
-    # Error handler for conflicts
+    # Error handler for conflicts and network errors
     async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handle errors gracefully, especially conflicts."""
+        """Handle errors gracefully, especially conflicts and network issues."""
         error = context.error
+        
+        # Handle Telegram API conflicts (multiple bot instances)
         if isinstance(error, telegram.error.Conflict):
             logging.warning("⚠️ Conflict detected - another bot instance may be running")
+        
+        # Handle network errors (httpx.ReadError, timeouts, etc.)
+        elif error.__class__.__name__ in ['ReadError', 'ConnectError', 'TimeoutException', 'NetworkError']:
+            logging.warning(f"⚠️ Network error (will retry automatically): {error.__class__.__name__}")
+        
+        # Handle Telegram API rate limiting
+        elif isinstance(error, telegram.error.RetryAfter):
+            logging.warning(f"⚠️ Rate limited - retry after {error.retry_after} seconds")
+        
+        # Log all other errors
         else:
-            logging.error(f"Update {update} caused error {error}")
+            logging.error(f"❌ Update {update} caused error {error.__class__.__name__}: {error}")
     
     application.add_error_handler(error_handler)
     
