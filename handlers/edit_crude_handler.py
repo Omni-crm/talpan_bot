@@ -66,7 +66,7 @@ async def edit_product_crude_end(update: Update, context: ContextTypes.DEFAULT_T
 
     msg: Message = context.user_data["edit_product_with_crude_data"]["start_msg"]
 
-    await msg.edit_text(t("crude_updated", lang).format(product.get('name'), new_stock), reply_markup=get_products_markup_left_edit_stock_crude())
+    await msg.edit_text(t("crude_updated", lang).format(product.get('name'), new_stock), reply_markup=get_products_markup_left_edit_stock_crude(lang))
 
     del context.user_data["edit_product_with_crude_data"]
 

@@ -155,7 +155,7 @@ def get_products_markup(user):
 
     return reply_markup
 
-def get_products_markup_left_edit_stock():
+def get_products_markup_left_edit_stock(lang='ru'):
     # Using Supabase only
     from db.db import db_client
     from config.translations import t
@@ -186,7 +186,7 @@ def get_products_markup_left_edit_stock():
     
     # Add navigation buttons - home button
     inline_keyboard.append([
-        InlineKeyboardButton(t("btn_home", 'ru'), callback_data="home")
+        InlineKeyboardButton(t("btn_home", lang), callback_data="home")
     ])
 
     reply_markup = InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
@@ -194,7 +194,7 @@ def get_products_markup_left_edit_stock():
     return reply_markup
 
 
-def get_products_markup_left_edit_stock_crude():
+def get_products_markup_left_edit_stock_crude(lang='ru'):
     # Using Supabase only
     from db.db import db_client
     
@@ -226,12 +226,12 @@ def get_products_markup_left_edit_stock_crude():
         inline_keyboard.append(delimiter)
 
     # הוספת כפתור הוספת מלאי ידנית
-    inline_keyboard.append([InlineKeyboardButton(t('btn_add_manual_stock', 'ru'), callback_data="add_manual_stock")])
+    inline_keyboard.append([InlineKeyboardButton(t('btn_add_manual_stock', lang), callback_data="add_manual_stock")])
     
     # הוספת כפתורי ניווט
     inline_keyboard.append([
-        InlineKeyboardButton(t('btn_back', 'ru'), callback_data="back"),
-        InlineKeyboardButton(t('btn_home', 'ru'), callback_data="home")
+        InlineKeyboardButton(t('btn_back', lang), callback_data="back"),
+        InlineKeyboardButton(t('btn_home', lang), callback_data="home")
     ])
 
     reply_markup = InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
@@ -277,39 +277,41 @@ CONFIRM_ORDER_KB = get_confirm_order_kb('ru')
 EDIT_PRODUCT_KB = get_edit_product_kb('ru')
 EDIT_PRODUCT_W_CRUDE_KB = get_edit_product_crude_kb('ru')
 
-SELECT_PRICE_KB = InlineKeyboardMarkup(
-    inline_keyboard=[
-        [
-            InlineKeyboardButton('250', callback_data="250"),
-            InlineKeyboardButton('350', callback_data="350"),
-            InlineKeyboardButton('400', callback_data="400"),
-            InlineKeyboardButton('450', callback_data="450"),
-            InlineKeyboardButton('500', callback_data="500"),
-            InlineKeyboardButton('550', callback_data="550"),
+def get_select_price_kb(lang='ru'):
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton('250', callback_data="250"),
+                InlineKeyboardButton('350', callback_data="350"),
+                InlineKeyboardButton('400', callback_data="400"),
+                InlineKeyboardButton('450', callback_data="450"),
+                InlineKeyboardButton('500', callback_data="500"),
+                InlineKeyboardButton('550', callback_data="550"),
+            ],
+            [InlineKeyboardButton('⬅️Back', callback_data="back")],
+            [InlineKeyboardButton('❌Cancel', callback_data="cancel")],
+            [InlineKeyboardButton(t("btn_home", lang), callback_data="home")],
         ],
-        [InlineKeyboardButton('⬅️Back', callback_data="back")],
-        [InlineKeyboardButton('❌Cancel', callback_data="cancel")],
-        [InlineKeyboardButton(t("btn_home", 'ru'), callback_data="home")],
-    ],
-)
+    )
 
-SELECT_QUANTITY_KB = InlineKeyboardMarkup(
-    inline_keyboard=[
-        [
-            InlineKeyboardButton('5', callback_data="5"),
-            InlineKeyboardButton('10', callback_data="10"),
-            InlineKeyboardButton('15', callback_data="15"),
-            InlineKeyboardButton('20', callback_data="20"),
-            InlineKeyboardButton('30', callback_data="30"),
-            InlineKeyboardButton('40', callback_data="40"),
-            InlineKeyboardButton('50', callback_data="50"),
-            InlineKeyboardButton('60', callback_data="60"),
+def get_select_quantity_kb(lang='ru'):
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton('5', callback_data="5"),
+                InlineKeyboardButton('10', callback_data="10"),
+                InlineKeyboardButton('15', callback_data="15"),
+                InlineKeyboardButton('20', callback_data="20"),
+                InlineKeyboardButton('30', callback_data="30"),
+                InlineKeyboardButton('40', callback_data="40"),
+                InlineKeyboardButton('50', callback_data="50"),
+                InlineKeyboardButton('60', callback_data="60"),
+            ],
+            [InlineKeyboardButton('⬅️Back', callback_data="back")],
+            [InlineKeyboardButton('❌Cancel', callback_data="cancel")],
+            [InlineKeyboardButton(t("btn_home", lang), callback_data="home")],
         ],
-        [InlineKeyboardButton('⬅️Back', callback_data="back")],
-        [InlineKeyboardButton('❌Cancel', callback_data="cancel")],
-        [InlineKeyboardButton(t("btn_home", 'ru'), callback_data="home")],
-    ],
-)
+    )
 
 
 def show_tg_session_action_kb(sess_id: str, lang='ru'):
@@ -348,20 +350,22 @@ def create_tg_sessions_kb(lang='ru'):
     return InlineKeyboardMarkup(inline_keyboard=inline_keyboard,)
 
 
-TWO_STEP_ASK_KB = InlineKeyboardMarkup([
-    [InlineKeyboardButton('Yes', callback_data='two_step_yes'), InlineKeyboardButton('No', callback_data='two_step_no')],
-    [InlineKeyboardButton("Cancel", callback_data="cancel")],
-    [InlineKeyboardButton(t("btn_home", 'ru'), callback_data="home")]
-])
+def get_two_step_ask_kb(lang='ru'):
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton('Yes', callback_data='two_step_yes'), InlineKeyboardButton('No', callback_data='two_step_no')],
+        [InlineKeyboardButton("Cancel", callback_data="cancel")],
+        [InlineKeyboardButton(t("btn_home", lang), callback_data="home")]
+    ])
 
 
-DIGITS_KB = InlineKeyboardMarkup([
-    [InlineKeyboardButton('1', callback_data='1'), InlineKeyboardButton('2', callback_data='2'), InlineKeyboardButton('3', callback_data='3')],
-    [InlineKeyboardButton('4', callback_data='4'), InlineKeyboardButton('5', callback_data='5'), InlineKeyboardButton('6', callback_data='6')],
-    [InlineKeyboardButton('7', callback_data='7'), InlineKeyboardButton('8', callback_data='8'), InlineKeyboardButton('9', callback_data='9')],
-    [InlineKeyboardButton('0', callback_data='0'), InlineKeyboardButton('cancel', callback_data='cancel')],
-    [InlineKeyboardButton(t("btn_home", 'ru'), callback_data="home")]
-])
+def get_digits_kb(lang='ru'):
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton('1', callback_data='1'), InlineKeyboardButton('2', callback_data='2'), InlineKeyboardButton('3', callback_data='3')],
+        [InlineKeyboardButton('4', callback_data='4'), InlineKeyboardButton('5', callback_data='5'), InlineKeyboardButton('6', callback_data='6')],
+        [InlineKeyboardButton('7', callback_data='7'), InlineKeyboardButton('8', callback_data='8'), InlineKeyboardButton('9', callback_data='9')],
+        [InlineKeyboardButton('0', callback_data='0'), InlineKeyboardButton('cancel', callback_data='cancel')],
+        [InlineKeyboardButton(t("btn_home", lang), callback_data="home")]
+    ])
 
 
 async def form_courier_action_kb(order_id: int, lang: str = 'ru'):
@@ -417,13 +421,14 @@ def get_orders_filter_kb(lang='ru'):
     )
 
 
-FILTER_ORDERS_BY_STATUS_KB = InlineKeyboardMarkup(
-    inline_keyboard=[
-        [InlineKeyboardButton(status, callback_data=status)] for status in (Status.completed.value,Status.active.value,Status.pending.value,Status.cancelled.value,Status.delay.value,)
-    ] + [
-        [InlineKeyboardButton(t("btn_back", 'ru'), callback_data="back"), InlineKeyboardButton(t("btn_home", 'ru'), callback_data="home")]
-    ]
-)
+def get_filter_orders_by_status_kb(lang='ru'):
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(status, callback_data=status)] for status in (Status.completed.value,Status.active.value,Status.pending.value,Status.cancelled.value,Status.delay.value,)
+        ] + [
+            [InlineKeyboardButton(t("btn_back", lang), callback_data="back"), InlineKeyboardButton(t("btn_home", lang), callback_data="home")]
+        ]
+    )
 
 
 # Excel export removed - now using text messages
@@ -571,45 +576,47 @@ def get_actions_template_kb(lang='ru'):
 EDIT_TEMPLATE_KB = get_edit_template_kb('ru')
 ACTIONS_TEMPLATE_KB = get_actions_template_kb('ru')
 
-COURIER_MINUTES_KB = InlineKeyboardMarkup(
-    inline_keyboard=[
-        [
-            InlineKeyboardButton('5', callback_data="5"),
-            InlineKeyboardButton('10', callback_data="10"),
-            InlineKeyboardButton('15', callback_data="15"),
-            InlineKeyboardButton('20', callback_data="20"),
-            InlineKeyboardButton('25', callback_data="25"),
-            InlineKeyboardButton('30', callback_data="30"),
+def get_courier_minutes_kb(lang='ru'):
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton('5', callback_data="5"),
+                InlineKeyboardButton('10', callback_data="10"),
+                InlineKeyboardButton('15', callback_data="15"),
+                InlineKeyboardButton('20', callback_data="20"),
+                InlineKeyboardButton('25', callback_data="25"),
+                InlineKeyboardButton('30', callback_data="30"),
+            ],
+            [
+                InlineKeyboardButton('35', callback_data="35"),
+                InlineKeyboardButton('40', callback_data="40"),
+                InlineKeyboardButton('45', callback_data="45"),
+                InlineKeyboardButton('50', callback_data="50"),
+                InlineKeyboardButton('55', callback_data="55"),
+                InlineKeyboardButton('60', callback_data="60"),
+            ],
+            [InlineKeyboardButton('❌Отмена', callback_data="cancel")],
+            [InlineKeyboardButton(t("btn_home", lang), callback_data="home")],
         ],
-        [
-            InlineKeyboardButton('35', callback_data="35"),
-            InlineKeyboardButton('40', callback_data="40"),
-            InlineKeyboardButton('45', callback_data="45"),
-            InlineKeyboardButton('50', callback_data="50"),
-            InlineKeyboardButton('55', callback_data="55"),
-            InlineKeyboardButton('60', callback_data="60"),
-        ],
-        [InlineKeyboardButton('❌Отмена', callback_data="cancel")],
-        [InlineKeyboardButton(t("btn_home", 'ru'), callback_data="home")],
-    ],
-)
+    )
 
-DELAY_MINUTES_KB = InlineKeyboardMarkup(
-    inline_keyboard=[
-        [
-            InlineKeyboardButton('5', callback_data="5"),
-            InlineKeyboardButton('10', callback_data="10"),
-            InlineKeyboardButton('15', callback_data="15"),
-            InlineKeyboardButton('20', callback_data="20"),
-            InlineKeyboardButton('30', callback_data="30"),
-            InlineKeyboardButton('45', callback_data="45"),
-            InlineKeyboardButton('60', callback_data="60"),
+def get_delay_minutes_kb(lang='ru'):
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton('5', callback_data="5"),
+                InlineKeyboardButton('10', callback_data="10"),
+                InlineKeyboardButton('15', callback_data="15"),
+                InlineKeyboardButton('20', callback_data="20"),
+                InlineKeyboardButton('30', callback_data="30"),
+                InlineKeyboardButton('45', callback_data="45"),
+                InlineKeyboardButton('60', callback_data="60"),
+            ],
+            [InlineKeyboardButton('🕒 Custom Time', callback_data="my")],
+            [InlineKeyboardButton('❌Cancel', callback_data="cancel")],
+            [InlineKeyboardButton(t("btn_home", lang), callback_data="home")],
         ],
-        [InlineKeyboardButton('🕒 Custom Time', callback_data="my")],
-        [InlineKeyboardButton('❌Cancel', callback_data="cancel")],
-        [InlineKeyboardButton(t("btn_home", 'ru'), callback_data="home")],
-    ],
-)
+    )
 
 def get_username_kb(lang='ru'):
     """כפתורים לשלב הזנת username"""

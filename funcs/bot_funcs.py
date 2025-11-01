@@ -638,7 +638,7 @@ async def filter_orders_by_param(update: Update, context: ContextTypes.DEFAULT_T
             parse_mode=ParseMode.HTML
         )
     elif update.callback_query.data == "fstatus":
-        await edit_message_with_cleanup(update, context, t("choose_status", lang), reply_markup=FILTER_ORDERS_BY_STATUS_KB)
+        await edit_message_with_cleanup(update, context, t("choose_status", lang), reply_markup=get_filter_orders_by_status_kb(lang))
 
 async def show_week_report(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     week_report = await form_week_report()
@@ -875,7 +875,7 @@ async def show_rest_from_last_day(update: Update, context: ContextTypes.DEFAULT_
     # Add to navigation history
     add_to_navigation_history(context, 'stock_list_menu')
 
-    inline_markup = get_products_markup_left_edit_stock()
+    inline_markup = get_products_markup_left_edit_stock(lang)
 
     await send_message_with_cleanup(update, context, t('edit_stock_or_delete', lang), reply_markup=inline_markup)
 
@@ -894,7 +894,7 @@ async def show_menu_edit_crude_stock(update: Update, context: ContextTypes.DEFAU
     # Add to navigation history
     add_to_navigation_history(context, 'stock_menu')
 
-    inline_markup = get_products_markup_left_edit_stock_crude()
+    inline_markup = get_products_markup_left_edit_stock_crude(lang)
 
     msg = await send_message_with_cleanup(update, context, t('edit_crude_stock_prompt', lang), reply_markup=inline_markup)
     

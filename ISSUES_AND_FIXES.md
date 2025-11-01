@@ -73,8 +73,29 @@ def get_products_markup_left_edit_stock():
 
 ### ✅ סטטוס ביצוע
 - [x] שינוי בוצע
+- [x] תוקן: הפונקציה עודכנה לקבל פרמטר `lang` ולהשתמש בו
+- [x] תוקן: כל הקריאות לפונקציה מעבירות את `lang`
 - [ ] נבדק
 - [ ] עובד
+
+### 🔧 תיקונים נוספים שבוצעו
+1. **`get_products_markup_left_edit_stock()`** - עודכנה לקבל פרמטר `lang='ru'`
+2. **`show_rest_from_last_day()`** - מעבירה את `lang` לפונקציה
+3. **`get_products_markup_left_edit_stock_crude()`** - עודכנה לקבל פרמטר `lang='ru'`
+4. **כל הכפתורים** בשתי הפונקציות משתמשים ב-`lang` הדינמי במקום hardcoded `'ru'`
+
+### 🔧 תיקון כולל של כל ה-keyboards הסטטיים
+הפכנו את כל ה-keyboards הסטטיים שהיו עם hardcoded `'ru'` לפונקציות דינמיות:
+
+1. **`SELECT_PRICE_KB`** → **`get_select_price_kb(lang='ru')`**
+2. **`SELECT_QUANTITY_KB`** → **`get_select_quantity_kb(lang='ru')`**
+3. **`TWO_STEP_ASK_KB`** → **`get_two_step_ask_kb(lang='ru')`**
+4. **`DIGITS_KB`** → **`get_digits_kb(lang='ru')`**
+5. **`COURIER_MINUTES_KB`** → **`get_courier_minutes_kb(lang='ru')`**
+6. **`DELAY_MINUTES_KB`** → **`get_delay_minutes_kb(lang='ru')`**
+7. **`FILTER_ORDERS_BY_STATUS_KB`** → **`get_filter_orders_by_status_kb(lang='ru')`**
+
+כל הפונקציות האלה עכשיו מקבלות פרמטר `lang` ומשתמשות בו לתרגום כפתורי הניווט (back/home).
 
 ---
 
