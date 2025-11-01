@@ -5,7 +5,7 @@ from telegram.error import BadRequest
 from pyrogram.errors import BadRequest, SessionPasswordNeeded
 from pyrogram.types import User as PyrogramUser
 from db.db import *
-from config.kb import TWO_STEP_ASK_KB, DIGITS_KB, get_cancel_kb
+from config.kb import get_two_step_ask_kb, get_digits_kb, get_cancel_kb
 from config.translations import t, get_user_lang
 
 
@@ -36,13 +36,14 @@ async def start_sessing_creation(update: Update, context: ContextTypes.DEFAULT_T
 
 async def handle_acc_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     phone_number = update.message.text
+    lang = get_user_lang(update.effective_user.id)
     
     context.user_data["auth_data"]["phone_number"] = phone_number
 
     msg = await context.bot.send_message(
         text=f"На аккаунте стоит пароль ? (нужно для создания сессии):",
         chat_id=update.effective_chat.id,
-        reply_markup=TWO_STEP_ASK_KB
+        reply_markup=get_two_step_ask_kb(lang)
     )
 
     context.user_data["auth_data"]["message_id"] = msg.id
@@ -93,11 +94,12 @@ async def fetch_actions(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 
         context.user_data["auth_data"]["phone_code_hash"] = sent_code.phone_code_hash
 
+        lang = get_user_lang(update.effective_user.id)
         await context.bot.edit_message_text(
             text=f"Now type the authorization code:",
             chat_id=update.effective_chat.id,
             message_id=context.user_data["auth_data"]["message_id"],
-            reply_markup=DIGITS_KB
+            reply_markup=get_digits_kb(lang)
         )
 
         return AuthStates.process_number_1
@@ -134,11 +136,12 @@ async def handle_password(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     context.user_data["auth_data"]["phone_code_hash"] = sent_code.phone_code_hash
 
+    lang = get_user_lang(update.effective_user.id)
     await context.bot.edit_message_text(
         text=f"Now type the authorization code:",
         chat_id=update.effective_chat.id,
         message_id=context.user_data["auth_data"]["message_id"],
-        reply_markup=DIGITS_KB
+        reply_markup=get_digits_kb(lang)
     )
 
     return AuthStates.process_number_1

@@ -28,7 +28,8 @@ async def choose_minutes_courier(update: Update, context: ContextTypes.DEFAULT_T
         await update.effective_message.reply_text(t('need_courier_role', lang))
         return ConversationHandler.END
 
-    start_msg = await update.effective_message.edit_reply_markup(reply_markup=COURIER_MINUTES_KB)
+    from config.kb import get_courier_minutes_kb
+    start_msg = await update.effective_message.edit_reply_markup(reply_markup=get_courier_minutes_kb(lang))
     context.user_data["choose_min_data"] = {}
     context.user_data["choose_min_data"]["start_msg"] = start_msg
     context.user_data["choose_min_data"]["lang"] = lang

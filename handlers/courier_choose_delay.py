@@ -54,7 +54,9 @@ async def write_delay_reason(update: Update, context: ContextTypes.DEFAULT_TYPE)
         context.user_data["delay_min_data"]["delay_reason"] = delay_reason
 
     start_msg: Message = context.user_data["delay_min_data"]["start_msg"]
-    context.user_data["delay_min_data"]["start_msg"] = await start_msg.edit_reply_markup(reply_markup=DELAY_MINUTES_KB)
+    lang = context.user_data["delay_min_data"].get("lang", "ru")
+    from config.kb import get_delay_minutes_kb
+    context.user_data["delay_min_data"]["start_msg"] = await start_msg.edit_reply_markup(reply_markup=get_delay_minutes_kb(lang))
     start_msg_2 = context.user_data["delay_min_data"]["start_msg_2"]
 
     try:

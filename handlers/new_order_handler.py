@@ -403,7 +403,8 @@ async def collect_product(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             context.user_data["collect_order_data"]["product_stock"] = product.get('stock', 0)
 
     msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-    context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(t("choose_or_enter_quantity", lang), reply_markup=SELECT_QUANTITY_KB)
+    from config.kb import get_select_quantity_kb
+    context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(t("choose_or_enter_quantity", lang), reply_markup=get_select_quantity_kb(lang))
 
     return CollectOrderDataStates.QUANTITY
 
@@ -455,7 +456,8 @@ async def collect_quantity(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
 
-    context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(t("choose_or_enter_total_price", lang), reply_markup=SELECT_PRICE_KB)
+    from config.kb import get_select_price_kb
+    context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(t("choose_or_enter_total_price", lang), reply_markup=get_select_price_kb(lang))
 
     return CollectOrderDataStates.TOTAL_PRICE
 
@@ -656,10 +658,10 @@ async def step_back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         else:
             prompt = t("choose_or_enter_quantity", lang)
         
-        from config.kb import SELECT_QUANTITY_KB
+        from config.kb import get_select_quantity_kb
         context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
             prompt,
-            reply_markup=SELECT_QUANTITY_KB
+            reply_markup=get_select_quantity_kb(lang)
         )
         context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.QUANTITY
         return CollectOrderDataStates.QUANTITY
@@ -677,10 +679,10 @@ async def step_back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         if old_value:
             prompt += f"\n\n📝 {t('previous_value', lang)}: {old_value}₪"
         
-        from config.kb import SELECT_PRICE_KB
+        from config.kb import get_select_price_kb
         context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
             prompt,
-            reply_markup=SELECT_PRICE_KB
+            reply_markup=get_select_price_kb(lang)
         )
         context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.TOTAL_PRICE
         return CollectOrderDataStates.TOTAL_PRICE
