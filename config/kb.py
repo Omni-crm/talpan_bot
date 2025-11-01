@@ -161,21 +161,24 @@ def get_products_markup_left_edit_stock():
     inline_keyboard = []
     delimiter = []
     for product in products:
-        print(len(delimiter))
         product_name = product.get('name', '')
         product_stock = product.get('stock', 0)
         product_id = product.get('id')
         
-        if len(delimiter) and len(delimiter) % 3 == 0:
+        # Add button with name and stock
+        delimiter.append(InlineKeyboardButton(
+            f"{product_name[:8]} ({product_stock})", 
+            callback_data=f"edit_{product_id}"
+        ))
+        
+        # If we have 3 buttons, start a new row
+        if len(delimiter) == 3:
             inline_keyboard.append(delimiter)
             delimiter = []
-            delimiter.append(InlineKeyboardButton(product_name[:12], callback_data=f"edit_{product_id}"))
-        else:
-            delimiter.append(InlineKeyboardButton(f"{product_name[:6]} ({product_stock})", callback_data=f"edit_{product_id}"))
 
+    # Add last row if there are remaining buttons
     if delimiter:
         inline_keyboard.append(delimiter)
-        delimiter = []
 
     reply_markup = InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
 
