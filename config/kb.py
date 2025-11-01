@@ -125,21 +125,24 @@ def get_products_markup(user):
     inline_keyboard = []
     delimiter = []
     for product in products:
-        print(len(delimiter))
         product_name = product.get('name', '')
         product_stock = product.get('stock', 0)
         product_id = product.get('id')
         
-        if len(delimiter) and len(delimiter) % 3 == 0:
+        # Add button with name and stock
+        delimiter.append(InlineKeyboardButton(
+            f"{product_name[:12]} ({product_stock})", 
+            callback_data=str(product_id)
+        ))
+        
+        # If we have 3 buttons, start a new row
+        if len(delimiter) == 3:
             inline_keyboard.append(delimiter)
             delimiter = []
-            delimiter.append(InlineKeyboardButton(f"{product_name[:12]} ({product_stock})", callback_data=str(product_id)))
-        else:
-            delimiter.append(InlineKeyboardButton(f"{product_name[:12]} ({product_stock})", callback_data=str(product_id)))
     
+    # Add last row if there are remaining buttons
     if delimiter:
         inline_keyboard.append(delimiter)
-        delimiter = []
 
     # += [InlineKeyboardButton('⬅️Back', callback_data="back")], 
     inline_keyboard += [[InlineKeyboardButton('❌Cancel', callback_data="cancel")]]
