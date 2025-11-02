@@ -497,12 +497,6 @@ async def form_daily_profit_report(date_option: str, lang: str = 'ru') -> str:
 # מערכת היסטוריית ניווט
 def add_to_navigation_history(context, menu_name, data=None, max_history=5):
     """הוספת תפריט להיסטוריית הניווט (מקסימום 5 מסכים)"""
-    
-    # אם אנחנו בתהליך של ניווט אחורה - אל תוסיף להיסטוריה!
-    if context.user_data.get('_navigating_back', False):
-        print(f"🔍 Skipping history add during back navigation: {menu_name}")
-        return
-    
     if 'navigation_history' not in context.user_data:
         context.user_data['navigation_history'] = []
     

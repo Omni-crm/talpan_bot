@@ -105,24 +105,26 @@ async def dump_database(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             await update.effective_message.reply_document(repr(e))
 
 @is_admin
-async def quick_reports(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def quick_reports(update: Update, context: ContextTypes.DEFAULT_TYPE, from_back_button: bool = False) -> None:
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
     
-    # Add to navigation history
-    add_to_navigation_history(context, 'quick_reports_menu')
+    # Add to navigation history ONLY if not coming from back button
+    if not from_back_button:
+        add_to_navigation_history(context, 'quick_reports_menu')
     
     await send_message_with_cleanup(update, context, t('choose_report_param', lang), reply_markup=get_quick_reports_kb(lang))
 
 
 @is_admin
-async def show_daily_profit_options(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def show_daily_profit_options(update: Update, context: ContextTypes.DEFAULT_TYPE, from_back_button: bool = False) -> None:
     """Show daily profit report options."""
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
     
-    # Add to navigation history
-    add_to_navigation_history(context, 'daily_profit_menu')
+    # Add to navigation history ONLY if not coming from back button
+    if not from_back_button:
+        add_to_navigation_history(context, 'daily_profit_menu')
     
     keyboard = [
         [InlineKeyboardButton(t("btn_today", lang), callback_data="profit_today")],
@@ -323,12 +325,13 @@ async def report_by_days(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     await send_message_with_cleanup(update, context, text=report)
 
 @is_admin
-async def show_admin_action_kb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def show_admin_action_kb(update: Update, context: ContextTypes.DEFAULT_TYPE, from_back_button: bool = False) -> None:
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
     
-    # Add to navigation history
-    add_to_navigation_history(context, 'admin_menu')
+    # Add to navigation history ONLY if not coming from back button
+    if not from_back_button:
+        add_to_navigation_history(context, 'admin_menu')
     
     await send_message_with_cleanup(update, context, t('admin_menu', lang), reply_markup=get_admin_action_kb(lang), parse_mode=ParseMode.HTML)
 
@@ -380,32 +383,35 @@ async def msg_client(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 
 
 @is_admin
-async def manage_roles(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def manage_roles(update: Update, context: ContextTypes.DEFAULT_TYPE, from_back_button: bool = False) -> None:
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
     
-    # Add to navigation history
-    add_to_navigation_history(context, 'manage_roles_menu')
+    # Add to navigation history ONLY if not coming from back button
+    if not from_back_button:
+        add_to_navigation_history(context, 'manage_roles_menu')
     
     await send_message_with_cleanup(update, context, t('manage_roles_title', lang), reply_markup=get_manage_roles_kb(lang))
 
 @is_admin
-async def show_security_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def show_security_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, from_back_button: bool = False) -> None:
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
     
-    # Add to navigation history
-    add_to_navigation_history(context, 'security_menu')
+    # Add to navigation history ONLY if not coming from back button
+    if not from_back_button:
+        add_to_navigation_history(context, 'security_menu')
     
     await send_message_with_cleanup(update, context, t('security_menu', lang), reply_markup=get_security_kb(lang))
 
 
-async def all_orders(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def all_orders(update: Update, context: ContextTypes.DEFAULT_TYPE, from_back_button: bool = False) -> None:
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
     
-    # Add to navigation history
-    add_to_navigation_history(context, 'orders_filter_menu')
+    # Add to navigation history ONLY if not coming from back button
+    if not from_back_button:
+        add_to_navigation_history(context, 'orders_filter_menu')
     
     await update.effective_message.edit_text(t("filter_by", lang), reply_markup=get_orders_filter_kb(lang))
 
@@ -792,12 +798,13 @@ async def back_session_kb(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 
 @is_admin
-async def show_tg_sessions(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def show_tg_sessions(update: Update, context: ContextTypes.DEFAULT_TYPE, from_back_button: bool = False) -> None:
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
 
-    # Add to navigation history
-    add_to_navigation_history(context, 'tg_sessions_menu')
+    # Add to navigation history ONLY if not coming from back button
+    if not from_back_button:
+        add_to_navigation_history(context, 'tg_sessions_menu')
     
     reply_markup = create_tg_sessions_kb(lang)
 
@@ -884,7 +891,7 @@ async def notif_client(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 
 @is_operator
-async def show_rest_from_last_day(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def show_rest_from_last_day(update: Update, context: ContextTypes.DEFAULT_TYPE, from_back_button: bool = False) -> None:
     """
     [📊 Текущий остаток на складе]
     • Показывает, сколько осталось от каждого товара
@@ -894,8 +901,9 @@ async def show_rest_from_last_day(update: Update, context: ContextTypes.DEFAULT_
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
     
-    # Add to navigation history
-    add_to_navigation_history(context, 'stock_list_menu')
+    # Add to navigation history ONLY if not coming from back button
+    if not from_back_button:
+        add_to_navigation_history(context, 'stock_list_menu')
 
     inline_markup = get_products_markup_left_edit_stock(lang)
 
@@ -903,7 +911,7 @@ async def show_rest_from_last_day(update: Update, context: ContextTypes.DEFAULT_
 
 
 @is_stockman
-async def show_menu_edit_crude_stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def show_menu_edit_crude_stock(update: Update, context: ContextTypes.DEFAULT_TYPE, from_back_button: bool = False) -> None:
     """
     Редактирование продуктов с сырьём.
     """
@@ -913,8 +921,9 @@ async def show_menu_edit_crude_stock(update: Update, context: ContextTypes.DEFAU
     # Clean previous message
     await clean_previous_message(update, context)
     
-    # Add to navigation history
-    add_to_navigation_history(context, 'stock_menu')
+    # Add to navigation history ONLY if not coming from back button
+    if not from_back_button:
+        add_to_navigation_history(context, 'stock_menu')
 
     inline_markup = get_products_markup_left_edit_stock_crude(lang)
 
@@ -930,9 +939,6 @@ async def handle_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     lang = get_user_lang(update.effective_user.id)
     
     if update.callback_query.data == "back":
-        # Save current message text to detect loops
-        current_message_text = update.callback_query.message.text if update.callback_query.message else ""
-        
         # Try to get previous menu
         previous_menu = get_previous_menu(context)
         if not previous_menu:
@@ -948,37 +954,30 @@ async def handle_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         # יש לאן לחזור - מחק את המסך הנוכחי
         await clean_previous_message(update, context)
         
-        # חזרה לתפריט הקודם - WITHOUT re-adding to history!
-        # We set a flag to prevent re-adding
-        context.user_data['_navigating_back'] = True
-        
-        try:
-            if menu_name == 'main_menu':
-                await start(update, context)
-            elif menu_name == 'stock_menu':
-                await show_menu_edit_crude_stock(update, context)
-            elif menu_name == 'stock_list_menu':
-                await show_rest_from_last_day(update, context)
-            elif menu_name == 'admin_menu':
-                await show_admin_action_kb(update, context)
-            elif menu_name == 'orders_filter_menu':
-                await all_orders(update, context)
-            elif menu_name == 'manage_roles_menu':
-                await manage_roles(update, context)
-            elif menu_name == 'security_menu':
-                await show_security_menu(update, context)
-            elif menu_name == 'daily_profit_menu':
-                await show_daily_profit_options(update, context)
-            elif menu_name == 'quick_reports_menu':
-                await quick_reports(update, context)
-            elif menu_name == 'tg_sessions_menu':
-                await show_tg_sessions(update, context)
-            else:
-                # תפריט לא מוכר - חזור לעמוד הבית
-                await start(update, context)
-        finally:
-            # Clear the flag
-            context.user_data['_navigating_back'] = False
+        # חזרה לתפריט הקודם - Pass from_back_button=True to prevent re-adding to history!
+        if menu_name == 'main_menu':
+            await start(update, context)
+        elif menu_name == 'stock_menu':
+            await show_menu_edit_crude_stock(update, context, from_back_button=True)
+        elif menu_name == 'stock_list_menu':
+            await show_rest_from_last_day(update, context, from_back_button=True)
+        elif menu_name == 'admin_menu':
+            await show_admin_action_kb(update, context, from_back_button=True)
+        elif menu_name == 'orders_filter_menu':
+            await all_orders(update, context, from_back_button=True)
+        elif menu_name == 'manage_roles_menu':
+            await manage_roles(update, context, from_back_button=True)
+        elif menu_name == 'security_menu':
+            await show_security_menu(update, context, from_back_button=True)
+        elif menu_name == 'daily_profit_menu':
+            await show_daily_profit_options(update, context, from_back_button=True)
+        elif menu_name == 'quick_reports_menu':
+            await quick_reports(update, context, from_back_button=True)
+        elif menu_name == 'tg_sessions_menu':
+            await show_tg_sessions(update, context, from_back_button=True)
+        else:
+            # תפריט לא מוכר - חזור לעמוד הבית
+            await start(update, context)
     
     elif update.callback_query.data == "home":
         # ניקוי היסטוריה וחזרה לעמוד הבית
