@@ -572,9 +572,19 @@ async def go_to_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.callback_query.answer()
+    
+    # Check if conversation data exists
+    if "collect_order_data" not in context.user_data:
+        print(f"🔧 cancel: No conversation data")
+        return ConversationHandler.END
+    
     msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
     await msg.delete()
     del context.user_data["collect_order_data"]
+    
+    # Return to main menu after cancel
+    from funcs.bot_funcs import start
+    await start(update, context)
 
     return ConversationHandler.END
 
@@ -582,17 +592,26 @@ async def step_back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     print(f"🔧 step_back called")
     await update.callback_query.answer()
 
+    # Check if conversation data exists
+    if "collect_order_data" not in context.user_data:
+        print(f"🔧 No conversation data - conversation already ended")
+        return ConversationHandler.END
+
     current_step = context.user_data["collect_order_data"]["step"]
     print(f"🔧 Current step: {current_step}")
     lang = context.user_data["collect_order_data"]["lang"]
     
-    # If we're at the first or second step, end the conversation
-    # (NAME is the entry point, USERNAME is the first real step)
-    if current_step in [CollectOrderDataStates.NAME, CollectOrderDataStates.USERNAME]:
-        print(f"🔧 At early step ({current_step}), ending conversation")
+    # If we're at the first steps (START, NAME, or USERNAME), end the conversation and return to main menu
+    if current_step in [CollectOrderDataStates.START, CollectOrderDataStates.NAME, CollectOrderDataStates.USERNAME]:
+        print(f"🔧 At early step ({current_step}), ending conversation and returning to main menu")
         msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
         await msg.delete()
         del context.user_data["collect_order_data"]
+        
+        # Return to main menu
+        from funcs.bot_funcs import start
+        await start(update, context)
+        
         return ConversationHandler.END
     
     # Go back one step
