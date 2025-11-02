@@ -930,7 +930,10 @@ async def handle_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     lang = get_user_lang(update.effective_user.id)
     
     if update.callback_query.data == "back":
-        # בדיקה אם יש תפריט קודם
+        # Save current message text to detect loops
+        current_message_text = update.callback_query.message.text if update.callback_query.message else ""
+        
+        # Try to get previous menu
         previous_menu = get_previous_menu(context)
         if not previous_menu:
             # אין היסטוריה - חזור לעמוד הבית
@@ -938,34 +941,44 @@ async def handle_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             await start(update, context)
             return
         
+        # Temporarily store the menu we're going back to
+        menu_name = previous_menu['menu']
+        print(f"🔍 Attempting to go back to: {menu_name}")
+        
         # יש לאן לחזור - מחק את המסך הנוכחי
         await clean_previous_message(update, context)
         
-        # חזרה לתפריט הקודם
-        menu_name = previous_menu['menu']
-        if menu_name == 'main_menu':
-            await start(update, context)
-        elif menu_name == 'stock_menu':
-            await show_menu_edit_crude_stock(update, context)
-        elif menu_name == 'stock_list_menu':
-            await show_rest_from_last_day(update, context)
-        elif menu_name == 'admin_menu':
-            await show_admin_action_kb(update, context)
-        elif menu_name == 'orders_filter_menu':
-            await all_orders(update, context)
-        elif menu_name == 'manage_roles_menu':
-            await manage_roles(update, context)
-        elif menu_name == 'security_menu':
-            await show_security_menu(update, context)
-        elif menu_name == 'daily_profit_menu':
-            await show_daily_profit_options(update, context)
-        elif menu_name == 'quick_reports_menu':
-            await quick_reports(update, context)
-        elif menu_name == 'tg_sessions_menu':
-            await show_tg_sessions(update, context)
-        else:
-            # תפריט לא מוכר - חזור לעמוד הבית
-            await start(update, context)
+        # חזרה לתפריט הקודם - WITHOUT re-adding to history!
+        # We set a flag to prevent re-adding
+        context.user_data['_navigating_back'] = True
+        
+        try:
+            if menu_name == 'main_menu':
+                await start(update, context)
+            elif menu_name == 'stock_menu':
+                await show_menu_edit_crude_stock(update, context)
+            elif menu_name == 'stock_list_menu':
+                await show_rest_from_last_day(update, context)
+            elif menu_name == 'admin_menu':
+                await show_admin_action_kb(update, context)
+            elif menu_name == 'orders_filter_menu':
+                await all_orders(update, context)
+            elif menu_name == 'manage_roles_menu':
+                await manage_roles(update, context)
+            elif menu_name == 'security_menu':
+                await show_security_menu(update, context)
+            elif menu_name == 'daily_profit_menu':
+                await show_daily_profit_options(update, context)
+            elif menu_name == 'quick_reports_menu':
+                await quick_reports(update, context)
+            elif menu_name == 'tg_sessions_menu':
+                await show_tg_sessions(update, context)
+            else:
+                # תפריט לא מוכר - חזור לעמוד הבית
+                await start(update, context)
+        finally:
+            # Clear the flag
+            context.user_data['_navigating_back'] = False
     
     elif update.callback_query.data == "home":
         # ניקוי היסטוריה וחזרה לעמוד הבית
