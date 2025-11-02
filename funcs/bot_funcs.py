@@ -1124,6 +1124,60 @@ async def order_ready(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         # All validations passed - update stock for all products
         logger.info(f"✅ order_ready: Updating stock for {len(validated_products)} products")
         for product_update in validated_products:
+            # CRITICAL: Re-fetch product to verify current stock before update (race condition protection)
+            products_before_update = db_client.select('products', {'id': product_update['product_id']})
+            if not products_before_update:
+                logger.error(f"❌ order_ready: Product {product_update['product_name']} disappeared before update")
+                # Rollback previous stock updates
+                for rollback in stock_updates:
+                    try:
+                        rollback_result = db_client.update('products', {'stock': rollback['old_stock']}, {'id': rollback['product_id']})
+                        if rollback_result:
+                            logger.info(f"🔄 order_ready: Rolled back stock for {rollback['product_name']}")
+                        else:
+                            logger.error(f"❌ order_ready: Rollback verification failed for {rollback['product_name']}")
+                    except Exception as rollback_error:
+                        logger.error(f"❌ order_ready: Rollback failed for {rollback['product_name']}: {repr(rollback_error)}")
+                
+                await send_message_with_cleanup(
+                    update, context, 
+                    f"⚠️ {t('error', lang)}: Product '{product_update['product_name']}' disappeared. All changes rolled back."
+                )
+                return
+            
+            current_stock_before = products_before_update[0].get('stock', 0)
+            if current_stock_before is None:
+                current_stock_before = 0
+            
+            # CRITICAL: Verify stock hasn't changed since validation (race condition check)
+            if int(current_stock_before) != product_update['old_stock']:
+                logger.warning(f"⚠️ order_ready: Stock changed for '{product_update['product_name']}' - was {product_update['old_stock']}, now {current_stock_before}")
+                # Re-calculate new stock based on current value
+                new_stock_recalculated = int(current_stock_before) - product_update['quantity']
+                if new_stock_recalculated < 0:
+                    logger.error(f"❌ order_ready: Insufficient stock after race condition check for '{product_update['product_name']}'")
+                    # Rollback previous stock updates
+                    for rollback in stock_updates:
+                        try:
+                            rollback_result = db_client.update('products', {'stock': rollback['old_stock']}, {'id': rollback['product_id']})
+                            if rollback_result:
+                                logger.info(f"🔄 order_ready: Rolled back stock for {rollback['product_name']}")
+                            else:
+                                logger.error(f"❌ order_ready: Rollback verification failed for {rollback['product_name']}")
+                        except Exception as rollback_error:
+                            logger.error(f"❌ order_ready: Rollback failed for {rollback['product_name']}: {repr(rollback_error)}")
+                    
+                    await send_message_with_cleanup(
+                        update, context, 
+                        f"⚠️ {t('error', lang)}: Insufficient stock for '{product_update['product_name']}' (race condition detected). All changes rolled back."
+                    )
+                    return
+                
+                # Update with recalculated value
+                product_update['old_stock'] = int(current_stock_before)
+                product_update['new_stock'] = new_stock_recalculated
+            
+            # Perform stock update
             result = db_client.update('products', 
                 {'stock': product_update['new_stock']}, 
                 {'id': product_update['product_id']}
@@ -1135,8 +1189,11 @@ async def order_ready(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 # Rollback previous stock updates
                 for rollback in stock_updates:
                     try:
-                        db_client.update('products', {'stock': rollback['old_stock']}, {'id': rollback['product_id']})
-                        logger.info(f"🔄 order_ready: Rolled back stock for {rollback['product_name']}")
+                        rollback_result = db_client.update('products', {'stock': rollback['old_stock']}, {'id': rollback['product_id']})
+                        if rollback_result:
+                            logger.info(f"🔄 order_ready: Rolled back stock for {rollback['product_name']}")
+                        else:
+                            logger.error(f"❌ order_ready: Rollback verification failed for {rollback['product_name']}")
                     except Exception as rollback_error:
                         logger.error(f"❌ order_ready: Rollback failed for {rollback['product_name']}: {repr(rollback_error)}")
                 
@@ -1146,8 +1203,57 @@ async def order_ready(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 )
                 return
             
+            # CRITICAL: Verify stock was actually updated correctly (post-update verification)
+            products_after_update = db_client.select('products', {'id': product_update['product_id']})
+            if products_after_update:
+                actual_stock_after = products_after_update[0].get('stock', 0)
+                if actual_stock_after is None:
+                    actual_stock_after = 0
+                
+                if int(actual_stock_after) != product_update['new_stock']:
+                    logger.error(f"❌ order_ready: Stock verification failed for '{product_update['product_name']}' - expected {product_update['new_stock']}, got {actual_stock_after}")
+                    # Rollback ALL updates (including this failed one)
+                    for rollback in stock_updates:
+                        try:
+                            rollback_result = db_client.update('products', {'stock': rollback['old_stock']}, {'id': rollback['product_id']})
+                            if rollback_result:
+                                logger.info(f"🔄 order_ready: Rolled back stock for {rollback['product_name']}")
+                            else:
+                                logger.error(f"❌ order_ready: Rollback verification failed for {rollback['product_name']}")
+                        except Exception as rollback_error:
+                            logger.error(f"❌ order_ready: Rollback failed for {rollback['product_name']}: {repr(rollback_error)}")
+                    
+                    # Rollback this update too
+                    try:
+                        db_client.update('products', {'stock': product_update['old_stock']}, {'id': product_update['product_id']})
+                    except:
+                        pass
+                    
+                    await send_message_with_cleanup(
+                        update, context, 
+                        f"⚠️ {t('error', lang)}: Stock verification failed for '{product_update['product_name']}'. All changes rolled back."
+                    )
+                    return
+            else:
+                logger.error(f"❌ order_ready: Product {product_update['product_name']} disappeared after update")
+                # Rollback
+                for rollback in stock_updates:
+                    try:
+                        rollback_result = db_client.update('products', {'stock': rollback['old_stock']}, {'id': rollback['product_id']})
+                        if rollback_result:
+                            logger.info(f"🔄 order_ready: Rolled back stock for {rollback['product_name']}")
+                    except Exception as rollback_error:
+                        logger.error(f"❌ order_ready: Rollback failed: {repr(rollback_error)}")
+                
+                await send_message_with_cleanup(
+                    update, context, 
+                    f"⚠️ {t('error', lang)}: Product '{product_update['product_name']}' disappeared after update. All changes rolled back."
+                )
+                return
+            
             # Track successful update for potential rollback
             stock_updates.append(product_update)
+            logger.info(f"✅ order_ready: Stock updated for '{product_update['product_name']}': {product_update['old_stock']} -> {product_update['new_stock']}")
         
         # CRITICAL CHECK 5: Update order status and verify success
         courier_name = f"{update.effective_user.first_name} {update.effective_user.last_name if update.effective_user.last_name else ''}".strip()
@@ -1170,14 +1276,53 @@ async def order_ready(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             # Rollback ALL stock updates
             for rollback in stock_updates:
                 try:
-                    db_client.update('products', {'stock': rollback['old_stock']}, {'id': rollback['product_id']})
-                    logger.info(f"🔄 order_ready: Rolled back stock for {rollback['product_name']}")
+                    rollback_result = db_client.update('products', {'stock': rollback['old_stock']}, {'id': rollback['product_id']})
+                    if rollback_result:
+                        # Verify rollback succeeded
+                        verify_products = db_client.select('products', {'id': rollback['product_id']})
+                        if verify_products and int(verify_products[0].get('stock', 0) or 0) == rollback['old_stock']:
+                            logger.info(f"🔄 order_ready: Verified rollback for {rollback['product_name']}")
+                        else:
+                            logger.error(f"❌ order_ready: Rollback verification failed for {rollback['product_name']}")
+                    else:
+                        logger.error(f"❌ order_ready: Rollback failed for {rollback['product_name']} - update returned empty")
                 except Exception as rollback_error:
-                    logger.error(f"❌ order_ready: Rollback failed for {rollback['product_name']}: {repr(rollback_error)}")
+                    logger.error(f"❌ order_ready: Rollback exception for {rollback['product_name']}: {repr(rollback_error)}")
             
             await send_message_with_cleanup(
                 update, context, 
                 f"⚠️ {t('error', lang)}: Failed to update order #{order_id}. All stock changes have been rolled back."
+            )
+            return
+        
+        # CRITICAL: Verify order was actually updated
+        orders_after_update = db_client.select('orders', {'id': order_id})
+        if not orders_after_update:
+            logger.error(f"❌ order_ready: Order {order_id} disappeared after update - ROLLING BACK STOCK!")
+            # Rollback stock
+            for rollback in stock_updates:
+                try:
+                    db_client.update('products', {'stock': rollback['old_stock']}, {'id': rollback['product_id']})
+                except:
+                    pass
+            await send_message_with_cleanup(
+                update, context, 
+                f"⚠️ {t('error', lang)}: Order disappeared after update. All changes rolled back."
+            )
+            return
+        
+        order_after = orders_after_update[0]
+        if order_after.get('status') != 'completed' or not order_after.get('delivered'):
+            logger.error(f"❌ order_ready: Order {order_id} status not updated correctly - status={order_after.get('status')}, delivered={order_after.get('delivered')}")
+            # Rollback stock
+            for rollback in stock_updates:
+                try:
+                    db_client.update('products', {'stock': rollback['old_stock']}, {'id': rollback['product_id']})
+                except:
+                    pass
+            await send_message_with_cleanup(
+                update, context, 
+                f"⚠️ {t('error', lang)}: Order status update verification failed. All changes rolled back."
             )
             return
         
@@ -1220,10 +1365,13 @@ async def order_ready(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         if stock_updates:
             for rollback in stock_updates:
                 try:
-                    db_client.update('products', {'stock': rollback['old_stock']}, {'id': rollback['product_id']})
-                    logger.info(f"🔄 order_ready: Rolled back stock for {rollback['product_name']} after ValueError")
+                    rollback_result = db_client.update('products', {'stock': rollback['old_stock']}, {'id': rollback['product_id']})
+                    if rollback_result:
+                        logger.info(f"🔄 order_ready: Rolled back stock for {rollback['product_name']} after ValueError")
+                    else:
+                        logger.error(f"❌ order_ready: Rollback failed for {rollback['product_name']} after ValueError - update returned empty")
                 except Exception as rollback_error:
-                    logger.error(f"❌ order_ready: Rollback failed: {repr(rollback_error)}")
+                    logger.error(f"❌ order_ready: Rollback exception: {repr(rollback_error)}")
         
         await send_message_with_cleanup(
             update, context, 
@@ -1238,10 +1386,13 @@ async def order_ready(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         if stock_updates:
             for rollback in stock_updates:
                 try:
-                    db_client.update('products', {'stock': rollback['old_stock']}, {'id': rollback['product_id']})
-                    logger.info(f"🔄 order_ready: Rolled back stock for {rollback['product_name']} after exception")
+                    rollback_result = db_client.update('products', {'stock': rollback['old_stock']}, {'id': rollback['product_id']})
+                    if rollback_result:
+                        logger.info(f"🔄 order_ready: Rolled back stock for {rollback['product_name']} after exception")
+                    else:
+                        logger.error(f"❌ order_ready: Rollback failed for {rollback['product_name']} after exception - update returned empty")
                 except Exception as rollback_error:
-                    logger.error(f"❌ order_ready: Rollback failed: {repr(rollback_error)}")
+                    logger.error(f"❌ order_ready: Rollback exception: {repr(rollback_error)}")
         
         await send_message_with_cleanup(
             update, context, 

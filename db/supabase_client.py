@@ -82,7 +82,21 @@ class SupabaseClient:
             return {}
     
     def update(self, table: str, data: Dict, filters: Optional[Dict] = None) -> List[Dict]:
-        """UPDATE query - מבוסס על HTTP PATCH request"""
+        """
+        UPDATE query - מבוסס על HTTP PATCH request
+        
+        CRITICAL: Supabase REST API behavior:
+        - Returns 200/204 on success
+        - Returns 204 (No Content) if update succeeded but no rows matched (this is actually an error condition!)
+        - Returns 400+ on error
+        
+        IMPORTANT: Empty list return value can mean:
+        1. Update succeeded but no rows matched (should be treated as error)
+        2. Update succeeded and rows were updated (but representation not returned - unlikely with Prefer header)
+        
+        We use 'Prefer: return=representation' header, so successful updates should return updated rows.
+        If response is empty, we need to check if it was 204 (no match) or 200 (success but empty).
+        """
         try:
             url = f"{self.url}/rest/v1/{table}"
             
@@ -93,17 +107,34 @@ class SupabaseClient:
                     params[key] = f"eq.{value}" if not str(value).startswith('eq.') else value
             
             response = requests.patch(url, headers=self.headers, json=data, params=params)
+            
+            # CRITICAL: Check status code before processing
+            status_code = response.status_code
+            
+            # 204 No Content = successful but NO ROWS MATCHED (error condition!)
+            if status_code == 204:
+                print(f"⚠️ UPDATE: No rows matched for table {table} with filters {filters}")
+                return []  # Return empty to indicate no match (treated as error by callers)
+            
+            # Raise exception for any other non-2xx status
             response.raise_for_status()
             
             # Handle empty or None response
             if not response.text:
+                # With Prefer: return=representation, empty response might mean no match
+                print(f"⚠️ UPDATE: Empty response for table {table} with filters {filters}")
                 return []
             
-            return response.json()
+            result = response.json()
+            # Return as list for consistency
+            return result if isinstance(result, list) else [result]
         
         except requests.exceptions.HTTPError as e:
             print(f"❌ UPDATE error: {e}")
-            return []
+            print(f"   URL: {url}")
+            print(f"   Filters: {filters}")
+            print(f"   Status: {response.status_code if 'response' in locals() else 'N/A'}")
+            return []  # Return empty to indicate failure
         except ValueError as e:
             # Handle JSON decode errors
             print(f"❌ JSON decode error: {e}")

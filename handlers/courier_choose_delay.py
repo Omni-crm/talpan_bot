@@ -86,8 +86,33 @@ async def choose_minutes_courier(update: Update, context: ContextTypes.DEFAULT_T
 
 
 async def write_delay_reason(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # CRITICAL: Validate context.user_data exists
+    if "delay_min_data" not in context.user_data:
+        logger.error("❌ write_delay_reason: delay_min_data not in context.user_data")
+        if update.effective_message:
+            await update.effective_message.reply_text(
+                f"⚠️ {t('error', 'ru')}: Session expired. Please try again."
+            )
+        return ConversationHandler.END
+    
+    # CRITICAL: Validate required keys exist
+    start_msg = context.user_data["delay_min_data"].get("start_msg")
+    start_msg_2 = context.user_data["delay_min_data"].get("start_msg_2")
+    lang = context.user_data["delay_min_data"].get("lang", "ru")
+    
+    if not start_msg or not start_msg_2:
+        logger.error("❌ write_delay_reason: Missing start_msg or start_msg_2")
+        if update.effective_message:
+            await update.effective_message.reply_text(
+                f"⚠️ {t('error', lang)}: Session data corrupted. Please try again."
+            )
+        return ConversationHandler.END
+    
     # SECURITY FIX: Sanitize delay_reason to prevent HTML injection
-    if update.effective_message.voice:
+    if update.effective_message and update.effective_message.voice:
         chat_id = str(update.effective_chat.id).replace('-100', '')
         link_to_message = f'https://t.me/c/{chat_id}/{update.effective_message.id}'
         # Safe HTML link - Telegram URL format is safe
@@ -96,16 +121,17 @@ async def write_delay_reason(update: Update, context: ContextTypes.DEFAULT_TYPE)
     else:
         # SECURITY: Escape HTML special characters to prevent XSS
         import html
-        raw_text = update.effective_message.text
+        raw_text = update.effective_message.text if update.effective_message and update.effective_message.text else ""
         # Escape HTML entities but allow safe formatting if needed
         delay_reason = html.escape(raw_text) if raw_text else ""
         context.user_data["delay_min_data"]["delay_reason"] = delay_reason
 
-    start_msg: Message = context.user_data["delay_min_data"]["start_msg"]
-    lang = context.user_data["delay_min_data"].get("lang", "ru")
     from config.kb import get_delay_minutes_kb
-    context.user_data["delay_min_data"]["start_msg"] = await start_msg.edit_reply_markup(reply_markup=get_delay_minutes_kb(lang))
-    start_msg_2 = context.user_data["delay_min_data"]["start_msg_2"]
+    try:
+        context.user_data["delay_min_data"]["start_msg"] = await start_msg.edit_reply_markup(reply_markup=get_delay_minutes_kb(lang))
+    except Exception as e:
+        logger.error(f"❌ write_delay_reason: Failed to edit markup: {repr(e)}")
+        return ConversationHandler.END
 
     try:
         await start_msg_2.delete()
@@ -242,11 +268,38 @@ async def write_delay_minutes_courier(update: Update, context: ContextTypes.DEFA
     Написать текстом количество минут
     """
     await update.callback_query.answer()
-    lang = context.user_data["delay_min_data"]["lang"]
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # CRITICAL: Validate context.user_data exists
+    if "delay_min_data" not in context.user_data:
+        logger.error("❌ write_delay_minutes_courier: delay_min_data not in context.user_data")
+        await update.effective_message.reply_text(
+            f"⚠️ {t('error', 'ru')}: Session expired. Please try again."
+        )
+        return ConversationHandler.END
+    
+    lang = context.user_data["delay_min_data"].get("lang", "ru")
+    start_msg = context.user_data["delay_min_data"].get("start_msg")
+    
+    if not start_msg:
+        logger.error("❌ write_delay_minutes_courier: Missing start_msg")
+        await update.effective_message.reply_text(
+            f"⚠️ {t('error', lang)}: Session data corrupted. Please try again."
+        )
+        return ConversationHandler.END
 
-    context.user_data["delay_min_data"]["trash"] = []
-    context.user_data["delay_min_data"]["trash"].append(await update.effective_message.reply_text(t('enter_minutes', lang)))
-    context.user_data["delay_min_data"]["start_msg"] = await update.effective_message.edit_reply_markup(reply_markup=get_cancel_kb(lang))
+    try:
+        if "trash" not in context.user_data["delay_min_data"]:
+            context.user_data["delay_min_data"]["trash"] = []
+        context.user_data["delay_min_data"]["trash"].append(await update.effective_message.reply_text(t('enter_minutes', lang)))
+        context.user_data["delay_min_data"]["start_msg"] = await start_msg.edit_reply_markup(reply_markup=get_cancel_kb(lang))
+    except Exception as e:
+        logger.error(f"❌ write_delay_minutes_courier: Failed to update messages: {repr(e)}")
+        await update.effective_message.reply_text(
+            f"⚠️ {t('error', lang)}: Failed to load input prompt"
+        )
+        return ConversationHandler.END
 
     return DelayMinStates.WRITE_MY
 
