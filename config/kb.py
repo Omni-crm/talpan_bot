@@ -369,13 +369,18 @@ def get_digits_kb(lang='ru'):
 
 
 async def form_courier_action_kb(order_id: int, lang: str = 'ru'):
+    """
+    Create BILINGUAL keyboard for courier actions (RU + HE)
+    Used in courier group messages
+    """
     COURIER_ACTION_KB = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(t('btn_choose_minutes', lang), callback_data=f"choose_min_{order_id}")],
-            [InlineKeyboardButton(t('btn_write_minutes', lang), callback_data=f"write_min_{order_id}")],
-            [InlineKeyboardButton(t('btn_delay', lang), callback_data=f"delay_min_{order_id}")],
-            [InlineKeyboardButton(t('btn_delivered', lang), callback_data=f"ready_{order_id}")],
-            [InlineKeyboardButton(t("btn_back", lang), callback_data="back"), InlineKeyboardButton(t("btn_home", lang), callback_data="home")],
+            [InlineKeyboardButton(f"{t('btn_choose_minutes', 'ru')} ({t('btn_choose_minutes', 'he')})", callback_data=f"choose_min_{order_id}")],
+            [InlineKeyboardButton(f"{t('btn_write_minutes', 'ru')} ({t('btn_write_minutes', 'he')})", callback_data=f"write_min_{order_id}")],
+            [InlineKeyboardButton(f"{t('btn_delay', 'ru')} ({t('btn_delay', 'he')})", callback_data=f"delay_min_{order_id}")],
+            [InlineKeyboardButton(f"{t('btn_delivered', 'ru')} ({t('btn_delivered', 'he')})", callback_data=f"ready_{order_id}")],
+            [InlineKeyboardButton(f"{t('btn_back', 'ru')} ({t('btn_back', 'he')})", callback_data="back"), 
+             InlineKeyboardButton(f"{t('btn_home', 'ru')} ({t('btn_home', 'he')})", callback_data="home")],
         ],
     )
 

@@ -750,8 +750,9 @@ async def confirm_order(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         from db.db import get_bot_setting
         order_chat = get_bot_setting('order_chat') or links.ORDER_CHAT
         if order_chat:
-            crourier_text = await form_confirm_order_courier(order_obj, 'ru')  # לקבוצת קוריירים - ברוסית
-            markup = await form_courier_action_kb(order_obj.id, 'ru')  # לקבוצת קוריירים - ברוסית
+            # Send BILINGUAL message to courier group (RU + HE)
+            crourier_text = await form_confirm_order_courier(order_obj, 'ru')  # lang param ignored - now bilingual
+            markup = await form_courier_action_kb(order_obj.id, 'ru')  # lang param ignored - now bilingual
             await context.bot.send_message(order_chat, crourier_text, parse_mode=ParseMode.HTML, reply_markup=markup)
     except Exception as e:
         traceback.print_exc()

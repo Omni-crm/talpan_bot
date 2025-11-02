@@ -210,62 +210,79 @@ async def form_confirm_order(order: Order, lang: str = 'ru') -> str:
     return msg
 
 async def form_confirm_order_courier_info(order: Order, lang: str = 'ru') -> str:
+    """
+    Format order for ADMIN GROUP - BILINGUAL (RU + HE)
+    Used when sending to admin group chat with full courier info
+    """
     products = order.get_products()
     print(products)
 
-    qty_text = t("units", lang)
-    products_text = ", ".join([f"{product['name']} - {product['quantity']} {qty_text} - {product['total_price']}₪/{qty_text}" for product in products])
+    # Get text in both languages
+    qty_text_ru = t("units", 'ru')
+    qty_text_he = t("units", 'he')
+    
+    products_text_ru = ", ".join([f"{product['name']} - {product['quantity']} {qty_text_ru} - {product['total_price']}₪/{qty_text_ru}" for product in products])
+    products_text_he = ", ".join([f"{product['name']} - {product['quantity']} {qty_text_he} - {product['total_price']}₪/{qty_text_he}" for product in products])
 
     price_all_text = sum([(product['total_price']) for product in products])
-
-    # הוספת RTL mark לתחילת ההודעה אם בעברית
-    rtl = '\u200F' if lang == 'he' else ''
     
-    msg = f"""{rtl}{t("order_id", lang).format(order.id if order.id else '')}
-{t("client_name", lang).format(order.client_name)}
-{t("client_username", lang).format(order.client_username)}
-{t("client_phone", lang).format(order.client_phone)}
-{t("address", lang).format(order.address)}
-{t("products", lang).format(products_text)}
-{t("total_price", lang).format(price_all_text)}
+    # Bilingual message - Russian + Hebrew
+    msg = f"""<b>Заказ #{order.id if order.id else ''} | הזמנה #{order.id if order.id else ''}</b>
 
-{t("courier_name", lang).format(order.courier_name)}
-{t("courier_username", lang).format(order.courier_username)}
-{t("courier_id", lang).format(order.courier_id)}
-{(t('selected_time', lang).format(order.courier_minutes)) if order.courier_minutes else ''}
+<b>Имя клиента | שם לקוח:</b> {order.client_name}
+<b>Username клиента | יוזרניים לקוח:</b> {order.client_username}
+<b>Телефон клиента | טלפון לקוח:</b> {order.client_phone}
+<b>Адрес | כתובת:</b> {order.address}
+<b>Товары | מוצרים:</b>
+  🇷🇺 {products_text_ru}
+  🇮🇱 {products_text_he}
+<b>Общая цена | מחיר כולל:</b> {price_all_text}₪
 
-{(t('delay_reason', lang).format(order.delay_reason)) if order.delay_reason else ''}
-{(t('delay_time', lang).format(order.delay_minutes)) if order.delay_minutes else ''}
+<b>Имя курьера | שם שליח:</b> {order.courier_name}
+<b>Username курьера | יוזרניים שליח:</b> {order.courier_username}
+<b>ID курьера | מזהה שליח:</b> {order.courier_id}
+{(f'<b>Время доставки | זמן הגעה:</b> {order.courier_minutes} мин / דק') if order.courier_minutes else ''}
 
-{(t('order_status', lang).format(order.status if isinstance(order.status, str) else order.status.value)) if order.status else ''}
+{(f'<b>Причина задержки | סיבת עיכוב:</b> {order.delay_reason}') if order.delay_reason else ''}
+{(f'<b>Время задержки | זמן עיכוב:</b> {order.delay_minutes} мин / דק') if order.delay_minutes else ''}
+
+{(f'<b>Статус заказа | סטטוס הזמנה:</b> {order.status if isinstance(order.status, str) else order.status.value}') if order.status else ''}
 """
 
     return msg
 
 async def form_confirm_order_courier(order: Order, lang: str = 'ru') -> str:
+    """
+    Format order for COURIER GROUP - BILINGUAL (RU + HE)
+    Used when sending to courier group chat
+    """
     products = order.get_products()
     print(products)
 
-    qty_text = t("units", lang)
-    products_text = ", ".join([f"{product['name']} - {product['quantity']} {qty_text} - {product['total_price']}₪" for product in products])
+    # Get text in both languages
+    qty_text_ru = t("units", 'ru')
+    qty_text_he = t("units", 'he')
+    
+    products_text_ru = ", ".join([f"{product['name']} - {product['quantity']} {qty_text_ru} - {product['total_price']}₪" for product in products])
+    products_text_he = ", ".join([f"{product['name']} - {product['quantity']} {qty_text_he} - {product['total_price']}₪" for product in products])
 
     price_all_text = sum([(product['total_price']) for product in products])
-
-    # הוספת RTL mark לתחילת ההודעה אם בעברית
-    rtl = '\u200F' if lang == 'he' else ''
     
-    msg = f"""{rtl}{t("order_id", lang).format(order.id if order.id else '')}
+    # Bilingual message - Russian + Hebrew
+    msg = f"""<b>Заказ #{order.id if order.id else ''} | הזמנה #{order.id if order.id else ''}</b>
 
-{t("client_name", lang).format(order.client_name)}
-{t("address", lang).format(order.address)}
-{t("products", lang).format(products_text)}
-{t("total_price", lang).format(price_all_text)}
-{(t('selected_time', lang).format(order.courier_minutes)) if order.courier_minutes else ''}
+<b>Имя клиента | שם לקוח:</b> {order.client_name}
+<b>Адрес | כתובת:</b> {order.address}
+<b>Товары | מוצרים:</b>
+  🇷🇺 {products_text_ru}
+  🇮🇱 {products_text_he}
+<b>Общая цена | מחיר כולל:</b> {price_all_text}₪
+{(f'<b>Время доставки | זמן הגעה:</b> {order.courier_minutes} мин / דק') if order.courier_minutes else ''}
 
-{(t('delay_reason', lang).format(order.delay_reason)) if order.delay_reason else ''}
-{(t('delay_time', lang).format(order.delay_minutes)) if order.delay_minutes else ''}
+{(f'<b>Причина задержки | סיבת עיכוב:</b> {order.delay_reason}') if order.delay_reason else ''}
+{(f'<b>Время задержки | זמן עיכוב:</b> {order.delay_minutes} мин / דק') if order.delay_minutes else ''}
 
-{(t('order_status', lang).format(order.status if isinstance(order.status, str) else order.status.value)) if order.status else ''}
+{(f'<b>Статус заказа | סטטוס הזמנה:</b> {order.status if isinstance(order.status, str) else order.status.value}') if order.status else ''}
 """
 
     return msg

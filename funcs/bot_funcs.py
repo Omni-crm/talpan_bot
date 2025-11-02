@@ -882,7 +882,8 @@ async def order_ready(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         from db.db import get_bot_setting
         admin_chat = get_bot_setting('admin_chat') or links.ADMIN_CHAT
         if admin_chat:
-            text = await form_confirm_order_courier_info(order_obj, 'ru')  # For admin group always in Russian
+            # Send BILINGUAL message to admin group (RU + HE)
+            text = await form_confirm_order_courier_info(order_obj, 'ru')  # lang param ignored - now bilingual
             await context.bot.send_message(admin_chat, text, parse_mode=ParseMode.HTML)
     except Exception as e:
         await send_message_with_cleanup(update, context, t('error', lang).format(repr(e)))

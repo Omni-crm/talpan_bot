@@ -114,10 +114,15 @@ async def delay_minutes_courier_end(update: Update, context: ContextTypes.DEFAUL
         from db.db import get_bot_setting
         admin_chat = get_bot_setting('admin_chat') or links.ADMIN_CHAT
         if admin_chat:
-            info_text = f"<b>{status_text}</b> <i>#{order_id}</i> {changed_text} <i>{order.status.value}</i>"
+            # Send BILINGUAL status update (RU + HE)
+            status_ru = t("order_status", 'ru')
+            status_he = t("order_status", 'he')
+            changed_ru = t("changed_to", 'ru')
+            changed_he = t("changed_to", 'he')
+            info_text = f"<b>{status_ru} | {status_he}</b> <i>#{order_id}</i> {changed_ru} | {changed_he} <i>{order.status.value}</i>"
             await context.bot.send_message(admin_chat, info_text, parse_mode=ParseMode.HTML)
 
-            text = await form_confirm_order_courier_info(order, 'ru')  # לקבוצת אדמינים תמיד ברוסית
+            text = await form_confirm_order_courier_info(order, 'ru')  # Send BILINGUAL message to admin group (RU + HE)
             await context.bot.send_message(admin_chat, text, parse_mode=ParseMode.HTML)
     except Exception as e:
         print(f"Error: {e}")
