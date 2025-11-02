@@ -545,22 +545,8 @@ async def go_to_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     }
     
     # Convert to object-like for form_confirm_order
-    class OrderPreview:
-        def __init__(self, data):
-            for key, value in data.items():
-                setattr(self, key, value)
-        
-        def get_products(self):
-            import json
-            if isinstance(self.products, str):
-                try:
-                    parsed = json.loads(self.products)
-                    return parsed if isinstance(parsed, list) else []
-                except (json.JSONDecodeError, TypeError):
-                    return []
-            return self.products if isinstance(self.products, list) else []
-    
-    order = OrderPreview(order_data)
+    from funcs.utils import create_order_obj
+    order = create_order_obj(order_data)
     print(f"🔧 Order preview created")
 
     msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
@@ -755,18 +741,8 @@ async def confirm_order(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     context.user_data["collect_order_data"]["order_id"] = result.get('id')
 
     # Create object-like structure for compatibility
-    class OrderObj:
-        def __init__(self, data):
-            for k, v in data.items():
-                setattr(self, k, v)
-        
-        def get_products(self):
-            import json
-            if isinstance(self.products, str):
-                return json.loads(self.products)
-            return self.products
-    
-    order_obj = OrderObj(result)
+    from funcs.utils import create_order_obj
+    order_obj = create_order_obj(result)
     new_text = await form_confirm_order(order_obj, lang)
 
     final_msg = await msg.edit_text(new_text, parse_mode=ParseMode.HTML)

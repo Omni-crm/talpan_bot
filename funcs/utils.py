@@ -10,6 +10,43 @@ from io import BytesIO
 import json
 
 
+def create_order_obj(order_dict: dict):
+    """
+    Create Order object with get_products() method for compatibility with form_confirm_order functions.
+    
+    This utility ensures all Order objects used with form_confirm_order_courier, 
+    form_confirm_order_courier_info, and form_confirm_order have the required get_products() method.
+    
+    Args:
+        order_dict: Dictionary containing order data from database
+        
+    Returns:
+        Order object with get_products() method
+    """
+    class OrderObj:
+        def __init__(self, data):
+            for k, v in data.items():
+                if k == 'status':
+                    # Create Status-like object for compatibility
+                    setattr(self, k, type('Status', (), {'value': v})())
+                else:
+                    setattr(self, k, v)
+        
+        def get_products(self):
+            """Get products from order's products field (JSON string)"""
+            if not hasattr(self, 'products'):
+                return []
+            if isinstance(self.products, str):
+                try:
+                    parsed = json.loads(self.products)
+                    return parsed if isinstance(parsed, list) else []
+                except (json.JSONDecodeError, TypeError):
+                    return []
+            return self.products if isinstance(self.products, list) else []
+    
+    return OrderObj(order_dict)
+
+
 async def cleanup_old_messages(context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     פונקציה כללית למחיקת הודעות קודמות

@@ -1356,29 +1356,8 @@ async def order_ready(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             order_dict = {}  # Fallback
         
         # Convert to object for form_confirm_order_courier - MUST have get_products() method!
-        class OrderObj:
-            def __init__(self, data):
-                for k, v in data.items():
-                    if k == 'status':
-                        # Create Status-like object for compatibility
-                        setattr(self, k, type('Status', (), {'value': v})())
-                    else:
-                        setattr(self, k, v)
-            
-            def get_products(self):
-                """Get products from order's products field (JSON string)"""
-                import json
-                if not hasattr(self, 'products'):
-                    return []
-                if isinstance(self.products, str):
-                    try:
-                        parsed = json.loads(self.products)
-                        return parsed if isinstance(parsed, list) else []
-                    except (json.JSONDecodeError, TypeError):
-                        return []
-                return self.products if isinstance(self.products, list) else []
-        
-        order_obj = OrderObj(order_dict)
+        from funcs.utils import create_order_obj
+        order_obj = create_order_obj(order_dict)
         
         # Update message in courier group
         try:

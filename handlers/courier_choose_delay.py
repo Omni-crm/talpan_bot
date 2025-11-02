@@ -235,16 +235,8 @@ async def delay_minutes_courier_end(update: Update, context: ContextTypes.DEFAUL
         )
         return ConversationHandler.END
     
-    class OrderObj:
-        def __init__(self, data):
-            self.id = data.get('id')
-            for k, v in data.items():
-                if k == 'status':
-                    setattr(self, k, type('Status', (), {'value': v})())
-                else:
-                    setattr(self, k, v)
-    
-    order = OrderObj(order_dict)
+    from funcs.utils import create_order_obj
+    order = create_order_obj(order_dict)
 
     # CRITICAL: Validate start_msg exists before use
     msg = context.user_data["delay_min_data"].get("start_msg")
@@ -414,16 +406,8 @@ async def write_delay_minutes_courier_end(update: Update, context: ContextTypes.
         )
         return ConversationHandler.END
     
-    class OrderObj:
-        def __init__(self, data):
-            self.id = data.get('id')
-            for k, v in data.items():
-                if k == 'status':
-                    setattr(self, k, type('Status', (), {'value': v})())
-                else:
-                    setattr(self, k, v)
-    
-    order = OrderObj(order_dict)
+    from funcs.utils import create_order_obj
+    order = create_order_obj(order_dict)
 
     # CRITICAL: Validate start_msg exists before use
     start_msg = context.user_data["delay_min_data"].get("start_msg")
