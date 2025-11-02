@@ -137,13 +137,13 @@ async def write_minutes_courier_end(update: Update, context: ContextTypes.DEFAUL
     
     # CRITICAL: Verify update succeeded
     if not update_result:
-        logger.error(f"❌ write_minutes_courier_end: Failed to update order {order_id}")
+        logger.error(f"❌ write_minutes_courier_end: Failed to update order {order_id} - update returned empty")
         await update.effective_message.reply_text(
             f"⚠️ {t('error', lang)}: Failed to update order. Please try again."
         )
         return ConversationHandler.END
 
-    # Get updated order for compatibility
+    # CRITICAL: Verify order was actually updated
     orders = db_client.select('orders', {'id': order_id})
     if not orders:
         logger.error(f"❌ write_minutes_courier_end: Order {order_id} not found after update")
@@ -153,6 +153,14 @@ async def write_minutes_courier_end(update: Update, context: ContextTypes.DEFAUL
         return ConversationHandler.END
     
     order_dict = orders[0]
+    
+    # CRITICAL: Verify order status and courier_minutes were updated
+    if order_dict.get('status') != 'active' or order_dict.get('courier_minutes') != minutes:
+        logger.error(f"❌ write_minutes_courier_end: Order {order_id} verification failed - status={order_dict.get('status')}, minutes={order_dict.get('courier_minutes')}, expected={minutes}")
+        await update.effective_message.reply_text(
+            f"⚠️ {t('error', lang)}: Order update verification failed. Please try again."
+        )
+        return ConversationHandler.END
     
     class OrderObj:
         def __init__(self, data):

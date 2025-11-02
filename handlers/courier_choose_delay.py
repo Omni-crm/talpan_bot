@@ -208,13 +208,13 @@ async def delay_minutes_courier_end(update: Update, context: ContextTypes.DEFAUL
     
     # CRITICAL: Verify update succeeded
     if not update_result:
-        logger.error(f"❌ delay_minutes_courier_end: Failed to update order {order_id}")
+        logger.error(f"❌ delay_minutes_courier_end: Failed to update order {order_id} - update returned empty")
         await update.effective_message.reply_text(
             f"⚠️ {t('error', lang)}: Failed to update order. Please try again."
         )
         return ConversationHandler.END
 
-    # Get updated order for compatibility
+    # CRITICAL: Verify order was actually updated
     orders = db_client.select('orders', {'id': order_id})
     if not orders:
         logger.error(f"❌ delay_minutes_courier_end: Order {order_id} not found after update")
@@ -224,6 +224,16 @@ async def delay_minutes_courier_end(update: Update, context: ContextTypes.DEFAUL
         return ConversationHandler.END
     
     order_dict = orders[0]
+    
+    # CRITICAL: Verify order status, delay_minutes, and delay_reason were updated
+    if (order_dict.get('status') != 'delay' or 
+        order_dict.get('delay_minutes') != delay_minutes or
+        order_dict.get('delay_reason') != delay_reason):
+        logger.error(f"❌ delay_minutes_courier_end: Order {order_id} verification failed - status={order_dict.get('status')}, delay_minutes={order_dict.get('delay_minutes')}, delay_reason={order_dict.get('delay_reason')}")
+        await update.effective_message.reply_text(
+            f"⚠️ {t('error', lang)}: Order update verification failed. Please try again."
+        )
+        return ConversationHandler.END
     
     class OrderObj:
         def __init__(self, data):
@@ -370,13 +380,13 @@ async def write_delay_minutes_courier_end(update: Update, context: ContextTypes.
     
     # CRITICAL: Verify update succeeded
     if not update_result:
-        logger.error(f"❌ write_delay_minutes_courier_end: Failed to update order {order_id}")
+        logger.error(f"❌ write_delay_minutes_courier_end: Failed to update order {order_id} - update returned empty")
         await update.effective_message.reply_text(
             f"⚠️ {t('error', lang)}: Failed to update order. Please try again."
         )
         return ConversationHandler.END
 
-    # Get updated order for compatibility
+    # CRITICAL: Verify order was actually updated
     orders = db_client.select('orders', {'id': order_id})
     if not orders:
         logger.error(f"❌ write_delay_minutes_courier_end: Order {order_id} not found after update")
@@ -386,6 +396,16 @@ async def write_delay_minutes_courier_end(update: Update, context: ContextTypes.
         return ConversationHandler.END
     
     order_dict = orders[0]
+    
+    # CRITICAL: Verify order status, delay_minutes, and delay_reason were updated
+    if (order_dict.get('status') != 'delay' or 
+        order_dict.get('delay_minutes') != minutes or
+        order_dict.get('delay_reason') != delay_reason):
+        logger.error(f"❌ write_delay_minutes_courier_end: Order {order_id} verification failed - status={order_dict.get('status')}, delay_minutes={order_dict.get('delay_minutes')}, delay_reason={order_dict.get('delay_reason')}")
+        await update.effective_message.reply_text(
+            f"⚠️ {t('error', lang)}: Order update verification failed. Please try again."
+        )
+        return ConversationHandler.END
     
     class OrderObj:
         def __init__(self, data):
