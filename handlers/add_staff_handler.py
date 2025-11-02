@@ -76,6 +76,10 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     msg: Message = context.user_data["add_staff_data"]["start_msg"]
     await msg.delete()
     del context.user_data["add_staff_data"]
+    
+    # Return to main menu
+    from funcs.bot_funcs import start
+    await start(update, context)
 
     return ConversationHandler.END
 

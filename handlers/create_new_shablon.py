@@ -77,8 +77,12 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.callback_query.answer()
     lang = context.user_data["create_new_shab_data"]["lang"]
     msg: Message = context.user_data["create_new_shab_data"]["start_msg"]
-    await msg.edit_text(t('cancelled', lang))
+    await msg.delete()  # Delete instead of edit
     del context.user_data["create_new_shab_data"]
+    
+    # Return to main menu
+    from funcs.bot_funcs import start
+    await start(update, context)
 
     return ConversationHandler.END
 
