@@ -1350,13 +1350,35 @@ async def order_ready(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         # Refresh order from database to get updated data
         orders = db_client.select('orders', {'id': order_id})
         if orders:
-            order = orders[0]
+            order_dict = orders[0]
         else:
             logger.warning(f"⚠️ order_ready: Could not refresh order {order_id} after update")
-            order = {}  # Fallback
+            order_dict = {}  # Fallback
         
-        # Convert to object for form_confirm_order_courier
-        order_obj = type('Order', (), order)()
+        # Convert to object for form_confirm_order_courier - MUST have get_products() method!
+        class OrderObj:
+            def __init__(self, data):
+                for k, v in data.items():
+                    if k == 'status':
+                        # Create Status-like object for compatibility
+                        setattr(self, k, type('Status', (), {'value': v})())
+                    else:
+                        setattr(self, k, v)
+            
+            def get_products(self):
+                """Get products from order's products field (JSON string)"""
+                import json
+                if not hasattr(self, 'products'):
+                    return []
+                if isinstance(self.products, str):
+                    try:
+                        parsed = json.loads(self.products)
+                        return parsed if isinstance(parsed, list) else []
+                    except (json.JSONDecodeError, TypeError):
+                        return []
+                return self.products if isinstance(self.products, list) else []
+        
+        order_obj = OrderObj(order_dict)
         
         # Update message in courier group
         try:
@@ -1364,6 +1386,8 @@ async def order_ready(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             await update.effective_message.edit_text(text=text, parse_mode=ParseMode.HTML)
         except Exception as msg_error:
             logger.error(f"❌ order_ready: Failed to update message for order {order_id}: {repr(msg_error)}")
+            import traceback
+            traceback.print_exc()
             # Order is already completed, so just log the error
         
         # Send notification to admin group
@@ -1376,6 +1400,8 @@ async def order_ready(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 await context.bot.send_message(admin_chat, text, parse_mode=ParseMode.HTML)
             except Exception as admin_msg_error:
                 logger.error(f"❌ order_ready: Failed to send admin notification for order {order_id}: {repr(admin_msg_error)}")
+                import traceback
+                traceback.print_exc()
                 # Order is already completed, so just log the error
             
     except ValueError as e:
