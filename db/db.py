@@ -171,29 +171,48 @@ def set_bot_setting(key: str, value: str, user_id: int = None, value_type: str =
         # Check if setting exists
         results = db_client.select('bot_settings', {'key': key})
         
+        # Telegram user_id is bigint, but updated_by column is integer - can't store it
+        # So we skip updated_by if it's too large
+        update_data = {
+            'value': value,
+            'value_type': value_type,
+            'updated_at': datetime.datetime.now().isoformat(),
+        }
+        
+        # Only add updated_by if user_id fits in integer range (max 2147483647)
+        # Telegram IDs are usually smaller, but some are too large
+        if user_id is not None and user_id <= 2147483647:
+            update_data['updated_by'] = user_id
+        else:
+            # Skip updated_by for large IDs
+            print(f"⚠️ Skipping updated_by: user_id {user_id} too large for integer column")
+        
         if results:
             # Update existing setting
-            db_client.update('bot_settings', {
-                'value': value,
-                'value_type': value_type,
-                'updated_at': datetime.datetime.now().isoformat(),
-                'updated_by': user_id,
-                'description': description or results[0].get('description', '')
-            }, {'key': key})
+            if description:
+                update_data['description'] = description or results[0].get('description', '')
+            db_client.update('bot_settings', update_data, {'key': key})
+            print(f"✅ Updated bot_setting: {key} = '{value}'")
         else:
             # Create new setting
-            db_client.insert('bot_settings', {
+            insert_data = {
                 'key': key,
                 'value': value,
                 'value_type': value_type,
                 'description': description or '',
-                'updated_by': user_id,
                 'updated_at': datetime.datetime.now().isoformat()
-            })
+            }
+            # Only add updated_by if it fits
+            if user_id is not None and user_id <= 2147483647:
+                insert_data['updated_by'] = user_id
+            db_client.insert('bot_settings', insert_data)
+            print(f"✅ Created bot_setting: {key} = '{value}'")
     except Exception as e:
         # If table doesn't exist yet, ignore the error
         # The table will be created in bot.py
-        print(f"Error setting bot_setting: {e}")
+        print(f"❌ Error setting bot_setting '{key}': {e}")
+        import traceback
+        traceback.print_exc()
 
 def set_bot_setting_list(key: str, value_list: list, user_id: int = None, description: str = None) -> None:
     """שמירת רשימה במסד הנתונים"""
