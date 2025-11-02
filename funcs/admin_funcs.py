@@ -23,7 +23,8 @@ async def del_roles(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         operators_data = db_client.select('users', {'role': 'operator'})
         dikb = [[InlineKeyboardButton(f"@{u.get('username')}|{u.get('firstname')}", callback_data=f"del_{u.get('user_id')}") for u in operators_data]]
     elif data == 'del_c':
-        operators_data = db_client.select('users', {'role': 'runner'})
+        # CRITICAL FIX: Use 'courier' (Role.RUNNER.value) not 'runner'!
+        operators_data = db_client.select('users', {'role': 'courier'})
         dikb = [[InlineKeyboardButton(f"@{u.get('username')}|{u.get('firstname')}", callback_data=f"del_{u.get('user_id')}") for u in operators_data]]
     elif data == 'del_s':
         operators_data = db_client.select('users', {'role': 'stockman'})

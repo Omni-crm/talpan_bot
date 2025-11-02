@@ -26,7 +26,9 @@ async def choose_minutes_courier(update: Update, context: ContextTypes.DEFAULT_T
     from db.db import db_client
     
     users = db_client.select('users', {'user_id': update.effective_user.id})
-    if not users or users[0].get('role') not in ['runner', 'admin']:
+    # CRITICAL FIX: Use 'courier' (Role.RUNNER.value) not 'runner'!
+    # Role.RUNNER = "courier" in db/db.py
+    if not users or users[0].get('role') not in ['courier', 'admin']:
         await update.effective_message.reply_text(t('need_courier_role', lang))
         return ConversationHandler.END
 
@@ -44,13 +46,19 @@ async def choose_minutes_courier(update: Update, context: ContextTypes.DEFAULT_T
 
 
 async def write_delay_reason(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    # SECURITY FIX: Sanitize delay_reason to prevent HTML injection
     if update.effective_message.voice:
         chat_id = str(update.effective_chat.id).replace('-100', '')
         link_to_message = f'https://t.me/c/{chat_id}/{update.effective_message.id}'
+        # Safe HTML link - Telegram URL format is safe
         delay_reason = f"<a href='{link_to_message}'>Ссылка на голосовое</a>"
         context.user_data["delay_min_data"]["delay_reason"] = delay_reason
     else:
-        delay_reason = update.effective_message.text
+        # SECURITY: Escape HTML special characters to prevent XSS
+        import html
+        raw_text = update.effective_message.text
+        # Escape HTML entities but allow safe formatting if needed
+        delay_reason = html.escape(raw_text) if raw_text else ""
         context.user_data["delay_min_data"]["delay_reason"] = delay_reason
 
     start_msg: Message = context.user_data["delay_min_data"]["start_msg"]
@@ -71,7 +79,20 @@ async def delay_minutes_courier_end(update: Update, context: ContextTypes.DEFAUL
     await update.callback_query.answer()
     lang = context.user_data["delay_min_data"]["lang"]
 
-    delay_minutes = int(update.callback_query.data)
+    # CRITICAL: Validate delay minutes input (1-9999 range)
+    try:
+        delay_minutes = int(update.callback_query.data)
+        if not (1 <= delay_minutes <= 9999):
+            await update.effective_message.reply_text(
+                t('invalid_minutes_range', lang) if hasattr(t, 'invalid_minutes_range') else 
+                f"⚠️ {t('error', lang)}: Delay minutes must be between 1 and 9999"
+            )
+            return ConversationHandler.END
+    except ValueError:
+        await update.effective_message.reply_text(
+            f"⚠️ {t('error', lang)}: Invalid delay minutes format"
+        )
+        return ConversationHandler.END
 
     order_id = context.user_data["delay_min_data"]["order_id"]
 
@@ -144,9 +165,22 @@ async def write_delay_minutes_courier(update: Update, context: ContextTypes.DEFA
     return DelayMinStates.WRITE_MY
 
 async def write_delay_minutes_courier_end(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    minutes = int(update.effective_message.text)
+    # CRITICAL: Validate delay minutes input (1-9999 range)
+    try:
+        minutes = int(update.effective_message.text)
+        if not (1 <= minutes <= 9999):
+            await update.effective_message.reply_text(
+                t('invalid_minutes_range', lang) if hasattr(t, 'invalid_minutes_range') else 
+                f"⚠️ {t('error', lang)}: Delay minutes must be between 1 and 9999"
+            )
+            return ConversationHandler.END
+    except ValueError:
+        await update.effective_message.reply_text(
+            f"⚠️ {t('error', lang)}: Please enter a valid number"
+        )
+        return ConversationHandler.END
+    
     lang = context.user_data["delay_min_data"]["lang"]
-
     order_id = context.user_data["delay_min_data"]["order_id"]
 
     # Using Supabase only

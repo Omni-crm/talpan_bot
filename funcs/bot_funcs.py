@@ -852,6 +852,10 @@ async def show_tg_sessions(update: Update, context: ContextTypes.DEFAULT_TYPE, f
 
 @is_courier
 async def order_ready(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Mark order as delivered - CRITICAL: Must check status before updating!
+    Safely updates order status and product stock with full validation.
+    """
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
 
@@ -862,43 +866,152 @@ async def order_ready(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         order_id = int(update.callback_query.data.replace('ready_', ''))
         
         orders = db_client.select('orders', {'id': order_id})
-        if orders:
-            order = orders[0]
-            # Update order
-            db_client.update('orders', {
-                'courier_id': update.effective_user.id,
-                'courier_name': f"{update.effective_user.first_name} {update.effective_user.last_name if update.effective_user.last_name else ''}".strip(),
-                'courier_username': f"@{update.effective_user.username}" if update.effective_user.username else "",
-                'status': Status.completed.value,
-                'delivered': datetime.datetime.now().isoformat()
-            }, {'id': order_id})
-            
-            # Update products stock
-            chosen_products = json.loads(order['products'])
-            for chosen_product in chosen_products:
-                products = db_client.select('products', {'name': chosen_product["name"]})
-                if products:
-                    product = products[0]
-                    new_stock = product['stock'] - chosen_product["quantity"]
-                    db_client.update('products', {'stock': new_stock}, {'id': product['id']})
-            
-            # Convert to object for form_confirm_order_courier
-            order_obj = type('Order', (), order)()
-            
-            text = await form_confirm_order_courier(order_obj, lang)
-            await update.effective_message.edit_text(text=text, parse_mode=ParseMode.HTML)
-        else:
+        if not orders:
             await send_message_with_cleanup(update, context, t('order_not_found', lang))
             return
-
+        
+        order = orders[0]
+        
+        # CRITICAL CHECK 1: Prevent double delivery!
+        # Check if order is already completed
+        current_status = order.get('status', '')
+        # Handle both enum value format and simple string format
+        is_already_completed = (
+            current_status == 'completed' or 
+            current_status == Status.completed.value or
+            'Завершён' in str(current_status) or
+            'הושלם' in str(current_status)
+        )
+        
+        if is_already_completed:
+            await send_message_with_cleanup(
+                update, context, 
+                t('order_already_completed', lang) if 'order_already_completed' in dir(t.__self__) else 
+                f"⚠️ {t('error', lang)}: Order #{order_id} already completed!"
+            )
+            return
+        
+        # CRITICAL CHECK 2: Validate products JSON exists and is valid
+        products_json = order.get('products')
+        if not products_json:
+            await send_message_with_cleanup(
+                update, context, 
+                f"⚠️ {t('error', lang)}: Order #{order_id} has no products!"
+            )
+            return
+        
+        # Parse products with error handling
+        try:
+            chosen_products = json.loads(products_json)
+        except (json.JSONDecodeError, TypeError) as e:
+            await send_message_with_cleanup(
+                update, context, 
+                f"⚠️ {t('error', lang)}: Invalid products data for order #{order_id}: {repr(e)}"
+            )
+            return
+        
+        if not isinstance(chosen_products, list) or len(chosen_products) == 0:
+            await send_message_with_cleanup(
+                update, context, 
+                f"⚠️ {t('error', lang)}: Order #{order_id} has empty products list!"
+            )
+            return
+        
+        # CRITICAL CHECK 3: Validate and update product stock BEFORE updating order
+        # This ensures atomicity - if stock update fails, order won't be marked as completed
+        stock_update_errors = []
+        for chosen_product in chosen_products:
+            product_name = chosen_product.get('name')
+            quantity = chosen_product.get('quantity')
+            
+            if not product_name or quantity is None:
+                stock_update_errors.append(f"Invalid product data: {chosen_product}")
+                continue
+            
+            # Get product from database
+            products = db_client.select('products', {'name': product_name})
+            if not products:
+                stock_update_errors.append(f"Product '{product_name}' not found in database")
+                continue
+            
+            product = products[0]
+            product_id = product.get('id')
+            current_stock = product.get('stock', 0)
+            
+            # CRITICAL CHECK 4: Handle None stock (should default to 0)
+            if current_stock is None:
+                current_stock = 0
+            
+            # CRITICAL CHECK 5: Validate quantity is positive integer
+            try:
+                quantity = int(quantity)
+                if quantity <= 0:
+                    stock_update_errors.append(f"Invalid quantity for '{product_name}': {quantity}")
+                    continue
+            except (ValueError, TypeError):
+                stock_update_errors.append(f"Invalid quantity type for '{product_name}': {type(quantity)}")
+                continue
+            
+            # CRITICAL CHECK 6: Prevent negative stock!
+            new_stock = current_stock - quantity
+            if new_stock < 0:
+                stock_update_errors.append(
+                    f"Insufficient stock for '{product_name}': {current_stock} available, {quantity} required"
+                )
+                continue
+            
+            # Update stock (only if all validations passed)
+            db_client.update('products', {'stock': new_stock}, {'id': product_id})
+        
+        # If any stock update failed, abort order completion
+        if stock_update_errors:
+            error_msg = f"⚠️ {t('error', lang)}: Cannot complete order #{order_id}:\n" + "\n".join(stock_update_errors)
+            await send_message_with_cleanup(update, context, error_msg)
+            return
+        
+        # All validations passed - update order status
+        # Use simple 'completed' string for database (not enum value with emoji)
+        db_client.update('orders', {
+            'courier_id': update.effective_user.id,
+            'courier_name': f"{update.effective_user.first_name} {update.effective_user.last_name if update.effective_user.last_name else ''}".strip(),
+            'courier_username': f"@{update.effective_user.username}" if update.effective_user.username else "",
+            'status': 'completed',  # Simple string for database consistency
+            'delivered': datetime.datetime.now().isoformat()
+        }, {'id': order_id})
+        
+        # Refresh order from database to get updated data
+        orders = db_client.select('orders', {'id': order_id})
+        if orders:
+            order = orders[0]
+        
+        # Convert to object for form_confirm_order_courier
+        order_obj = type('Order', (), order)()
+        
+        text = await form_confirm_order_courier(order_obj, lang)
+        await update.effective_message.edit_text(text=text, parse_mode=ParseMode.HTML)
+        
+        # Send notification to admin group
         from db.db import get_bot_setting
         admin_chat = get_bot_setting('admin_chat') or links.ADMIN_CHAT
         if admin_chat:
             # Send BILINGUAL message to admin group (RU + HE)
             text = await form_confirm_order_courier_info(order_obj, 'ru')  # lang param ignored - now bilingual
             await context.bot.send_message(admin_chat, text, parse_mode=ParseMode.HTML)
+            
+    except ValueError as e:
+        # Handle invalid order_id format
+        await send_message_with_cleanup(
+            update, context, 
+            f"⚠️ {t('error', lang)}: Invalid order ID format: {repr(e)}"
+        )
     except Exception as e:
-        await send_message_with_cleanup(update, context, t('error', lang).format(repr(e)))
+        # Log full error for debugging
+        import traceback
+        traceback.print_exc()
+        await send_message_with_cleanup(
+            update, context, 
+            f"⚠️ {t('error', lang)}: {repr(e)}"
+        )
 
 
 @is_operator

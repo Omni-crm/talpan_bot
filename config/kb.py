@@ -67,7 +67,7 @@ async def build_start_menu(user_id):
             inline_keyboard = inline_keyboard[:-2]
         elif user_role == 'stockman':
             inline_keyboard = inline_keyboard[-1:]
-        elif user_role == 'runner':
+        elif user_role == 'courier':  # CRITICAL FIX: Use 'courier' (Role.RUNNER.value) not 'runner'!
             from db.db import get_bot_setting
             order_chat = get_bot_setting('order_chat') or links.ORDER_CHAT
             if order_chat:
