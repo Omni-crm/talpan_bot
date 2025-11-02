@@ -181,6 +181,15 @@ async def report_by_product(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     # Convert to list format
     results_list = [(k, v) for k, v in results.items()]
 
+    # Check if we have any data
+    if not results_list:
+        await send_message_with_cleanup(update, context, text=t("no_data_for_report", lang))
+        # Return to main menu after 2 seconds
+        import asyncio
+        await asyncio.sleep(2)
+        await start(update, context)
+        return
+
     report = t("product_report_title", lang) + "\n\n"
     total_count = 0
 
@@ -219,6 +228,15 @@ async def report_by_client(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                 client_orders[key] += 1
     
     results = [(name, username, phone, count) for (name, username, phone), count in client_orders.items()]
+
+    # Check if we have any data
+    if not results:
+        await send_message_with_cleanup(update, context, text=t("no_data_for_report", lang))
+        # Return to main menu after 2 seconds
+        import asyncio
+        await asyncio.sleep(2)
+        await start(update, context)
+        return
 
     report = t("client_report_title", lang) + "\n\n"
     total_orders = 0
@@ -316,6 +334,15 @@ async def report_by_days(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     # Sort weekdays by number of orders
     sorted_weekdays = sorted(weekday_count.items(), key=lambda x: x[1], reverse=True)
+
+    # Check if we have any data
+    if not sorted_weekdays:
+        await send_message_with_cleanup(update, context, text=t("no_data_for_report", lang))
+        # Return to main menu after 2 seconds
+        import asyncio
+        await asyncio.sleep(2)
+        await start(update, context)
+        return
 
     report = t("orders_by_days_title", lang) + "\n\n"
     
