@@ -318,13 +318,34 @@ async def form_week_report(lang: str = 'ru'):
     now = datetime.datetime.now()
     seven_days_ago = now - datetime.timedelta(days=7)
     
+    # Helper function to parse datetime from Supabase format
+    def parse_datetime(dt_str):
+        """Parse datetime from Supabase format (handles both ISO and PostgreSQL timestamp formats)"""
+        if not dt_str:
+            return None
+        if isinstance(dt_str, datetime.datetime):
+            return dt_str
+        try:
+            # Try ISO format first (with T)
+            if 'T' in str(dt_str):
+                return datetime.datetime.fromisoformat(str(dt_str).replace('Z', '+00:00'))
+            # Try PostgreSQL format (space instead of T)
+            return datetime.datetime.strptime(str(dt_str), '%Y-%m-%d %H:%M:%S.%f')
+        except ValueError:
+            # Fallback: try without microseconds
+            try:
+                return datetime.datetime.strptime(str(dt_str), '%Y-%m-%d %H:%M:%S')
+            except ValueError:
+                return None
+    
     # Fetch all shifts and filter in Python (Supabase doesn't support >= directly)
     all_shifts = db_client.select('shifts', {'status': 'closed'})
-    shifts = [
-        shift for shift in all_shifts 
-        if shift.get('closed_time') and 
-        datetime.datetime.fromisoformat(shift['closed_time']) >= seven_days_ago
-    ]
+    shifts = []
+    for shift in all_shifts:
+        if shift.get('closed_time'):
+            closed_time = parse_datetime(shift['closed_time'])
+            if closed_time and closed_time >= seven_days_ago:
+                shifts.append(shift)
     # Convert dicts to objects for compatibility
     shift_objects = []
     for s in shifts:
