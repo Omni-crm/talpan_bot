@@ -200,45 +200,97 @@ def set_bot_setting_list(key: str, value_list: list, user_id: int = None, descri
     set_bot_setting(key, json.dumps(value_list), user_id, 'list', description)
 
 def initialize_default_settings():
-    """אתחול הגדרות ברירת מחדל - רק אם לא קיימות!"""
-    # הגדרות קבוצות - בדיקה אם השורה קיימת בדאטהבייס (לא רק אם יש value)
+    """
+    אתחול הגדרות ברירת מחדל בדאטהבייס - רק אם לא קיימות!
+    
+    ⚠️ IMPORTANT: 
+    - רק BOT_TOKEN + ADMINS מ-ENV (קבוע)
+    - כל השאר (operators, stockmen, couriers, chats) רק מ-DATABASE!
+    - לעולם לא לדרוס ערכים קיימים!
+    """
+    
+    # =========================================
+    # 💾 קבוצות - רק DATABASE (לא ENV!)
+    # =========================================
     try:
         admin_chat_exists = db_client.select('bot_settings', {'key': 'admin_chat'})
         if not admin_chat_exists:
             set_bot_setting('admin_chat', '', description='קבוצת מנהלים')
-            print("🆕 Created empty admin_chat setting")
+            print("🆕 Created empty admin_chat setting (set via bot UI)")
         else:
-            print(f"✅ admin_chat already exists: {admin_chat_exists[0].get('value', 'empty')}")
-    except:
+            value = admin_chat_exists[0].get('value', '')
+            print(f"✅ admin_chat from DB: '{value}' (never from ENV!)")
+    except Exception as e:
+        print(f"⚠️ Error with admin_chat: {e}")
         set_bot_setting('admin_chat', '', description='קבוצת מנהלים')
     
     try:
         order_chat_exists = db_client.select('bot_settings', {'key': 'order_chat'})
         if not order_chat_exists:
             set_bot_setting('order_chat', '', description='קבוצת שליחים')
-            print("🆕 Created empty order_chat setting")
+            print("🆕 Created empty order_chat setting (set via bot UI)")
         else:
-            print(f"✅ order_chat already exists: {order_chat_exists[0].get('value', 'empty')}")
-    except:
+            value = order_chat_exists[0].get('value', '')
+            print(f"✅ order_chat from DB: '{value}' (never from ENV!)")
+    except Exception as e:
+        print(f"⚠️ Error with order_chat: {e}")
         set_bot_setting('order_chat', '', description='קבוצת שליחים')
     
-    # הגדרות משתמשים
-    if not get_bot_setting('admins'):
-        set_bot_setting_list('admins', [], description='רשימת מנהלים')
-    if not get_bot_setting('operators'):
+    # =========================================
+    # 💾 משתמשים - רק DATABASE (לא ENV!)
+    # =========================================
+    # operators, stockmen, couriers מנוהלים רק דרך הבוט/DATABASE
+    try:
+        operators_exists = db_client.select('bot_settings', {'key': 'operators'})
+        if not operators_exists:
+            set_bot_setting_list('operators', [], description='רשימת מפעילים')
+            print("🆕 Created empty operators list")
+        else:
+            print(f"✅ operators from DB (never from ENV!)")
+    except:
         set_bot_setting_list('operators', [], description='רשימת מפעילים')
-    if not get_bot_setting('stockmen'):
+    
+    try:
+        stockmen_exists = db_client.select('bot_settings', {'key': 'stockmen'})
+        if not stockmen_exists:
+            set_bot_setting_list('stockmen', [], description='רשימת מחסנאים')
+            print("🆕 Created empty stockmen list")
+        else:
+            print(f"✅ stockmen from DB (never from ENV!)")
+    except:
         set_bot_setting_list('stockmen', [], description='רשימת מחסנאים')
-    if not get_bot_setting('couriers'):
+    
+    try:
+        couriers_exists = db_client.select('bot_settings', {'key': 'couriers'})
+        if not couriers_exists:
+            set_bot_setting_list('couriers', [], description='רשימת שליחים')
+            print("🆕 Created empty couriers list")
+        else:
+            print(f"✅ couriers from DB (never from ENV!)")
+    except:
         set_bot_setting_list('couriers', [], description='רשימת שליחים')
     
-    # הגדרות API
-    if not get_bot_setting('bot_token'):
-        set_bot_setting('bot_token', '', description='טוקן הבוט')
-    if not get_bot_setting('api_id'):
-        set_bot_setting('api_id', '', description='API ID')
-    if not get_bot_setting('api_hash'):
-        set_bot_setting('api_hash', '', description='API Hash')
+    # =========================================
+    # 💾 הגדרות API - DATABASE בלבד
+    # =========================================
+    # bot_token, api_id, api_hash - stored in DB for UI editing, but loaded from ENV in code
+    try:
+        if not db_client.select('bot_settings', {'key': 'bot_token'}):
+            set_bot_setting('bot_token', '', description='טוקן הבוט')
+    except:
+        pass
+    
+    try:
+        if not db_client.select('bot_settings', {'key': 'api_id'}):
+            set_bot_setting('api_id', '', description='API ID')
+    except:
+        pass
+    
+    try:
+        if not db_client.select('bot_settings', {'key': 'api_hash'}):
+            set_bot_setting('api_hash', '', description='API Hash')
+    except:
+        pass
     
     # הגדרות מסד נתונים
     if not get_bot_setting('db_name'):

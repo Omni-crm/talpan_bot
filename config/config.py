@@ -15,37 +15,39 @@ class Links:
     API_ID: str
     API_HASH: str
 
-# קבלת הגדרות מ-ENV
+# =========================================
+# 🔒 RAILWAY ENV ONLY (קבוע - לא משתנה)
+# =========================================
 BOT_TOKEN = os.getenv('BOT_TOKEN', '')
 API_ID = os.getenv('API_ID', '')
 API_HASH = os.getenv('API_HASH', '')
-ADMIN_CHAT = os.getenv('ADMIN_CHAT', '')
-ORDER_CHAT = os.getenv('ORDER_CHAT', '')
 
-# קבלת רשימות משתמשים מ-ENV
+# רשימת מנהלים ראשית - מ-ENV (קבועה)
 try:
     ADMINS = list(map(int, os.getenv("ADMINS", "").split(","))) if os.getenv("ADMINS") else []
-    OPERATORS = list(map(int, os.getenv("OPERATORS", "").split(","))) if os.getenv("OPERATORS") else []
-    STOCKMEN = list(map(int, os.getenv("STOCKMEN", "").split(","))) if os.getenv("STOCKMEN") else []
-    COURIERS = list(map(int, os.getenv("COURIERS", "").split(","))) if os.getenv("COURIERS") else []
 except:
     ADMINS = []
-    OPERATORS = []
-    STOCKMEN = []
-    COURIERS = []
 
-# הגדרות בסיסיות - ללא מסד נתונים
-admin_chat = ADMIN_CHAT
-order_chat = ORDER_CHAT
-admins_list = ADMINS
-operators_list = OPERATORS
-stockmen_list = STOCKMEN
-couriers_list = COURIERS
+# =========================================
+# 💾 DATABASE ONLY (דינמי - ניתן לשינוי)
+# =========================================
+# אלה יטענו מהדאטהבייס בזמן ריצה, לא מ-ENV!
+# - order_chat (קבוצת שליחים)
+# - admin_chat (קבוצת מנהלים)
+# - operators (רשימת מפעילים)
+# - stockmen (רשימת מחסנאים)  
+# - couriers (רשימת שליחים)
 
-# יצירת object links
+# הגדרות בסיסיות לתאימות לאחור (deprecated - use get_bot_setting instead)
+admin_chat = ""  # יטען מהדאטהבייס
+order_chat = ""  # יטען מהדאטהבייס
+admins_list = ADMINS  # מ-ENV בלבד
+operators_list = []  # יטען מהדאטהבייס
+stockmen_list = []  # יטען מהדאטהבייס
+couriers_list = []  # יטען מהדאטהבייס
+
+# יצירת object links (ריק - יטען מהדאטהבייס)
 links = Links(admin_chat, order_chat, BOT_TOKEN, API_ID, API_HASH)
 
-print(f"Admins: {admins_list}")
-print(f"Operators: {operators_list}")
-print(f"Stockmen: {stockmen_list}")
-print(f"Couriers: {couriers_list}")
+print(f"🔒 Admins from ENV: {admins_list}")
+print(f"💾 Other settings will load from Supabase database...")
