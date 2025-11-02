@@ -19,51 +19,112 @@ async def choose_minutes_courier(update: Update, context: ContextTypes.DEFAULT_T
     """
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
+    import logging
+    logger = logging.getLogger(__name__)
 
     # Using Supabase only
     from db.db import db_client
     
+    # CRITICAL: Validate user role
     users = db_client.select('users', {'user_id': update.effective_user.id})
     # CRITICAL FIX: Use 'courier' (Role.RUNNER.value) not 'runner'!
     # Role.RUNNER = "courier" in db/db.py
     if not users or users[0].get('role') not in ['courier', 'admin']:
+        logger.warning(f"⚠️ choose_minutes_courier (write): User {update.effective_user.id} does not have courier role")
         await update.effective_message.reply_text(t('need_courier_role', lang))
         return ConversationHandler.END
 
-    start_msg = await update.effective_message.edit_reply_markup(reply_markup=get_cancel_kb(lang))
+    # CRITICAL: Validate and parse order_id
+    try:
+        callback_data = update.callback_query.data
+        if not callback_data or not callback_data.startswith("write_min_"):
+            raise ValueError(f"Invalid callback data: {callback_data}")
+        
+        order_id_str = callback_data.replace("write_min_", "").strip()
+        if not order_id_str:
+            raise ValueError("Empty order ID")
+        
+        order_id = int(order_id_str)
+        if order_id <= 0:
+            raise ValueError(f"Invalid order ID: {order_id} (must be > 0)")
+    except (ValueError, AttributeError, TypeError) as e:
+        logger.error(f"❌ choose_minutes_courier (write): Invalid order ID parsing: {repr(e)}")
+        await update.effective_message.reply_text(
+            f"⚠️ {t('error', lang)}: Invalid order ID format"
+        )
+        return ConversationHandler.END
+    
+    # CRITICAL: Verify order exists before proceeding
+    orders = db_client.select('orders', {'id': order_id})
+    if not orders:
+        logger.error(f"❌ choose_minutes_courier (write): Order {order_id} not found in database")
+        await update.effective_message.reply_text(
+            f"⚠️ {t('error', lang)}: Order #{order_id} not found"
+        )
+        return ConversationHandler.END
+
+    try:
+        start_msg = await update.effective_message.edit_reply_markup(reply_markup=get_cancel_kb(lang))
+    except Exception as e:
+        logger.error(f"❌ choose_minutes_courier (write): Failed to edit message: {repr(e)}")
+        await update.effective_message.reply_text(
+            f"⚠️ {t('error', lang)}: Failed to load input prompt"
+        )
+        return ConversationHandler.END
+    
     context.user_data["choose_min_data"] = {}
     context.user_data["choose_min_data"]["start_msg"] = start_msg
     context.user_data["choose_min_data"]["lang"] = lang
-
-    order_id = int(update.callback_query.data.replace("write_min_", ""))
-
     context.user_data["choose_min_data"]["order_id"] = order_id
 
+    logger.info(f"✅ choose_minutes_courier (write): Started for order {order_id}")
     return WriteMinStates.WRITE_MIN
 
 async def write_minutes_courier_end(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # CRITICAL: Validate context.user_data exists
+    if "choose_min_data" not in context.user_data:
+        logger.error("❌ write_minutes_courier_end: choose_min_data not in context.user_data")
+        await update.effective_message.reply_text(
+            f"⚠️ {t('error', 'ru')}: Session expired. Please try again."
+        )
+        return ConversationHandler.END
+    
+    lang = context.user_data["choose_min_data"].get("lang", "ru")
+    order_id = context.user_data["choose_min_data"].get("order_id")
+    
+    # CRITICAL: Validate order_id exists
+    if not order_id or not isinstance(order_id, int) or order_id <= 0:
+        logger.error(f"❌ write_minutes_courier_end: Invalid order_id in context: {order_id}")
+        await update.effective_message.reply_text(
+            f"⚠️ {t('error', lang)}: Invalid session data. Please try again."
+        )
+        return ConversationHandler.END
+    
     # CRITICAL: Validate minutes input (1-9999 range)
     try:
-        minutes = int(update.effective_message.text)
+        if not update.effective_message or not update.effective_message.text:
+            raise ValueError("No message text")
+        
+        minutes = int(update.effective_message.text.strip())
         if not (1 <= minutes <= 9999):
+            logger.warning(f"⚠️ write_minutes_courier_end: Minutes out of range: {minutes}")
             await update.effective_message.reply_text(
                 t('invalid_minutes_range', lang) if hasattr(t, 'invalid_minutes_range') else 
                 f"⚠️ {t('error', lang)}: Minutes must be between 1 and 9999"
             )
             return ConversationHandler.END
-    except ValueError:
+    except (ValueError, TypeError, AttributeError) as e:
+        logger.error(f"❌ write_minutes_courier_end: Invalid minutes format: {repr(e)}")
         await update.effective_message.reply_text(
-            f"⚠️ {t('error', lang)}: Please enter a valid number"
+            f"⚠️ {t('error', lang)}: Please enter a valid number between 1 and 9999"
         )
         return ConversationHandler.END
-    
-    lang = context.user_data["choose_min_data"]["lang"]
-    order_id = context.user_data["choose_min_data"]["order_id"]
 
     # Using Supabase only
     from db.db import db_client, get_opened_shift
-    import logging
-    logger = logging.getLogger(__name__)
     
     # Update order with error handling
     update_result = db_client.update('orders', {
@@ -127,24 +188,56 @@ async def write_minutes_courier_end(update: Update, context: ContextTypes.DEFAUL
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.callback_query.answer()
-    lang = context.user_data["choose_min_data"]["lang"]
-    msg: Message = context.user_data["choose_min_data"]["start_msg"]
-    order_id: int = context.user_data["choose_min_data"]["order_id"]
-    markup = await form_courier_action_kb(order_id, lang)
-    await msg.edit_reply_markup(markup)
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # CRITICAL: Validate context.user_data exists
+    if "choose_min_data" not in context.user_data:
+        logger.warning("⚠️ cancel (write_minutes): choose_min_data not in context.user_data")
+        return ConversationHandler.END
+    
+    lang = context.user_data["choose_min_data"].get("lang", "ru")
+    order_id = context.user_data["choose_min_data"].get("order_id")
+    start_msg = context.user_data["choose_min_data"].get("start_msg")
+    
+    if not order_id or not start_msg:
+        logger.warning(f"⚠️ cancel (write_minutes): Missing order_id or start_msg")
+        return ConversationHandler.END
+    
+    try:
+        markup = await form_courier_action_kb(order_id, lang)
+        await start_msg.edit_reply_markup(markup)
+    except Exception as e:
+        logger.error(f"❌ cancel (write_minutes): Failed to restore markup: {repr(e)}")
+    
     del context.user_data["choose_min_data"]
-
     return ConversationHandler.END
 
 async def timeout_reached(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    lang = context.user_data["choose_min_data"]["lang"]
-    msg: Message = context.user_data["choose_min_data"]["start_msg"]
-    order_id: int = context.user_data["choose_min_data"]["order_id"]
-    markup = await form_courier_action_kb(order_id, lang)
-    await msg.edit_reply_markup(markup)
-    await msg.reply_text(t("timeout_error", lang))
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # CRITICAL: Validate context.user_data exists
+    if "choose_min_data" not in context.user_data:
+        logger.warning("⚠️ timeout_reached (write_minutes): choose_min_data not in context.user_data")
+        return ConversationHandler.END
+    
+    lang = context.user_data["choose_min_data"].get("lang", "ru")
+    order_id = context.user_data["choose_min_data"].get("order_id")
+    start_msg = context.user_data["choose_min_data"].get("start_msg")
+    
+    if not order_id or not start_msg:
+        logger.warning(f"⚠️ timeout_reached (write_minutes): Missing order_id or start_msg")
+        return ConversationHandler.END
+    
+    try:
+        markup = await form_courier_action_kb(order_id, lang)
+        await start_msg.edit_reply_markup(markup)
+        await start_msg.reply_text(t("timeout_error", lang))
+    except Exception as e:
+        logger.error(f"❌ timeout_reached (write_minutes): Failed to restore markup: {repr(e)}")
+    
     del context.user_data["choose_min_data"]
-
     return ConversationHandler.END
 
 

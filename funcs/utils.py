@@ -700,8 +700,18 @@ async def export_orders_as_text(update: Update, context: ContextTypes.DEFAULT_TY
     export_text = f"{rtl}<b>{t('orders_export_title', lang)}</b>\n\n"
     
     for order_data in all_orders:
-        products = json.loads(order_data['products']) if order_data.get('products') else []
-        products_text = ", ".join([f"{p['name']} x{p['quantity']}" for p in products])
+        # CRITICAL: Safe JSON parsing with error handling
+        products_json = order_data.get('products', '[]')
+        products = []
+        if products_json and isinstance(products_json, str):
+            try:
+                parsed = json.loads(products_json)
+                if isinstance(parsed, list):
+                    products = parsed
+            except (json.JSONDecodeError, TypeError):
+                products = []  # Fallback to empty list
+        
+        products_text = ", ".join([f"{p.get('name', 'Unknown')} x{p.get('quantity', 0)}" for p in products if isinstance(p, dict)])
         
         export_text += f"<b>{t('order_id', lang)}:</b> {order_data['id']}\n"
         export_text += f"<b>{t('client_name', lang)}:</b> {order_data['client_name']}\n"

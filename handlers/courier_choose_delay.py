@@ -21,27 +21,67 @@ async def choose_minutes_courier(update: Update, context: ContextTypes.DEFAULT_T
     """
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
+    import logging
+    logger = logging.getLogger(__name__)
 
     # Using Supabase only
     from db.db import db_client
     
+    # CRITICAL: Validate user role
     users = db_client.select('users', {'user_id': update.effective_user.id})
     # CRITICAL FIX: Use 'courier' (Role.RUNNER.value) not 'runner'!
     # Role.RUNNER = "courier" in db/db.py
     if not users or users[0].get('role') not in ['courier', 'admin']:
+        logger.warning(f"⚠️ choose_minutes_courier (delay): User {update.effective_user.id} does not have courier role")
         await update.effective_message.reply_text(t('need_courier_role', lang))
         return ConversationHandler.END
 
-    start_msg_2 = await update.effective_message.reply_text(t('enter_delay_reason', lang))
+    # CRITICAL: Validate and parse order_id
+    try:
+        callback_data = update.callback_query.data
+        if not callback_data or not callback_data.startswith("delay_min_"):
+            raise ValueError(f"Invalid callback data: {callback_data}")
+        
+        order_id_str = callback_data.replace("delay_min_", "").strip()
+        if not order_id_str:
+            raise ValueError("Empty order ID")
+        
+        order_id = int(order_id_str)
+        if order_id <= 0:
+            raise ValueError(f"Invalid order ID: {order_id} (must be > 0)")
+    except (ValueError, AttributeError, TypeError) as e:
+        logger.error(f"❌ choose_minutes_courier (delay): Invalid order ID parsing: {repr(e)}")
+        await update.effective_message.reply_text(
+            f"⚠️ {t('error', lang)}: Invalid order ID format"
+        )
+        return ConversationHandler.END
+    
+    # CRITICAL: Verify order exists before proceeding
+    orders = db_client.select('orders', {'id': order_id})
+    if not orders:
+        logger.error(f"❌ choose_minutes_courier (delay): Order {order_id} not found in database")
+        await update.effective_message.reply_text(
+            f"⚠️ {t('error', lang)}: Order #{order_id} not found"
+        )
+        return ConversationHandler.END
+
+    try:
+        start_msg_2 = await update.effective_message.reply_text(t('enter_delay_reason', lang))
+        start_msg = await update.effective_message.edit_reply_markup(reply_markup=get_cancel_kb(lang))
+    except Exception as e:
+        logger.error(f"❌ choose_minutes_courier (delay): Failed to edit/send message: {repr(e)}")
+        await update.effective_message.reply_text(
+            f"⚠️ {t('error', lang)}: Failed to start delay process"
+        )
+        return ConversationHandler.END
+    
     context.user_data["delay_min_data"] = {}
-    context.user_data["delay_min_data"]["start_msg"] = await update.effective_message.edit_reply_markup(reply_markup=get_cancel_kb(lang))
+    context.user_data["delay_min_data"]["start_msg"] = start_msg
     context.user_data["delay_min_data"]["start_msg_2"] = start_msg_2
     context.user_data["delay_min_data"]["lang"] = lang
-
-    order_id = int(update.callback_query.data.replace("delay_min_", ""))
-
     context.user_data["delay_min_data"]["order_id"] = order_id
 
+    logger.info(f"✅ choose_minutes_courier (delay): Started for order {order_id}")
     return DelayMinStates.WRITE_REASON
 
 
@@ -77,24 +117,53 @@ async def write_delay_reason(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 async def delay_minutes_courier_end(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.callback_query.answer()
-    lang = context.user_data["delay_min_data"]["lang"]
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # CRITICAL: Validate context.user_data exists
+    if "delay_min_data" not in context.user_data:
+        logger.error("❌ delay_minutes_courier_end: delay_min_data not in context.user_data")
+        await update.effective_message.reply_text(
+            f"⚠️ {t('error', 'ru')}: Session expired. Please try again."
+        )
+        return ConversationHandler.END
+    
+    lang = context.user_data["delay_min_data"].get("lang", "ru")
+    order_id = context.user_data["delay_min_data"].get("order_id")
+    delay_reason = context.user_data["delay_min_data"].get("delay_reason", "")
+    
+    # CRITICAL: Validate order_id exists
+    if not order_id or not isinstance(order_id, int) or order_id <= 0:
+        logger.error(f"❌ delay_minutes_courier_end: Invalid order_id in context: {order_id}")
+        await update.effective_message.reply_text(
+            f"⚠️ {t('error', lang)}: Invalid session data. Please try again."
+        )
+        return ConversationHandler.END
+    
+    # CRITICAL: Validate delay_reason exists
+    if not delay_reason or not delay_reason.strip():
+        logger.error(f"❌ delay_minutes_courier_end: Missing delay_reason for order {order_id}")
+        await update.effective_message.reply_text(
+            f"⚠️ {t('error', lang)}: Delay reason is missing. Please start over."
+        )
+        return ConversationHandler.END
 
     # CRITICAL: Validate delay minutes input (1-9999 range)
     try:
         delay_minutes = int(update.callback_query.data)
         if not (1 <= delay_minutes <= 9999):
+            logger.warning(f"⚠️ delay_minutes_courier_end: Delay minutes out of range: {delay_minutes}")
             await update.effective_message.reply_text(
                 t('invalid_minutes_range', lang) if hasattr(t, 'invalid_minutes_range') else 
                 f"⚠️ {t('error', lang)}: Delay minutes must be between 1 and 9999"
             )
             return ConversationHandler.END
-    except ValueError:
+    except (ValueError, TypeError, AttributeError) as e:
+        logger.error(f"❌ delay_minutes_courier_end: Invalid delay minutes format: {repr(e)}")
         await update.effective_message.reply_text(
             f"⚠️ {t('error', lang)}: Invalid delay minutes format"
         )
         return ConversationHandler.END
-
-    order_id = context.user_data["delay_min_data"]["order_id"]
 
     # Using Supabase only
     from db.db import db_client
@@ -107,7 +176,7 @@ async def delay_minutes_courier_end(update: Update, context: ContextTypes.DEFAUL
         'courier_name': f"{update.effective_user.first_name} {update.effective_user.last_name if update.effective_user.last_name else ''}".strip(),
         'courier_username': f"@{update.effective_user.username}" if update.effective_user.username else "",
         'delay_minutes': delay_minutes,
-        'delay_reason': context.user_data["delay_min_data"]["delay_reason"],
+        'delay_reason': context.user_data["delay_min_data"].get("delay_reason", ""),
         'status': 'delay'
     }, {'id': order_id})
     
@@ -182,28 +251,59 @@ async def write_delay_minutes_courier(update: Update, context: ContextTypes.DEFA
     return DelayMinStates.WRITE_MY
 
 async def write_delay_minutes_courier_end(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # CRITICAL: Validate context.user_data exists
+    if "delay_min_data" not in context.user_data:
+        logger.error("❌ write_delay_minutes_courier_end: delay_min_data not in context.user_data")
+        await update.effective_message.reply_text(
+            f"⚠️ {t('error', 'ru')}: Session expired. Please try again."
+        )
+        return ConversationHandler.END
+    
+    lang = context.user_data["delay_min_data"].get("lang", "ru")
+    order_id = context.user_data["delay_min_data"].get("order_id")
+    delay_reason = context.user_data["delay_min_data"].get("delay_reason", "")
+    
+    # CRITICAL: Validate order_id exists
+    if not order_id or not isinstance(order_id, int) or order_id <= 0:
+        logger.error(f"❌ write_delay_minutes_courier_end: Invalid order_id in context: {order_id}")
+        await update.effective_message.reply_text(
+            f"⚠️ {t('error', lang)}: Invalid session data. Please try again."
+        )
+        return ConversationHandler.END
+    
+    # CRITICAL: Validate delay_reason exists
+    if not delay_reason or not delay_reason.strip():
+        logger.error(f"❌ write_delay_minutes_courier_end: Missing delay_reason for order {order_id}")
+        await update.effective_message.reply_text(
+            f"⚠️ {t('error', lang)}: Delay reason is missing. Please start over."
+        )
+        return ConversationHandler.END
+    
     # CRITICAL: Validate delay minutes input (1-9999 range)
     try:
-        minutes = int(update.effective_message.text)
+        if not update.effective_message or not update.effective_message.text:
+            raise ValueError("No message text")
+        
+        minutes = int(update.effective_message.text.strip())
         if not (1 <= minutes <= 9999):
+            logger.warning(f"⚠️ write_delay_minutes_courier_end: Delay minutes out of range: {minutes}")
             await update.effective_message.reply_text(
                 t('invalid_minutes_range', lang) if hasattr(t, 'invalid_minutes_range') else 
                 f"⚠️ {t('error', lang)}: Delay minutes must be between 1 and 9999"
             )
             return ConversationHandler.END
-    except ValueError:
+    except (ValueError, TypeError, AttributeError) as e:
+        logger.error(f"❌ write_delay_minutes_courier_end: Invalid delay minutes format: {repr(e)}")
         await update.effective_message.reply_text(
-            f"⚠️ {t('error', lang)}: Please enter a valid number"
+            f"⚠️ {t('error', lang)}: Please enter a valid number between 1 and 9999"
         )
         return ConversationHandler.END
-    
-    lang = context.user_data["delay_min_data"]["lang"]
-    order_id = context.user_data["delay_min_data"]["order_id"]
 
     # Using Supabase only
     from db.db import db_client, get_opened_shift
-    import logging
-    logger = logging.getLogger(__name__)
     
     # Update order with error handling
     update_result = db_client.update('orders', {
@@ -211,7 +311,7 @@ async def write_delay_minutes_courier_end(update: Update, context: ContextTypes.
         'courier_name': f"{update.effective_user.first_name} {update.effective_user.last_name if update.effective_user.last_name else ''}".strip(),
         'courier_username': f"@{update.effective_user.username}" if update.effective_user.username else "",
         'delay_minutes': minutes,
-        'delay_reason': context.user_data["delay_min_data"]["delay_reason"],
+        'delay_reason': context.user_data["delay_min_data"].get("delay_reason", ""),
         'status': 'delay'
     }, {'id': order_id})
     
@@ -275,24 +375,84 @@ async def write_delay_minutes_courier_end(update: Update, context: ContextTypes.
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.callback_query.answer()
-    lang = context.user_data["delay_min_data"]["lang"]
-    msg: Message = context.user_data["delay_min_data"]["start_msg"]
-    order_id: int = context.user_data["delay_min_data"]["order_id"]
-    markup = await form_courier_action_kb(order_id, lang)
-    await msg.edit_reply_markup(markup)
-    del context.user_data["delay_min_data"]
-
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # CRITICAL: Validate context.user_data exists
+    if "delay_min_data" not in context.user_data:
+        logger.warning("⚠️ cancel (delay): delay_min_data not in context.user_data")
+        return ConversationHandler.END
+    
+    lang = context.user_data["delay_min_data"].get("lang", "ru")
+    order_id = context.user_data["delay_min_data"].get("order_id")
+    start_msg = context.user_data["delay_min_data"].get("start_msg")
+    
+    if not order_id or not start_msg:
+        logger.warning(f"⚠️ cancel (delay): Missing order_id or start_msg")
+        return ConversationHandler.END
+    
+    try:
+        markup = await form_courier_action_kb(order_id, lang)
+        await start_msg.edit_reply_markup(markup)
+    except Exception as e:
+        logger.error(f"❌ cancel (delay): Failed to restore markup: {repr(e)}")
+    
+    # Clean up delay_min_data
+    if "delay_min_data" in context.user_data:
+        if context.user_data["delay_min_data"].get("start_msg_2"):
+            try:
+                await context.user_data["delay_min_data"]["start_msg_2"].delete()
+            except:
+                pass
+        if context.user_data["delay_min_data"].get("trash"):
+            for msg in context.user_data["delay_min_data"]["trash"]:
+                try:
+                    await msg.delete()
+                except:
+                    pass
+        del context.user_data["delay_min_data"]
+    
     return ConversationHandler.END
 
 async def timeout_reached(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    lang = context.user_data["delay_min_data"]["lang"]
-    msg: Message = context.user_data["delay_min_data"]["start_msg"]
-    order_id: int = context.user_data["delay_min_data"]["order_id"]
-    markup = await form_courier_action_kb(order_id, lang)
-    await msg.edit_reply_markup(markup)
-    await msg.reply_text(t("timeout_error", lang))
-    del context.user_data["delay_min_data"]
-
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # CRITICAL: Validate context.user_data exists
+    if "delay_min_data" not in context.user_data:
+        logger.warning("⚠️ timeout_reached (delay): delay_min_data not in context.user_data")
+        return ConversationHandler.END
+    
+    lang = context.user_data["delay_min_data"].get("lang", "ru")
+    order_id = context.user_data["delay_min_data"].get("order_id")
+    start_msg = context.user_data["delay_min_data"].get("start_msg")
+    
+    if not order_id or not start_msg:
+        logger.warning(f"⚠️ timeout_reached (delay): Missing order_id or start_msg")
+        return ConversationHandler.END
+    
+    try:
+        markup = await form_courier_action_kb(order_id, lang)
+        await start_msg.edit_reply_markup(markup)
+        await start_msg.reply_text(t("timeout_error", lang))
+    except Exception as e:
+        logger.error(f"❌ timeout_reached (delay): Failed to restore markup: {repr(e)}")
+    
+    # Clean up delay_min_data
+    if "delay_min_data" in context.user_data:
+        if context.user_data["delay_min_data"].get("start_msg_2"):
+            try:
+                await context.user_data["delay_min_data"]["start_msg_2"].delete()
+            except:
+                pass
+        if context.user_data["delay_min_data"].get("trash"):
+            for msg in context.user_data["delay_min_data"]["trash"]:
+                try:
+                    await msg.delete()
+                except:
+                    pass
+        del context.user_data["delay_min_data"]
+    
     return ConversationHandler.END
 
 

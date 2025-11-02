@@ -126,8 +126,16 @@ async def collect_petrol_paid(update: Update, context: ContextTypes.DEFAULT_TYPE
     # Extract all products from orders
     all_products = []
     for order in orders:
-        products = json.loads(order.get('products', '[]'))
-        all_products.extend(products)
+        # CRITICAL: Safe JSON parsing with error handling
+        products_json = order.get('products', '[]')
+        if not products_json or not isinstance(products_json, str):
+            continue
+        try:
+            products = json.loads(products_json)
+            if isinstance(products, list):
+                all_products.extend([p for p in products if isinstance(p, dict)])
+        except (json.JSONDecodeError, TypeError):
+            continue  # Skip invalid products JSON
 
     print(all_products)
 

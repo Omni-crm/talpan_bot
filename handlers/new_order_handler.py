@@ -552,7 +552,13 @@ async def go_to_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         
         def get_products(self):
             import json
-            return json.loads(self.products) if isinstance(self.products, str) else self.products
+            if isinstance(self.products, str):
+                try:
+                    parsed = json.loads(self.products)
+                    return parsed if isinstance(parsed, list) else []
+                except (json.JSONDecodeError, TypeError):
+                    return []
+            return self.products if isinstance(self.products, list) else []
     
     order = OrderPreview(order_data)
     print(f"🔧 Order preview created")

@@ -178,14 +178,27 @@ async def report_by_product(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     
     for order in all_orders:
         if order.get('delivered'):
-            delivered_time = datetime.datetime.fromisoformat(order['delivered'])
-            if delivered_time >= seven_days_ago:
-                products = json.loads(order['products'])
-                for product in products:
-                    product_key = json.dumps([product], ensure_ascii=False)
-                    if product_key not in results:
-                        results[product_key] = 0
-                    results[product_key] += 1
+            try:
+                delivered_time = datetime.datetime.fromisoformat(order['delivered'])
+                if delivered_time >= seven_days_ago:
+                    # CRITICAL: Safe JSON parsing with error handling
+                    products_json = order.get('products', '[]')
+                    if not products_json or not isinstance(products_json, str):
+                        continue
+                    try:
+                        products = json.loads(products_json)
+                        if not isinstance(products, list):
+                            continue
+                        for product in products:
+                            if isinstance(product, dict):
+                                product_key = json.dumps([product], ensure_ascii=False)
+                                if product_key not in results:
+                                    results[product_key] = 0
+                                results[product_key] += 1
+                    except (json.JSONDecodeError, TypeError):
+                        continue  # Skip invalid products JSON
+            except (ValueError, TypeError, AttributeError):
+                continue  # Skip invalid delivered timestamp
     
     # Convert to list format
     results_list = [(k, v) for k, v in results.items()]
@@ -229,12 +242,15 @@ async def report_by_client(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     
     for order in all_orders:
         if order.get('delivered'):
-            delivered_time = datetime.datetime.fromisoformat(order['delivered'])
-            if delivered_time >= seven_days_ago:
-                key = (order['client_name'], order['client_username'], order['client_phone'])
-                if key not in client_orders:
-                    client_orders[key] = 0
-                client_orders[key] += 1
+            try:
+                delivered_time = datetime.datetime.fromisoformat(order['delivered'])
+                if delivered_time >= seven_days_ago:
+                    key = (order.get('client_name', ''), order.get('client_username', ''), order.get('client_phone', ''))
+                    if key not in client_orders:
+                        client_orders[key] = 0
+                    client_orders[key] += 1
+            except (ValueError, TypeError, AttributeError):
+                continue  # Skip invalid delivered timestamp
     
     results = [(name, username, phone, count) for (name, username, phone), count in client_orders.items()]
 
@@ -285,9 +301,21 @@ async def report_by_price(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     # Calculate total price for each order
     for order in results:
-        products = json.loads(order.products)  # JSON deserialization
-        total_price = sum(product['total_price'] for product in products)
-        order_prices.append((order.id, order.client_name, order.client_username, order.client_phone, order.delivered, total_price))
+        try:
+            # CRITICAL: Safe JSON parsing with error handling
+            products_json = getattr(order, 'products', '[]')
+            if not products_json or not isinstance(products_json, str):
+                continue
+            try:
+                products = json.loads(products_json)
+                if not isinstance(products, list):
+                    continue
+                total_price = sum(product.get('total_price', 0) or 0 for product in products if isinstance(product, dict))
+                order_prices.append((order.id, order.client_name, order.client_username, order.client_phone, order.delivered, total_price))
+            except (json.JSONDecodeError, TypeError):
+                continue  # Skip invalid products JSON
+        except (AttributeError, TypeError):
+            continue  # Skip orders with missing attributes
 
     # Sort orders by total price and take top 15
     sorted_orders = sorted(order_prices, key=lambda x: x[2], reverse=True)[:15]
@@ -507,13 +535,20 @@ async def filter_orders_by_product(update: Update, context: ContextTypes.DEFAULT
     
     all_orders = get_all_orders()
     for order_dict in all_orders:
-        products = json.loads(order_dict.get('products', '[]'))
-        products_names_db = [p.get('name') for p in products]
-        found = bool(set(products_names_db).intersection(product_names))
-        if found:
-            obj = type('Order', (), order_dict)()
-            obj.get_products = lambda: products
-            obj.to_dict = lambda: order_dict
+        # CRITICAL: Safe JSON parsing with error handling
+        products_json = order_dict.get('products', '[]')
+        if not products_json or not isinstance(products_json, str):
+            continue
+        try:
+            products = json.loads(products_json)
+            if not isinstance(products, list):
+                continue
+            products_names_db = [p.get('name') for p in products if isinstance(p, dict) and p.get('name')]
+            found = bool(set(products_names_db).intersection(product_names))
+            if found:
+                obj = type('Order', (), order_dict)()
+                obj.get_products = lambda p=products: p  # Fix closure issue
+                obj.to_dict = lambda d=order_dict: d  # Fix closure issue
             orders.append(obj)
 
     if not orders:
