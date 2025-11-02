@@ -500,6 +500,11 @@ def add_to_navigation_history(context, menu_name, data=None, max_history=5):
     if 'navigation_history' not in context.user_data:
         context.user_data['navigation_history'] = []
     
+    # מניעת כפילויות - אם התפריט האחרון זהה, לא מוסיפים
+    if context.user_data['navigation_history'] and context.user_data['navigation_history'][-1]['menu'] == menu_name:
+        print(f"🔍 Skipping duplicate: {menu_name} (already last in history)")
+        return
+    
     # הגבלה ל-5 מסכים אחרונים
     if len(context.user_data['navigation_history']) >= max_history:
         context.user_data['navigation_history'].pop(0)
