@@ -62,19 +62,36 @@ async def write_minutes_courier_end(update: Update, context: ContextTypes.DEFAUL
 
     # Using Supabase only
     from db.db import db_client, get_opened_shift
+    import logging
+    logger = logging.getLogger(__name__)
     
-    # Update order
-    db_client.update('orders', {
+    # Update order with error handling
+    update_result = db_client.update('orders', {
         'courier_id': update.effective_user.id,
         'courier_name': f"{update.effective_user.first_name} {update.effective_user.last_name if update.effective_user.last_name else ''}".strip(),
         'courier_username': f"@{update.effective_user.username}" if update.effective_user.username else "",
         'courier_minutes': minutes,
         'status': 'active'
     }, {'id': order_id})
+    
+    # CRITICAL: Verify update succeeded
+    if not update_result:
+        logger.error(f"❌ write_minutes_courier_end: Failed to update order {order_id}")
+        await update.effective_message.reply_text(
+            f"⚠️ {t('error', lang)}: Failed to update order. Please try again."
+        )
+        return ConversationHandler.END
 
     # Get updated order for compatibility
     orders = db_client.select('orders', {'id': order_id})
-    order_dict = orders[0] if orders else {}
+    if not orders:
+        logger.error(f"❌ write_minutes_courier_end: Order {order_id} not found after update")
+        await update.effective_message.reply_text(
+            f"⚠️ {t('error', lang)}: Order not found after update"
+        )
+        return ConversationHandler.END
+    
+    order_dict = orders[0]
     
     class OrderObj:
         def __init__(self, data):

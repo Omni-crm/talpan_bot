@@ -853,164 +853,362 @@ async def show_tg_sessions(update: Update, context: ContextTypes.DEFAULT_TYPE, f
 @is_courier
 async def order_ready(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
-    Mark order as delivered - CRITICAL: Must check status before updating!
-    Safely updates order status and product stock with full validation.
+    Mark order as delivered - PRODUCTION-GRADE: Full validation, transaction safety, error handling.
+    
+    CRITICAL SAFETY FEATURES:
+    1. Double-check status before update (race condition prevention)
+    2. Validate all products before any updates
+    3. Track all stock updates for rollback on failure
+    4. Verify order update success before finalizing
+    5. Rollback stock changes if order update fails
+    6. Comprehensive error logging
     """
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
-
+    
     # Using Supabase only
     from db.db import db_client
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    order_id = None
+    stock_updates = []  # Track all stock updates for potential rollback
     
     try:
-        order_id = int(update.callback_query.data.replace('ready_', ''))
+        # Parse order_id with validation
+        try:
+            order_id = int(update.callback_query.data.replace('ready_', ''))
+            if order_id <= 0:
+                raise ValueError(f"Invalid order ID: {order_id}")
+        except (ValueError, AttributeError) as e:
+            logger.error(f"❌ order_ready: Invalid order ID format: {update.callback_query.data} - {repr(e)}")
+            await send_message_with_cleanup(
+                update, context, 
+                f"⚠️ {t('error', lang)}: Invalid order ID format"
+            )
+            return
         
+        # Fetch order with race condition protection (re-check after validation)
         orders = db_client.select('orders', {'id': order_id})
         if not orders:
+            logger.warning(f"⚠️ order_ready: Order {order_id} not found")
             await send_message_with_cleanup(update, context, t('order_not_found', lang))
             return
         
         order = orders[0]
+        logger.info(f"🔧 order_ready: Processing order {order_id}, current status: {order.get('status')}")
         
-        # CRITICAL CHECK 1: Prevent double delivery!
-        # Check if order is already completed
+        # CRITICAL CHECK 1: Prevent double delivery! (re-check with fresh data)
         current_status = order.get('status', '')
-        # Handle both enum value format and simple string format
         is_already_completed = (
             current_status == 'completed' or 
             current_status == Status.completed.value or
             'Завершён' in str(current_status) or
-            'הושלם' in str(current_status)
+            'הושלם' in str(current_status) or
+            order.get('delivered') is not None  # Also check if delivered timestamp exists
         )
         
         if is_already_completed:
+            logger.warning(f"⚠️ order_ready: Order {order_id} already completed (status: {current_status})")
             await send_message_with_cleanup(
                 update, context, 
-                t('order_already_completed', lang) if 'order_already_completed' in dir(t.__self__) else 
                 f"⚠️ {t('error', lang)}: Order #{order_id} already completed!"
             )
             return
         
         # CRITICAL CHECK 2: Validate products JSON exists and is valid
         products_json = order.get('products')
-        if not products_json:
+        if not products_json or not isinstance(products_json, str) or not products_json.strip():
+            logger.error(f"❌ order_ready: Order {order_id} has no products JSON")
             await send_message_with_cleanup(
                 update, context, 
                 f"⚠️ {t('error', lang)}: Order #{order_id} has no products!"
             )
             return
         
-        # Parse products with error handling
+        # Parse products with comprehensive error handling
         try:
             chosen_products = json.loads(products_json)
-        except (json.JSONDecodeError, TypeError) as e:
+        except json.JSONDecodeError as e:
+            logger.error(f"❌ order_ready: Invalid JSON for order {order_id}: {repr(e)}")
             await send_message_with_cleanup(
                 update, context, 
-                f"⚠️ {t('error', lang)}: Invalid products data for order #{order_id}: {repr(e)}"
+                f"⚠️ {t('error', lang)}: Invalid products data for order #{order_id}"
+            )
+            return
+        except TypeError as e:
+            logger.error(f"❌ order_ready: TypeError parsing products for order {order_id}: {repr(e)}")
+            await send_message_with_cleanup(
+                update, context, 
+                f"⚠️ {t('error', lang)}: Products data type error for order #{order_id}"
             )
             return
         
-        if not isinstance(chosen_products, list) or len(chosen_products) == 0:
+        # Validate products structure
+        if not isinstance(chosen_products, list):
+            logger.error(f"❌ order_ready: Products is not a list for order {order_id}: {type(chosen_products)}")
+            await send_message_with_cleanup(
+                update, context, 
+                f"⚠️ {t('error', lang)}: Invalid products format for order #{order_id}"
+            )
+            return
+        
+        if len(chosen_products) == 0:
+            logger.error(f"❌ order_ready: Empty products list for order {order_id}")
             await send_message_with_cleanup(
                 update, context, 
                 f"⚠️ {t('error', lang)}: Order #{order_id} has empty products list!"
             )
             return
         
-        # CRITICAL CHECK 3: Validate and update product stock BEFORE updating order
-        # This ensures atomicity - if stock update fails, order won't be marked as completed
+        # CRITICAL CHECK 3: Validate ALL products before ANY updates
+        # This ensures atomicity - if any product is invalid, nothing is updated
         stock_update_errors = []
-        for chosen_product in chosen_products:
+        validated_products = []  # Store validated products for update
+        
+        for idx, chosen_product in enumerate(chosen_products):
+            # Validate product structure
+            if not isinstance(chosen_product, dict):
+                stock_update_errors.append(f"Product #{idx+1}: Not a dictionary - {type(chosen_product)}")
+                continue
+            
             product_name = chosen_product.get('name')
             quantity = chosen_product.get('quantity')
             
-            if not product_name or quantity is None:
-                stock_update_errors.append(f"Invalid product data: {chosen_product}")
+            # Validate product_name
+            if not product_name:
+                stock_update_errors.append(f"Product #{idx+1}: Missing product name")
                 continue
+            
+            if not isinstance(product_name, str) or not product_name.strip():
+                stock_update_errors.append(f"Product '{product_name}': Invalid name (empty or not string)")
+                continue
+            
+            product_name = product_name.strip()
+            
+            # Validate quantity
+            if quantity is None:
+                stock_update_errors.append(f"Product '{product_name}': Missing quantity")
+                continue
+            
+            # Handle float quantities (round down to int)
+            if isinstance(quantity, float):
+                quantity = int(quantity)
+                if quantity <= 0:
+                    stock_update_errors.append(f"Product '{product_name}': Invalid quantity (float converted to {quantity})")
+                    continue
+            elif isinstance(quantity, str):
+                try:
+                    quantity = int(float(quantity))  # Handle "5.0" strings
+                    if quantity <= 0:
+                        stock_update_errors.append(f"Product '{product_name}': Invalid quantity (string converted to {quantity})")
+                        continue
+                except (ValueError, TypeError):
+                    stock_update_errors.append(f"Product '{product_name}': Cannot convert quantity '{quantity}' to integer")
+                    continue
+            else:
+                try:
+                    quantity = int(quantity)
+                    if quantity <= 0:
+                        stock_update_errors.append(f"Product '{product_name}': Invalid quantity ({quantity})")
+                        continue
+                except (ValueError, TypeError):
+                    stock_update_errors.append(f"Product '{product_name}': Invalid quantity type ({type(quantity)})")
+                    continue
             
             # Get product from database
             products = db_client.select('products', {'name': product_name})
             if not products:
-                stock_update_errors.append(f"Product '{product_name}' not found in database")
+                stock_update_errors.append(f"Product '{product_name}': Not found in database")
                 continue
             
             product = products[0]
             product_id = product.get('id')
-            current_stock = product.get('stock', 0)
             
-            # CRITICAL CHECK 4: Handle None stock (should default to 0)
-            if current_stock is None:
-                current_stock = 0
-            
-            # CRITICAL CHECK 5: Validate quantity is positive integer
-            try:
-                quantity = int(quantity)
-                if quantity <= 0:
-                    stock_update_errors.append(f"Invalid quantity for '{product_name}': {quantity}")
-                    continue
-            except (ValueError, TypeError):
-                stock_update_errors.append(f"Invalid quantity type for '{product_name}': {type(quantity)}")
+            if not product_id:
+                stock_update_errors.append(f"Product '{product_name}': Missing ID in database")
                 continue
             
-            # CRITICAL CHECK 6: Prevent negative stock!
+            current_stock = product.get('stock', 0)
+            
+            # Handle None stock (default to 0)
+            if current_stock is None:
+                current_stock = 0
+                logger.warning(f"⚠️ order_ready: Product '{product_name}' has None stock, defaulting to 0")
+            
+            # Ensure current_stock is integer
+            try:
+                current_stock = int(current_stock)
+            except (ValueError, TypeError):
+                logger.error(f"❌ order_ready: Product '{product_name}' has invalid stock type: {type(current_stock)}")
+                stock_update_errors.append(f"Product '{product_name}': Invalid stock type in database")
+                continue
+            
+            # Prevent negative stock
             new_stock = current_stock - quantity
             if new_stock < 0:
                 stock_update_errors.append(
-                    f"Insufficient stock for '{product_name}': {current_stock} available, {quantity} required"
+                    f"Product '{product_name}': Insufficient stock ({current_stock} available, {quantity} required)"
                 )
                 continue
             
-            # Update stock (only if all validations passed)
-            db_client.update('products', {'stock': new_stock}, {'id': product_id})
+            # All validations passed for this product - store for update
+            validated_products.append({
+                'product_id': product_id,
+                'product_name': product_name,
+                'old_stock': current_stock,
+                'new_stock': new_stock,
+                'quantity': quantity
+            })
         
-        # If any stock update failed, abort order completion
+        # If any validation failed, abort completely
         if stock_update_errors:
             error_msg = f"⚠️ {t('error', lang)}: Cannot complete order #{order_id}:\n" + "\n".join(stock_update_errors)
+            logger.error(f"❌ order_ready: Validation failed for order {order_id}: {stock_update_errors}")
             await send_message_with_cleanup(update, context, error_msg)
             return
         
-        # All validations passed - update order status
-        # Use simple 'completed' string for database (not enum value with emoji)
-        db_client.update('orders', {
+        # CRITICAL CHECK 4: Re-check order status before updating (race condition protection)
+        orders = db_client.select('orders', {'id': order_id})
+        if not orders:
+            logger.error(f"❌ order_ready: Order {order_id} disappeared during processing")
+            await send_message_with_cleanup(update, context, t('order_not_found', lang))
+            return
+        
+        order = orders[0]
+        if order.get('status') == 'completed' or order.get('delivered'):
+            logger.warning(f"⚠️ order_ready: Order {order_id} was completed by another process (race condition)")
+            await send_message_with_cleanup(
+                update, context, 
+                f"⚠️ {t('error', lang)}: Order #{order_id} was already completed!"
+            )
+            return
+        
+        # All validations passed - update stock for all products
+        logger.info(f"✅ order_ready: Updating stock for {len(validated_products)} products")
+        for product_update in validated_products:
+            result = db_client.update('products', 
+                {'stock': product_update['new_stock']}, 
+                {'id': product_update['product_id']}
+            )
+            
+            # CRITICAL: Verify stock update succeeded
+            if not result:
+                logger.error(f"❌ order_ready: Stock update failed for product {product_update['product_name']}")
+                # Rollback previous stock updates
+                for rollback in stock_updates:
+                    try:
+                        db_client.update('products', {'stock': rollback['old_stock']}, {'id': rollback['product_id']})
+                        logger.info(f"🔄 order_ready: Rolled back stock for {rollback['product_name']}")
+                    except Exception as rollback_error:
+                        logger.error(f"❌ order_ready: Rollback failed for {rollback['product_name']}: {repr(rollback_error)}")
+                
+                await send_message_with_cleanup(
+                    update, context, 
+                    f"⚠️ {t('error', lang)}: Failed to update stock for '{product_update['product_name']}'. All changes rolled back."
+                )
+                return
+            
+            # Track successful update for potential rollback
+            stock_updates.append(product_update)
+        
+        # CRITICAL CHECK 5: Update order status and verify success
+        courier_name = f"{update.effective_user.first_name} {update.effective_user.last_name if update.effective_user.last_name else ''}".strip()
+        courier_username = f"@{update.effective_user.username}" if update.effective_user.username else ""
+        
+        # Use consistent datetime format (ISO format for Supabase compatibility)
+        delivered_timestamp = datetime.datetime.now().isoformat()
+        
+        order_update_result = db_client.update('orders', {
             'courier_id': update.effective_user.id,
-            'courier_name': f"{update.effective_user.first_name} {update.effective_user.last_name if update.effective_user.last_name else ''}".strip(),
-            'courier_username': f"@{update.effective_user.username}" if update.effective_user.username else "",
+            'courier_name': courier_name,
+            'courier_username': courier_username,
             'status': 'completed',  # Simple string for database consistency
-            'delivered': datetime.datetime.now().isoformat()
+            'delivered': delivered_timestamp
         }, {'id': order_id})
+        
+        # CRITICAL: Verify order update succeeded
+        if not order_update_result:
+            logger.error(f"❌ order_ready: Order update failed for order {order_id} - ROLLING BACK STOCK!")
+            # Rollback ALL stock updates
+            for rollback in stock_updates:
+                try:
+                    db_client.update('products', {'stock': rollback['old_stock']}, {'id': rollback['product_id']})
+                    logger.info(f"🔄 order_ready: Rolled back stock for {rollback['product_name']}")
+                except Exception as rollback_error:
+                    logger.error(f"❌ order_ready: Rollback failed for {rollback['product_name']}: {repr(rollback_error)}")
+            
+            await send_message_with_cleanup(
+                update, context, 
+                f"⚠️ {t('error', lang)}: Failed to update order #{order_id}. All stock changes have been rolled back."
+            )
+            return
+        
+        logger.info(f"✅ order_ready: Successfully completed order {order_id}")
         
         # Refresh order from database to get updated data
         orders = db_client.select('orders', {'id': order_id})
         if orders:
             order = orders[0]
+        else:
+            logger.warning(f"⚠️ order_ready: Could not refresh order {order_id} after update")
+            order = {}  # Fallback
         
         # Convert to object for form_confirm_order_courier
         order_obj = type('Order', (), order)()
         
-        text = await form_confirm_order_courier(order_obj, lang)
-        await update.effective_message.edit_text(text=text, parse_mode=ParseMode.HTML)
+        # Update message in courier group
+        try:
+            text = await form_confirm_order_courier(order_obj, lang)
+            await update.effective_message.edit_text(text=text, parse_mode=ParseMode.HTML)
+        except Exception as msg_error:
+            logger.error(f"❌ order_ready: Failed to update message for order {order_id}: {repr(msg_error)}")
+            # Order is already completed, so just log the error
         
         # Send notification to admin group
         from db.db import get_bot_setting
         admin_chat = get_bot_setting('admin_chat') or links.ADMIN_CHAT
         if admin_chat:
-            # Send BILINGUAL message to admin group (RU + HE)
-            text = await form_confirm_order_courier_info(order_obj, 'ru')  # lang param ignored - now bilingual
-            await context.bot.send_message(admin_chat, text, parse_mode=ParseMode.HTML)
+            try:
+                # Send BILINGUAL message to admin group (RU + HE)
+                text = await form_confirm_order_courier_info(order_obj, 'ru')  # lang param ignored - now bilingual
+                await context.bot.send_message(admin_chat, text, parse_mode=ParseMode.HTML)
+            except Exception as admin_msg_error:
+                logger.error(f"❌ order_ready: Failed to send admin notification for order {order_id}: {repr(admin_msg_error)}")
+                # Order is already completed, so just log the error
             
     except ValueError as e:
-        # Handle invalid order_id format
+        logger.error(f"❌ order_ready: ValueError for order {order_id}: {repr(e)}")
+        # Rollback stock if any updates were made
+        if stock_updates:
+            for rollback in stock_updates:
+                try:
+                    db_client.update('products', {'stock': rollback['old_stock']}, {'id': rollback['product_id']})
+                    logger.info(f"🔄 order_ready: Rolled back stock for {rollback['product_name']} after ValueError")
+                except Exception as rollback_error:
+                    logger.error(f"❌ order_ready: Rollback failed: {repr(rollback_error)}")
+        
         await send_message_with_cleanup(
             update, context, 
-            f"⚠️ {t('error', lang)}: Invalid order ID format: {repr(e)}"
+            f"⚠️ {t('error', lang)}: Invalid data format: {repr(e)}"
         )
     except Exception as e:
-        # Log full error for debugging
+        logger.error(f"❌ order_ready: Unexpected error for order {order_id}: {repr(e)}", exc_info=True)
         import traceback
         traceback.print_exc()
+        
+        # Rollback stock if any updates were made
+        if stock_updates:
+            for rollback in stock_updates:
+                try:
+                    db_client.update('products', {'stock': rollback['old_stock']}, {'id': rollback['product_id']})
+                    logger.info(f"🔄 order_ready: Rolled back stock for {rollback['product_name']} after exception")
+                except Exception as rollback_error:
+                    logger.error(f"❌ order_ready: Rollback failed: {repr(rollback_error)}")
+        
         await send_message_with_cleanup(
             update, context, 
-            f"⚠️ {t('error', lang)}: {repr(e)}"
+            f"⚠️ {t('error', lang)}: Unexpected error occurred. All changes have been rolled back."
         )
 
 
