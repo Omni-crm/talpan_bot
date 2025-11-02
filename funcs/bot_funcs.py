@@ -1001,10 +1001,12 @@ async def order_ready(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         # CRITICAL CHECK 3: Validate ALL products before ANY updates
         # This ensures atomicity - if any product is invalid, nothing is updated
         stock_update_errors = []
-        validated_products = []  # Store validated products for update
         
+        # CRITICAL: Aggregate duplicate products (same product name, sum quantities)
+        # This prevents double/triple stock deduction for same product
+        product_aggregates = {}  # {product_name: total_quantity}
         for idx, chosen_product in enumerate(chosen_products):
-            # Validate product structure
+            # Validate product structure first
             if not isinstance(chosen_product, dict):
                 stock_update_errors.append(f"Product #{idx+1}: Not a dictionary - {type(chosen_product)}")
                 continue
@@ -1018,7 +1020,7 @@ async def order_ready(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 continue
             
             if not isinstance(product_name, str) or not product_name.strip():
-                stock_update_errors.append(f"Product '{product_name}': Invalid name (empty or not string)")
+                stock_update_errors.append(f"Product #{idx+1}: Invalid name (empty or not string)")
                 continue
             
             product_name = product_name.strip()
@@ -1053,6 +1055,23 @@ async def order_ready(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                     stock_update_errors.append(f"Product '{product_name}': Invalid quantity type ({type(quantity)})")
                     continue
             
+            # Aggregate quantities for same product
+            if product_name in product_aggregates:
+                product_aggregates[product_name] += quantity
+            else:
+                product_aggregates[product_name] = quantity
+        
+        # If any validation failed, abort completely
+        if stock_update_errors:
+            error_msg = f"⚠️ {t('error', lang)}: Cannot complete order #{order_id}:\n" + "\n".join(stock_update_errors)
+            logger.error(f"❌ order_ready: Validation failed for order {order_id}: {stock_update_errors}")
+            await send_message_with_cleanup(update, context, error_msg)
+            return
+        
+        # Now process aggregated products (one entry per unique product name)
+        validated_products = []  # Store validated products for update
+        
+        for product_name, total_quantity in product_aggregates.items():
             # Get product from database
             products = db_client.select('products', {'name': product_name})
             if not products:
@@ -1081,11 +1100,11 @@ async def order_ready(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 stock_update_errors.append(f"Product '{product_name}': Invalid stock type in database")
                 continue
             
-            # Prevent negative stock
-            new_stock = current_stock - quantity
+            # Prevent negative stock (using aggregated total_quantity)
+            new_stock = current_stock - total_quantity
             if new_stock < 0:
                 stock_update_errors.append(
-                    f"Product '{product_name}': Insufficient stock ({current_stock} available, {quantity} required)"
+                    f"Product '{product_name}': Insufficient stock ({current_stock} available, {total_quantity} required)"
                 )
                 continue
             
@@ -1095,7 +1114,7 @@ async def order_ready(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 'product_name': product_name,
                 'old_stock': current_stock,
                 'new_stock': new_stock,
-                'quantity': quantity
+                'quantity': total_quantity  # Use aggregated quantity
             })
         
         # If any validation failed, abort completely

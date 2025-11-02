@@ -246,7 +246,14 @@ async def delay_minutes_courier_end(update: Update, context: ContextTypes.DEFAUL
     
     order = OrderObj(order_dict)
 
-    msg: Message = context.user_data["delay_min_data"]["start_msg"]
+    # CRITICAL: Validate start_msg exists before use
+    msg = context.user_data["delay_min_data"].get("start_msg")
+    if not msg:
+        logger.error(f"❌ delay_minutes_courier_end: Missing start_msg for order {order_id}")
+        await update.effective_message.reply_text(
+            f"⚠️ {t('error', lang)}: Session data corrupted. Please try again."
+        )
+        return ConversationHandler.END
 
     try:
         text = await form_confirm_order_courier(order, lang)
@@ -418,7 +425,14 @@ async def write_delay_minutes_courier_end(update: Update, context: ContextTypes.
     
     order = OrderObj(order_dict)
 
-    start_msg: Message = context.user_data["delay_min_data"]["start_msg"]
+    # CRITICAL: Validate start_msg exists before use
+    start_msg = context.user_data["delay_min_data"].get("start_msg")
+    if not start_msg:
+        logger.error(f"❌ write_delay_minutes_courier_end: Missing start_msg for order {order_id}")
+        await update.effective_message.reply_text(
+            f"⚠️ {t('error', lang)}: Session data corrupted. Please try again."
+        )
+        return ConversationHandler.END
 
     try:
         text = await form_confirm_order_courier(order, lang)
