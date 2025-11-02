@@ -29,7 +29,11 @@ async def change_language(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     if update.message:
         await send_message_with_cleanup(update, context, t("choose_language", lang), reply_markup=reply_markup)
     elif update.callback_query:
-        await edit_message_with_cleanup(update, context, t("choose_language", lang), reply_markup=reply_markup)
+        await update.callback_query.answer()
+        # Clean previous message first
+        await clean_previous_message(update, context)
+        # Send new message instead of editing
+        await send_message_with_cleanup(update, context, t("choose_language", lang), reply_markup=reply_markup)
 
 
 async def set_language(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -40,7 +44,7 @@ async def set_language(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     user = update.effective_user
     
     # מחיקת הודעות קודמות
-    await cleanup_old_messages(context)
+    await clean_previous_message(update, context)
     
     # Update user language in DB - Supabase only
     from db.db import db_client
@@ -49,10 +53,15 @@ async def set_language(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     if results:
         db_client.update('users', {'lang': lang_code}, {'user_id': user.id})
     
-    # Send confirmation in new language with cleanup
-    await edit_message_with_cleanup(update, context, t("language_changed", lang_code))
+    # Send confirmation in new language
+    await send_message_with_cleanup(update, context, t("language_changed", lang_code))
     
-    # Show main menu in new language immediately
+    # Small delay to show confirmation
+    import asyncio
+    await asyncio.sleep(1)
+    
+    # Clean confirmation and show main menu in new language
+    await clean_previous_message(update, context)
     reply_markup = await build_start_menu(user.id)
     await send_message_with_cleanup(update, context, t("main_menu", lang_code), reply_markup=reply_markup)
 
