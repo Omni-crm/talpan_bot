@@ -200,11 +200,26 @@ def set_bot_setting_list(key: str, value_list: list, user_id: int = None, descri
     set_bot_setting(key, json.dumps(value_list), user_id, 'list', description)
 
 def initialize_default_settings():
-    """אתחול הגדרות ברירת מחדל"""
-    # הגדרות קבוצות
-    if not get_bot_setting('admin_chat'):
+    """אתחול הגדרות ברירת מחדל - רק אם לא קיימות!"""
+    # הגדרות קבוצות - בדיקה אם השורה קיימת בדאטהבייס (לא רק אם יש value)
+    try:
+        admin_chat_exists = db_client.select('bot_settings', {'key': 'admin_chat'})
+        if not admin_chat_exists:
+            set_bot_setting('admin_chat', '', description='קבוצת מנהלים')
+            print("🆕 Created empty admin_chat setting")
+        else:
+            print(f"✅ admin_chat already exists: {admin_chat_exists[0].get('value', 'empty')}")
+    except:
         set_bot_setting('admin_chat', '', description='קבוצת מנהלים')
-    if not get_bot_setting('order_chat'):
+    
+    try:
+        order_chat_exists = db_client.select('bot_settings', {'key': 'order_chat'})
+        if not order_chat_exists:
+            set_bot_setting('order_chat', '', description='קבוצת שליחים')
+            print("🆕 Created empty order_chat setting")
+        else:
+            print(f"✅ order_chat already exists: {order_chat_exists[0].get('value', 'empty')}")
+    except:
         set_bot_setting('order_chat', '', description='קבוצת שליחים')
     
     # הגדרות משתמשים
