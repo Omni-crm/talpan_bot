@@ -549,7 +549,9 @@ async def filter_orders_by_product(update: Update, context: ContextTypes.DEFAULT
                 obj = type('Order', (), order_dict)()
                 obj.get_products = lambda p=products: p  # Fix closure issue
                 obj.to_dict = lambda d=order_dict: d  # Fix closure issue
-            orders.append(obj)
+                orders.append(obj)
+        except (json.JSONDecodeError, TypeError):
+            continue  # Skip invalid products JSON
 
     if not orders:
         lang = get_user_lang(update.effective_user.id)
