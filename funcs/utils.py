@@ -298,7 +298,7 @@ async def form_notif_delay_short(order: Order, lang: str = 'ru') -> str:
     return msg
 
 
-async def form_week_report():
+async def form_week_report(lang: str = 'ru'):
     """
     Example report:
     Weekly report – April 13-19, 2025  
@@ -329,21 +329,24 @@ async def form_week_report():
     shift_objects = []
     for s in shifts:
         obj = type('Shift', (), {})()
-        obj.brutto = s.get('brutto', 0)
-        obj.netto = s.get('netto', 0)
-        obj.operator_paid = s.get('operator_paid', 0)
-        obj.runner_paid = s.get('runner_paid', 0)
-        obj.petrol_paid = s.get('petrol_paid', 0)
-        obj.get_summary = lambda: json.loads(s.get('summary', '{}'))
+        obj.brutto = s.get('brutto', 0) or 0
+        obj.netto = s.get('netto', 0) or 0
+        obj.operator_paid = s.get('operator_paid', 0) or 0
+        obj.runner_paid = s.get('runner_paid', 0) or 0
+        obj.petrol_paid = s.get('petrol_paid', 0) or 0
+        # Fix closure issue - create method that captures s
+        def make_get_summary(shift_dict):
+            return lambda: json.loads(shift_dict.get('summary', '{}'))
+        obj.get_summary = make_get_summary(s)
         shift_objects.append(obj)
     shifts = shift_objects
 
-    brutto = sum([shift.brutto for shift in shifts])
-    avg_brutto = brutto // 7
-    netto = sum([shift.netto for shift in shifts])
-    avg_netto = netto // 7
+    brutto = sum([shift.brutto for shift in shifts]) or 0
+    avg_brutto = brutto // 7 if brutto else 0
+    netto = sum([shift.netto for shift in shifts]) or 0
+    avg_netto = netto // 7 if netto else 0
 
-    expenses = sum([(shift.operator_paid + shift.runner_paid + shift.petrol_paid) for shift in shifts])
+    expenses = sum([(shift.operator_paid + shift.runner_paid + shift.petrol_paid) for shift in shifts]) or 0
 
     summaries = [shift.get_summary() for shift in shifts]
 
@@ -352,13 +355,17 @@ async def form_week_report():
     for entry in summaries:
         for key, value in entry.items():
             print(f"Processing {key}: {value}")  # Print key and value
+            # Handle None values safely
+            total_quantity = value.get('total_quantity') or 0
+            total_price = value.get('total_price') or 0
+            
             if key not in result:
-                result[key] = {'quantity': value['total_quantity'], 'price': value['total_price']}  # Initialize dictionary
+                result[key] = {'quantity': total_quantity, 'price': total_price}  # Initialize dictionary
             else:
-                result[key]['quantity'] += value['total_quantity']  # Add quantity
+                result[key]['quantity'] += total_quantity  # Add quantity
 
     result = [f"{k} {v['quantity']}" for k,v in result.items()]
-    summary_text = " | ".join(result)
+    summary_text = " | ".join(result) if result else t("no_data_for_period", lang)
 
     rtl = '\u200F' if lang == 'he' else ''
     msg = f"""{rtl}<b>{t('weekly_report_title', lang)} – </b><i>{seven_days_ago.strftime("%d.%m.%Y")} - {now.strftime("%d.%m.%Y")}</i>

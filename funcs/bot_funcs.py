@@ -702,7 +702,8 @@ async def filter_orders_by_param(update: Update, context: ContextTypes.DEFAULT_T
         await edit_message_with_cleanup(update, context, t("choose_status", lang), reply_markup=get_filter_orders_by_status_kb(lang))
 
 async def show_week_report(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    week_report = await form_week_report()
+    lang = get_user_lang(update.effective_user.id)
+    week_report = await form_week_report(lang)
 
     if update.callback_query:
         await update.callback_query.answer()
@@ -715,7 +716,9 @@ async def show_week_report(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         
         for admin in admins:
             try:
-                await context.bot.send_message(admin['user_id'], week_report, parse_mode=ParseMode.HTML,)
+                admin_lang = get_user_lang(admin['user_id'])
+                week_report_admin = await form_week_report(admin_lang)
+                await context.bot.send_message(admin['user_id'], week_report_admin, parse_mode=ParseMode.HTML)
             except Exception as e:
                 print(repr(e))
 
