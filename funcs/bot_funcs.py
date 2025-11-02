@@ -108,6 +108,10 @@ async def dump_database(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 async def quick_reports(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
+    
+    # Add to navigation history
+    add_to_navigation_history(context, 'quick_reports_menu')
+    
     await send_message_with_cleanup(update, context, t('choose_report_param', lang), reply_markup=get_quick_reports_kb(lang))
 
 
@@ -792,6 +796,9 @@ async def show_tg_sessions(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
 
+    # Add to navigation history
+    add_to_navigation_history(context, 'tg_sessions_menu')
+    
     reply_markup = create_tg_sessions_kb(lang)
 
     await send_message_with_cleanup(update, context, t("tg_sessions_info", lang), reply_markup=reply_markup)
@@ -950,6 +957,12 @@ async def handle_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             await manage_roles(update, context)
         elif menu_name == 'security_menu':
             await show_security_menu(update, context)
+        elif menu_name == 'daily_profit_menu':
+            await show_daily_profit_options(update, context)
+        elif menu_name == 'quick_reports_menu':
+            await quick_reports(update, context)
+        elif menu_name == 'tg_sessions_menu':
+            await show_tg_sessions(update, context)
         else:
             # תפריט לא מוכר - חזור לעמוד הבית
             await start(update, context)
