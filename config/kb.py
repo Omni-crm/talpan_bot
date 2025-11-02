@@ -372,15 +372,18 @@ async def form_courier_action_kb(order_id: int, lang: str = 'ru'):
     """
     Create BILINGUAL keyboard for courier actions (RU + HE)
     Used in courier group messages
+    
+    Note: Translations already include both languages, so we use 'ru' version which has format: "[RU] (HE)"
     """
+    # Use Russian version - it already includes Hebrew in parentheses
     COURIER_ACTION_KB = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(f"{t('btn_choose_minutes', 'ru')} ({t('btn_choose_minutes', 'he')})", callback_data=f"choose_min_{order_id}")],
-            [InlineKeyboardButton(f"{t('btn_write_minutes', 'ru')} ({t('btn_write_minutes', 'he')})", callback_data=f"write_min_{order_id}")],
-            [InlineKeyboardButton(f"{t('btn_delay', 'ru')} ({t('btn_delay', 'he')})", callback_data=f"delay_min_{order_id}")],
-            [InlineKeyboardButton(f"{t('btn_delivered', 'ru')} ({t('btn_delivered', 'he')})", callback_data=f"ready_{order_id}")],
-            [InlineKeyboardButton(f"{t('btn_back', 'ru')} ({t('btn_back', 'he')})", callback_data="back"), 
-             InlineKeyboardButton(f"{t('btn_home', 'ru')} ({t('btn_home', 'he')})", callback_data="home")],
+            [InlineKeyboardButton(t('btn_choose_minutes', 'ru'), callback_data=f"choose_min_{order_id}")],
+            [InlineKeyboardButton(t('btn_write_minutes', 'ru'), callback_data=f"write_min_{order_id}")],
+            [InlineKeyboardButton(t('btn_delay', 'ru'), callback_data=f"delay_min_{order_id}")],
+            [InlineKeyboardButton(t('btn_delivered', 'ru'), callback_data=f"ready_{order_id}")],
+            [InlineKeyboardButton(t('btn_back', 'ru'), callback_data="back"), 
+             InlineKeyboardButton(t('btn_home', 'ru'), callback_data="home")],
         ],
     )
 
