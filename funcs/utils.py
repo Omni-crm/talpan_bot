@@ -336,7 +336,16 @@ async def form_week_report(lang: str = 'ru'):
         obj.petrol_paid = s.get('petrol_paid', 0) or 0
         # Fix closure issue - create method that captures s
         def make_get_summary(shift_dict):
-            return lambda: json.loads(shift_dict.get('summary', '{}'))
+            def get_summary():
+                summary = shift_dict.get('summary')
+                # Handle None, empty string, or invalid JSON
+                if summary is None or not isinstance(summary, str) or not summary.strip():
+                    return {}
+                try:
+                    return json.loads(summary)
+                except (json.JSONDecodeError, TypeError):
+                    return {}
+            return get_summary
         obj.get_summary = make_get_summary(s)
         shift_objects.append(obj)
     shifts = shift_objects
