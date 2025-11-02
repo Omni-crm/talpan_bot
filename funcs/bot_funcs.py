@@ -117,6 +117,9 @@ async def show_daily_profit_options(update: Update, context: ContextTypes.DEFAUL
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
     
+    # Add to navigation history
+    add_to_navigation_history(context, 'daily_profit_menu')
+    
     keyboard = [
         [InlineKeyboardButton(t("btn_today", lang), callback_data="profit_today")],
         [InlineKeyboardButton(t("btn_yesterday", lang), callback_data="profit_yesterday")],
@@ -319,6 +322,10 @@ async def report_by_days(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 async def show_admin_action_kb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
+    
+    # Add to navigation history
+    add_to_navigation_history(context, 'admin_menu')
+    
     await send_message_with_cleanup(update, context, t('admin_menu', lang), reply_markup=get_admin_action_kb(lang), parse_mode=ParseMode.HTML)
 
 @is_operator
@@ -372,12 +379,20 @@ async def msg_client(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 async def manage_roles(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
+    
+    # Add to navigation history
+    add_to_navigation_history(context, 'manage_roles_menu')
+    
     await send_message_with_cleanup(update, context, t('manage_roles_title', lang), reply_markup=get_manage_roles_kb(lang))
 
 @is_admin
 async def show_security_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
+    
+    # Add to navigation history
+    add_to_navigation_history(context, 'security_menu')
+    
     await send_message_with_cleanup(update, context, t('security_menu', lang), reply_markup=get_security_kb(lang))
 
 
@@ -908,14 +923,15 @@ async def handle_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     lang = get_user_lang(update.effective_user.id)
     
     if update.callback_query.data == "back":
-        # בדיקה אם יש תפריט קודם לפני מחיקת המסך הנוכחי
+        # בדיקה אם יש תפריט קודם
         previous_menu = get_previous_menu(context)
         if not previous_menu:
-            # אין לאן לחזור - הצג הודעה ואל תמחק את המסך!
-            await update.callback_query.answer(t("no_previous_menu", lang), show_alert=True)
+            # אין היסטוריה - חזור לעמוד הבית
+            await clean_previous_message(update, context)
+            await start(update, context)
             return
         
-        # יש לאן לחזור - עכשיו אפשר למחוק את המסך הנוכחי
+        # יש לאן לחזור - מחק את המסך הנוכחי
         await clean_previous_message(update, context)
         
         # חזרה לתפריט הקודם
@@ -930,6 +946,10 @@ async def handle_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             await show_admin_action_kb(update, context)
         elif menu_name == 'orders_filter_menu':
             await all_orders(update, context)
+        elif menu_name == 'manage_roles_menu':
+            await manage_roles(update, context)
+        elif menu_name == 'security_menu':
+            await show_security_menu(update, context)
         else:
             # תפריט לא מוכר - חזור לעמוד הבית
             await start(update, context)
