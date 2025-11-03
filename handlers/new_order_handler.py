@@ -247,6 +247,7 @@ async def collect_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
 async def collect_username(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Collecting @username or skip (empty string)."""
+    logger = logging.getLogger(__name__)
     try:
         print(f"🔧 collect_username called")
         lang = context.user_data["collect_order_data"]["lang"]
@@ -306,6 +307,7 @@ async def collect_username(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 async def collect_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Collecting phone."""
+    logger = logging.getLogger(__name__)
     lang = context.user_data["collect_order_data"]["lang"]
     
     if update.callback_query:
