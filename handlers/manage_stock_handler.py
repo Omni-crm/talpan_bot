@@ -88,6 +88,7 @@ class StockManagementStates:
 @is_admin
 async def manage_stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Show stock management menu"""
+    print(f"🔍 manage_stock called - opening stock management menu")
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
 
@@ -255,6 +256,7 @@ async def add_product_price(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 async def list_products(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Show all products"""
+    print(f"🔍 list_products called - opening all products list")
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
 
