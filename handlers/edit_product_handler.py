@@ -210,6 +210,8 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         from funcs.bot_funcs import start
         await start(update, context)
 
+    # cancel כבר קורא ל-start() ישירות - אין צורך ב-delayed_start()
+
     return ConversationHandler.END
 
 async def back_to_product_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:

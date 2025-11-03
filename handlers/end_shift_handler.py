@@ -317,22 +317,14 @@ async def confirm_end_shift(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     except Exception as e:
         print(f"⚠️ Could not delete confirmation message: {e}")
     
-    # החזרה למסך הראשי
-    from config.kb import build_start_menu
-    from funcs.utils import send_message_with_cleanup
-    reply_markup = await build_start_menu(update.effective_user.id)
-    await send_message_with_cleanup(update, context, t("main_menu", lang), reply_markup=reply_markup)
-    print(f"🔧 Main menu sent")
+    # החזרה למסך הראשי (כבר נשלח למעלה - אין צורך ב-delayed_start)
+    # from funcs.utils import delayed_start
+    # asyncio.create_task(delayed_start(update, context))
 
     if "end_shift_data" in context.user_data:
         del context.user_data["end_shift_data"]
 
     print(f"✅ confirm_end_shift completed successfully")
-
-    # פתיחה אוטומטית של תפריט
-    import asyncio
-    from funcs.utils import delayed_start
-    asyncio.create_task(delayed_start(update, context))
 
     return ConversationHandler.END
 

@@ -574,7 +574,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await msg.delete()
     del context.user_data["collect_order_data"]
 
-    # פתיחה אוטומטית של תפריט
+    # פתיחה אוטומטית של תפריט (cancel לא קורא ל-start() ישירות)
     import asyncio
     from funcs.utils import delayed_start
     asyncio.create_task(delayed_start(update, context))
