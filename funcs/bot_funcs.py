@@ -80,10 +80,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     #     except Exception as e:
     #         print(f"Could not delete /start message: {e}")
 
-    # send_message_with_cleanup already handles cleanup_old_messages, so no need to do it here
-    # Just clear navigation history when returning to main menu
-    if 'navigation_history' in context.user_data:
-        context.user_data['navigation_history'] = []
+            # send_message_with_cleanup already handles cleanup_old_messages, so no need to do it here
+            # Clear navigation history when returning to main menu (but add main_menu)
+            if 'navigation_history' in context.user_data:
+                context.user_data['navigation_history'] = []
+
+            # Always add main_menu to navigation history
+            add_to_navigation_history(context, 'main_menu')
 
     reply_markup = await build_start_menu(user.id)
     await send_message_with_cleanup(update, context, t("main_menu", lang), reply_markup=reply_markup)
