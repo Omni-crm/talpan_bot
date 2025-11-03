@@ -860,6 +860,36 @@ def save_message_id(context, message_id):
     """שמירת ID של הודעה לניקוי עתידי"""
     context.user_data['last_message_id'] = message_id
 
+def create_product_list_text(products, lang='he'):
+    """יצירת טקסט לרשימת מוצרים"""
+    if not products:
+        return "🛒 <b>סל הקניות ריק</b>\n\nאין מוצרים בהזמנה עדיין."
+
+    text = "🛒 <b>מוצרים בהזמנה:</b>\n\n"
+
+    total_order_price = 0
+    for i, product in enumerate(products):
+        product_id = product.get('id', 0)
+        name = product.get('name', 'מוצר לא ידוע')
+        quantity = product.get('quantity', 0)
+        unit_price = product.get('unit_price', 0)
+        total_price = product.get('total_price', 0)
+
+        text += f"{i+1}. <b>{name}</b>\n"
+        text += f"   📦 כמות: {quantity}\n"
+        text += f"   💰 מחיר ליחידה: ₪{unit_price}\n"
+        text += f"   💵 סה\"כ למוצר: ₪{total_price}\n\n"
+
+        total_order_price += total_price
+
+    text += f"💵 <b>סה\"כ להזמנה: ₪{total_order_price}</b>"
+
+    return text
+
+def save_message_id(context, message_id):
+    """שמירת ID של הודעה לניקוי עתידי"""
+    context.user_data['last_message_id'] = message_id
+
 # דוח סיום משמרת
 async def send_shift_end_report_to_admins(shift, lang: str = 'ru') -> None:
     """שליחת דוח סיום משמרת לקבוצת מנהלים"""

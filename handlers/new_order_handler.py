@@ -721,14 +721,14 @@ async def collect_total_price(update: Update, context: ContextTypes.DEFAULT_TYPE
         from funcs.utils import create_product_list_text
         product_list_text = create_product_list_text(context.user_data["collect_order_data"]["products"], lang)
 
-        from config.kb import get_product_management_kb
-        context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
-            product_list_text,
-            reply_markup=get_product_management_kb(lang),
-            parse_mode=ParseMode.HTML
-        )
+    from config.kb import get_product_management_kb
+    context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
+        product_list_text,
+        reply_markup=get_product_management_kb(products, lang),
+        parse_mode=ParseMode.HTML
+    )
 
-        return CollectOrderDataStates.PRODUCT_LIST
+    return CollectOrderDataStates.PRODUCT_LIST
 
 async def add_more_products(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Add more products - Phase 3: Product Addition"""
@@ -1041,7 +1041,7 @@ async def apply_edit_changes(update: Update, context: ContextTypes.DEFAULT_TYPE)
         from config.kb import get_product_management_kb
         context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
             f"✅ {t('changes_applied', lang)}\n\n{product_list_text}",
-            reply_markup=get_product_management_kb(lang),
+            reply_markup=get_product_management_kb(products, lang),
             parse_mode=ParseMode.HTML
         )
 
@@ -1102,7 +1102,7 @@ async def cancel_edit_changes(update: Update, context: ContextTypes.DEFAULT_TYPE
         from config.kb import get_product_management_kb
         context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
             f"❌ {t('changes_cancelled', lang)}\n\n{product_list_text}",
-            reply_markup=get_product_management_kb(lang),
+            reply_markup=get_product_management_kb(products, lang),
             parse_mode=ParseMode.HTML
         )
     else:
@@ -1670,8 +1670,8 @@ states = {
         CallbackQueryHandler(new_product_name, '^create$'),
         CallbackQueryHandler(collect_product, r'^\d+$'),
         CallbackQueryHandler(start_edit_product, r'^edit_\d+$'),
-        CallbackQueryHandler(add_more_products, '^add_more$'),
-        CallbackQueryHandler(go_to_confirm, '^confirm_order$'),
+        CallbackQueryHandler(add_more_products, '^add$'),
+        CallbackQueryHandler(go_to_confirm, '^to_confirm$'),
     ],
     CollectOrderDataStates.QUANTITY: [
         CallbackQueryHandler(collect_quantity, r'^\d+$'),
@@ -1701,7 +1701,7 @@ states = {
     ],
     EditStates.EDIT_PRICE: [
         MessageHandler(filters.Regex(r'^\d+(\.\d+)?$'), apply_price_edit),
-        CallbackQueryHandler(apply_price_edit, r'^\d+(\.\d+)?$'),
+        CallbackQueryHandler(apply_price_edit, r'^\d+$'),
     ],
     ConversationHandler.TIMEOUT: [TypeHandler(Update, timeout_reached)]
 }

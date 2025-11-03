@@ -720,6 +720,38 @@ def get_edit_product_actions_kb(lang='ru', product_id=0):
     ]
     return InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
 
+def get_product_management_kb(products, lang='ru'):
+    """כפתורים לניהול רשימת מוצרים עם כפתורי עריכה"""
+    inline_keyboard = []
+
+    # כפתורי עריכה לכל מוצר
+    for i, product in enumerate(products):
+        product_name = product.get('name', f'מוצר {i+1}')
+        edit_button = InlineKeyboardButton(
+            f"✏️ ערוך {product_name[:15]}{'...' if len(product_name) > 15 else ''}",
+            callback_data=f"edit_{i}"
+        )
+        inline_keyboard.append([edit_button])
+
+    # כפתורים כלליים
+    inline_keyboard.append([InlineKeyboardButton(t('btn_add', lang), callback_data="add")])
+    inline_keyboard.append([InlineKeyboardButton(t('btn_confirm_order', lang), callback_data="to_confirm")])
+    inline_keyboard.append([InlineKeyboardButton(t("btn_back", lang), callback_data="back")])
+
+    return InlineKeyboardMarkup(inline_keyboard)
+
+def get_edit_product_options_kb(lang='ru'):
+    """כפתורים לבחירת פעולת עריכה"""
+    inline_keyboard = [
+        [InlineKeyboardButton(t('btn_edit_quantity', lang), callback_data="edit_quantity")],
+        [InlineKeyboardButton(t('btn_edit_price', lang), callback_data="edit_price")],
+        [InlineKeyboardButton(t('btn_delete', lang), callback_data="delete_product")],
+        [InlineKeyboardButton(t('btn_apply', lang), callback_data="apply_edit")],
+        [InlineKeyboardButton(t('btn_cancel', lang), callback_data="cancel_edit")],
+        [InlineKeyboardButton(t("btn_back", lang), callback_data="back")]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard)
+
 def get_confirm_delete_kb(lang='ru', product_id=0):
     """כפתורים לאישור מחיקת מוצר"""
     inline_keyboard = [

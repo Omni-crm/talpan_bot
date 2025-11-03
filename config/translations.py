@@ -1122,6 +1122,84 @@ TEXTS["btn_add"] = {
     "ru": "➕ Добавить",
     "he": "➕ הוסף"
 }
+# תרגומים למערכת עריכת מוצרים
+TEXTS["changes_applied"] = {
+    "ru": "✅ Изменения применены",
+    "he": "✅ שינויים הוחלו"
+}
+TEXTS["changes_cancelled"] = {
+    "ru": "❌ Изменения отменены",
+    "he": "❌ שינויים בוטלו"
+}
+TEXTS["quantity_updated"] = {
+    "ru": "📦 Количество обновлено",
+    "he": "📦 כמות עודכנה"
+}
+TEXTS["price_updated"] = {
+    "ru": "💰 Цена обновлена",
+    "he": "💰 מחיר עודכן"
+}
+TEXTS["product_deleted"] = {
+    "ru": "🗑️ Продукт удален",
+    "he": "🗑️ מוצר נמחק"
+}
+TEXTS["editing_product"] = {
+    "ru": "✏️ Редактирование продукта",
+    "he": "✏️ עריכת מוצר"
+}
+TEXTS["choose_edit_action"] = {
+    "ru": "Выберите действие редактирования",
+    "he": "בחר פעולת עריכה"
+}
+TEXTS["edit_quantity_for"] = {
+    "ru": "Изменить количество для",
+    "he": "ערוך כמות ל"
+}
+TEXTS["current_quantity"] = {
+    "ru": "Текущее количество",
+    "he": "כמות נוכחית"
+}
+TEXTS["enter_new_quantity"] = {
+    "ru": "Введите новое количество",
+    "he": "הזן כמות חדשה"
+}
+TEXTS["edit_price_for"] = {
+    "ru": "Изменить цену для",
+    "he": "ערוך מחיר ל"
+}
+TEXTS["current_price"] = {
+    "ru": "Текущая цена",
+    "he": "מחיר נוכחי"
+}
+TEXTS["enter_new_price"] = {
+    "ru": "Введите новую цену",
+    "he": "הזן מחיר חדש"
+}
+TEXTS["btn_edit_quantity"] = {
+    "ru": "📦 Изменить количество",
+    "he": "📦 ערוך כמות"
+}
+TEXTS["btn_edit_price"] = {
+    "ru": "💰 Изменить цену",
+    "he": "💰 ערוך מחיר"
+}
+TEXTS["btn_delete"] = {
+    "ru": "🗑️ Удалить",
+    "he": "🗑️ מחק"
+}
+TEXTS["btn_apply"] = {
+    "ru": "✅ Применить",
+    "he": "✅ החל"
+}
+TEXTS["btn_cancel"] = {
+    "ru": "❌ Отмена",
+    "he": "❌ ביטול"
+}
+TEXTS["no_products_in_order"] = {
+    "ru": "В заказе нет продуктов",
+    "he": "אין מוצרים בהזמנה"
+}
+
 TEXTS["btn_back"] = {
     "ru": "⬅️ Назад",
     "he": "⬅️חזור"
