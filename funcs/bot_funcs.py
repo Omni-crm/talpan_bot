@@ -72,11 +72,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     lang = get_user_lang(user.id)
 
+    # הוספה: ניקוי הודעות /start לפני הצגת התפריט
+    await cleanup_start_messages(update, context)
+
     # send_message_with_cleanup already handles cleanup_old_messages, so no need to do it here
     # Just clear navigation history when returning to main menu
     if 'navigation_history' in context.user_data:
         context.user_data['navigation_history'] = []
-    
+
     reply_markup = await build_start_menu(user.id)
     await send_message_with_cleanup(update, context, t("main_menu", lang), reply_markup=reply_markup)
 

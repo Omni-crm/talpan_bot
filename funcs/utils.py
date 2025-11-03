@@ -78,6 +78,67 @@ def save_message_for_cleanup(context: ContextTypes.DEFAULT_TYPE, msg) -> None:
     context.user_data["msgs_to_delete"].append(msg)
 
 
+async def cleanup_start_messages(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    ניקוי חכם של הודעות /start ישנות
+    - מוחק את הודעת /start של המשתמש הנוכחי
+    - בודק 30 ההודעות האחרונות ומחק הודעות /start ישנות של אותו משתמש
+    - משאיר הודעת /start אחת אחרונה לכל היותר
+
+    זה חשוב לחוויית המשתמש - מונע הצטברות של הודעות /start בצ'אט
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    try:
+        # מחיקת הודעת המשתמש הנוכחית אם היא /start
+        if update.message and update.message.text == '/start':
+            try:
+                await update.message.delete()
+                logger.debug(f"🧹 Deleted current /start message from user {update.effective_user.id}")
+            except (BadRequest, Forbidden) as e:
+                logger.debug(f"Could not delete current /start message: {e}")
+            except Exception as e:
+                logger.error(f"Unexpected error deleting current /start message: {e}")
+
+        # קבלת 30 ההודעות האחרונות בצ'אט
+        chat_id = update.effective_chat.id
+        try:
+            recent_messages = await context.bot.get_chat_history(
+                chat_id=chat_id,
+                limit=30
+            )
+
+            start_messages = []
+            for msg in recent_messages:
+                if (msg.text == '/start' and
+                    msg.from_user and
+                    msg.from_user.id == update.effective_user.id):
+                    start_messages.append(msg)
+
+            # מוחק את כל הודעות /start חוץ מהאחרונה (למקרה שיש כמה)
+            deleted_count = 0
+            for msg in start_messages[:-1]:  # משאיר את האחרונה
+                try:
+                    await msg.delete()
+                    deleted_count += 1
+                except (BadRequest, Forbidden):
+                    # הודעה כבר נמחקה או אין הרשאה
+                    pass
+                except Exception as e:
+                    logger.error(f"Error deleting old /start message: {e}")
+
+            if deleted_count > 0:
+                logger.info(f"🧹 Cleaned up {deleted_count} old /start messages from user {update.effective_user.id}")
+
+        except Exception as e:
+            logger.error(f"Could not get chat history for start cleanup: {e}")
+
+    except Exception as e:
+        logger.error(f"Critical error in cleanup_start_messages: {e}")
+        # לא נזרוק שגיאה - פונקציית ניקוי לא צריכה להפיל את הבוט
+
+
 async def send_message_with_cleanup(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str, **kwargs):
     """
     פונקציה כללית לשליחת הודעה עם ניקוי אוטומטי של הודעות קודמות
