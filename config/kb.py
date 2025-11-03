@@ -721,19 +721,10 @@ def get_edit_product_actions_kb(lang='ru', product_id=0):
     return InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
 
 def get_product_management_kb(products, lang='ru'):
-    """כפתורים לניהול רשימת מוצרים עם כפתורי עריכה"""
+    """כפתורים לניהול רשימת מוצרים - רק הוספה ואישור"""
     inline_keyboard = []
 
-    # כפתורי עריכה לכל מוצר
-    for i, product in enumerate(products):
-        product_name = product.get('name', f'מוצר {i+1}')
-        edit_button = InlineKeyboardButton(
-            f"✏️ ערוך {product_name[:15]}{'...' if len(product_name) > 15 else ''}",
-            callback_data=f"edit_{i}"
-        )
-        inline_keyboard.append([edit_button])
-
-    # כפתורים כלליים
+    # כפתורים כלליים בלבד
     inline_keyboard.append([InlineKeyboardButton(t('btn_add', lang), callback_data="add")])
     inline_keyboard.append([InlineKeyboardButton(t('btn_confirm_order', lang), callback_data="to_confirm")])
     inline_keyboard.append([InlineKeyboardButton(t("btn_back", lang), callback_data="back")])

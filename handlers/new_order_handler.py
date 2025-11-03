@@ -827,6 +827,119 @@ async def add_more_products(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     return CollectOrderDataStates.PRODUCT_LIST
 
 
+async def start_edit_product_by_index(update, context, product_index: int) -> int:
+    """Start editing a product by index (for back navigation) - Phase 4: Product Editing"""
+    logger = logging.getLogger(__name__)
+    lang = context.user_data["collect_order_data"]["lang"]
+
+    # בדוק שיש מוצרים ושהאינדקס תקין
+    products = context.user_data["collect_order_data"].get("products", [])
+    if product_index >= len(products) or product_index < 0:
+        logger.error(f"❌ Product index out of range: {product_index}, products count: {len(products)}")
+        return await restore_order_state(update, context, {
+            "state": CollectOrderDataStates.PRODUCT_LIST,
+            "action": "product_index_out_of_range"
+        })
+
+    product = products[product_index]
+
+    # יצור active_product לעריכה עם התחלה ממחיר (השלב האחרון)
+    context.user_data["collect_order_data"]["active_product"] = {
+        "index": product_index,
+        "state": ProductStates.ENTER_PRICE,  # התחל ממחיר
+        "edit_mode": False,  # זה overwrite, לא עריכה רגילה
+        "original_data": product.copy(),  # שמור את הנתונים המקוריים
+        "temp_data": product.copy()  # התחל עם הנתונים הקיימים
+    }
+
+    # עדכן מצב נוכחי
+    context.user_data["collect_order_data"]["current_state"] = ProductStates.ENTER_PRICE
+
+    # הוסף ל-navigation stack
+    push_navigation_state(context, "product", {
+        "product_index": product_index,
+        "state": ProductStates.ENTER_PRICE,
+        "action": f'editing_existing_product_{product.get("name", "unknown")}'
+    })
+
+    logger.info(f"🔄 Started back-editing product: {product.get('name', 'unknown')} at index {product_index}")
+
+    # הצג הזנת מחיר חדש
+    msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+    prompt = t("choose_or_enter_total_price", lang)
+    if product.get("name"):
+        prompt = f"{t('enter_price_for', lang)} {product['name']}"
+
+    from config.kb import get_select_price_kb
+    context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
+        prompt,
+        reply_markup=get_select_price_kb(lang)
+    )
+
+    return ProductStates.ENTER_PRICE
+
+async def show_quantity_for_existing_product(update, context, product_index: int) -> int:
+    """Show quantity selection for existing product (back navigation)"""
+    logger = logging.getLogger(__name__)
+    lang = context.user_data["collect_order_data"]["lang"]
+
+    # עדכן את active_product לכמות
+    context.user_data["collect_order_data"]["active_product"]["state"] = ProductStates.ENTER_QUANTITY
+
+    # עדכן מצב נוכחי
+    context.user_data["collect_order_data"]["current_state"] = ProductStates.ENTER_QUANTITY
+
+    # הוסף ל-navigation stack
+    push_navigation_state(context, "product", {
+        "product_index": product_index,
+        "state": ProductStates.ENTER_QUANTITY,
+        "action": "back_to_quantity"
+    })
+
+    # הצג בחירת כמות
+    msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+    products = context.user_data["collect_order_data"].get("products", [])
+    product = products[product_index] if product_index < len(products) else {}
+
+    prompt = t("choose_or_enter_quantity", lang)
+    if product.get("name"):
+        prompt = f"{t('choose_quantity_for', lang)} {product['name']}"
+
+    from config.kb import get_select_quantity_kb
+    context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
+        prompt,
+        reply_markup=get_select_quantity_kb(lang)
+    )
+
+    return ProductStates.ENTER_QUANTITY
+
+async def show_product_selection_for_existing(update, context, product_index: int) -> int:
+    """Show product selection for existing product (back navigation)"""
+    logger = logging.getLogger(__name__)
+    lang = context.user_data["collect_order_data"]["lang"]
+
+    # עדכן את active_product לבחירת מוצר
+    context.user_data["collect_order_data"]["active_product"]["state"] = ProductStates.SELECT_PRODUCT
+
+    # עדכן מצב נוכחי
+    context.user_data["collect_order_data"]["current_state"] = ProductStates.SELECT_PRODUCT
+
+    # הוסף ל-navigation stack
+    push_navigation_state(context, "product", {
+        "product_index": product_index,
+        "state": ProductStates.SELECT_PRODUCT,
+        "action": "back_to_product_selection"
+    })
+
+    # הצג בחירת מוצר
+    msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+    context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
+        t("choose_product", lang),
+        reply_markup=get_products_markup(update.effective_user)
+    )
+
+    return ProductStates.SELECT_PRODUCT
+
 async def start_edit_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Start editing a product - Phase 4: Product Editing"""
     logger = logging.getLogger(__name__)
@@ -1470,13 +1583,19 @@ async def step_back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     state_type = previous_state.get("type")
 
     if state_type == "order":
-        # בדוק אם הפעולה האחרונה הייתה הוספת מוצר - אם כן, מחק אותו
-        if context.user_data["collect_order_data"].get("last_action_was_product_addition"):
+        # אם חוזרים אחורה מרשימת מוצרים עם מוצרים, ערוך את המוצר האחרון
+        if previous_state.get("state") == CollectOrderDataStates.PRODUCT_LIST:
             products = context.user_data["collect_order_data"].get("products", [])
             if products:
-                removed_product = products.pop()
-                logger.info(f"🔄 Removed product: {removed_product.get('name', 'unknown')}")
-            context.user_data["collect_order_data"]["last_action_was_product_addition"] = False
+                # ערוך את המוצר האחרון שהתווסף
+                last_product_index = len(products) - 1
+                return await start_edit_product_by_index(update, context, last_product_index)
+            else:
+                # אין מוצרים - חזור לבחירת מוצר ראשון
+                return await restore_order_state(update, context, {
+                    "state": CollectOrderDataStates.PRODUCT,
+                    "action": "back_from_empty_product_list"
+                })
         return await restore_order_state(update, context, previous_state)
 
     elif state_type == "edit":
@@ -1494,9 +1613,26 @@ async def step_back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         return await restore_edit_state(update, context, previous_state)
 
     elif state_type == "product":
-        # בטל הוספת מוצר - נקה active_product
+        # טפל בחזרה אחורה בתוך מוצר
         active_product = context.user_data["collect_order_data"].get("active_product")
         if active_product and not active_product.get("edit_mode"):
+            current_state = active_product.get("state")
+
+            if current_state == ProductStates.ENTER_PRICE:
+                # חזור לכמות
+                return await show_quantity_for_existing_product(update, context, active_product["index"])
+            elif current_state == ProductStates.ENTER_QUANTITY:
+                # חזור לבחירת מוצר
+                return await show_product_selection_for_existing(update, context, active_product["index"])
+            elif current_state == ProductStates.SELECT_PRODUCT:
+                # חזור לרשימת מוצרים
+                return await restore_order_state(update, context, {
+                    "state": CollectOrderDataStates.PRODUCT_LIST,
+                    "action": "back_from_product_selection"
+                })
+
+        # ביטול הוספה לא שלמה
+        if active_product:
             logger.info("🔄 Cancelled incomplete product addition")
             del context.user_data["collect_order_data"]["active_product"]
         return await restore_product_state(update, context, previous_state)
@@ -1824,7 +1960,6 @@ states = {
     CollectOrderDataStates.PRODUCT_LIST: [
         CallbackQueryHandler(new_product_name, '^create$'),
         CallbackQueryHandler(collect_product, r'^\d+$'),
-        CallbackQueryHandler(start_edit_product, r'^edit_\d+$'),
         CallbackQueryHandler(add_more_products, '^add$'),
         CallbackQueryHandler(go_to_confirm, '^to_confirm$'),
     ],
