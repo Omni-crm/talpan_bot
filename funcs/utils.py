@@ -780,7 +780,6 @@ def add_to_navigation_history(context, menu_name, data=None, max_history=5):
         'data': data,
         'timestamp': datetime.datetime.now()
     })
-    print(f"🔍 Navigation history: {[m['menu'] for m in context.user_data['navigation_history']]}")
 
 def get_previous_menu(context):
     """קבלת התפריט הקודם והוצאת התפריט הנוכחי מה-history"""

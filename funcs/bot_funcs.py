@@ -1664,8 +1664,6 @@ async def handle_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     try:
         if update.callback_query.data == "back":
-            print(f"🔍 handle_navigation: back button pressed - navigation_history: {context.user_data.get('navigation_history', 'NOT SET')}")
-
             # הוספה: בדיקה אם אנחנו בתוך conversation
             from funcs.utils import is_in_conversation
             if is_in_conversation(context):
@@ -1683,8 +1681,7 @@ async def handle_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
             # Temporarily store the menu we're going back to
             menu_name = previous_menu['menu']
-            print(f"🔍 Attempting to go back to: {menu_name}")
-            
+
             # send_message_with_cleanup in menu functions will handle cleanup
             # חזרה לתפריט הקודם - Pass from_back_button=True to prevent re-adding to history!
             if menu_name == 'main_menu':
