@@ -390,8 +390,9 @@ async def new_product_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     
     # Save current order state to return to later
     if "order_state_before_product_creation" not in context.user_data:
+        import copy
         context.user_data["order_state_before_product_creation"] = {
-            "collect_order_data": context.user_data["collect_order_data"].copy(),
+            "collect_order_data": copy.deepcopy(context.user_data["collect_order_data"]),
             "return_to_state": CollectOrderDataStates.PRODUCT
         }
         print(f"🔧 Saved order state before product creation")
@@ -563,51 +564,51 @@ async def collect_product(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         logger.error(f"❌ collect_product: Invalid product ID in callback data: {update.callback_query.data} - {e}")
         return CollectOrderDataStates.PRODUCT_LIST
 
-        # Using Supabase only
-        from db.db import get_product_by_id
-        product = get_product_by_id(product_id)
+    # Using Supabase only
+    from db.db import get_product_by_id
+    product = get_product_by_id(product_id)
 
-        if product:
-            # יצירת active_product חדש
-            context.user_data["collect_order_data"]["active_product"] = {
-                "index": len(context.user_data["collect_order_data"]["products"]),  # אינדקס ברשימה (מוצר חדש)
-                "state": ProductStates.ENTER_QUANTITY,
-                "temp_data": {
-                    "selected_product_id": product_id,
-                    "name": product.get('name', ''),
-                    "stock": product.get('stock', 0),
-                    "quantity": None,
-                    "unit_price": None
-                }
+    if product:
+        # יצירת active_product חדש
+        context.user_data["collect_order_data"]["active_product"] = {
+            "index": len(context.user_data["collect_order_data"]["products"]),  # אינדקס ברשימה (מוצר חדש)
+            "state": ProductStates.ENTER_QUANTITY,
+            "temp_data": {
+                "selected_product_id": product_id,
+                "name": product.get('name', ''),
+                "stock": product.get('stock', 0),
+                "quantity": None,
+                "unit_price": None
             }
+        }
 
-            # הוסף ל-navigation stack
-            push_navigation_state(context, "product", {
-                "product_index": len(context.user_data["collect_order_data"]["products"]),
-                "state": ProductStates.ENTER_QUANTITY,
-                "action": f'selected_product_{product.get("name", "")}'
-            })
+        # הוסף ל-navigation stack
+        push_navigation_state(context, "product", {
+            "product_index": len(context.user_data["collect_order_data"]["products"]),
+            "state": ProductStates.ENTER_QUANTITY,
+            "action": f'selected_product_{product.get("name", "")}'
+        })
 
-            # עדכן מצב נוכחי
-            context.user_data["collect_order_data"]["current_state"] = ProductStates.ENTER_QUANTITY
+        # עדכן מצב נוכחי
+        context.user_data["collect_order_data"]["current_state"] = ProductStates.ENTER_QUANTITY
 
-            logger.info(f"🛒 Selected product: {product.get('name', '')} (ID: {product_id})")
+        logger.info(f"🛒 Selected product: {product.get('name', '')} (ID: {product_id})")
 
-            msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-            from config.kb import get_select_quantity_kb
-            context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
-                t("choose_or_enter_quantity", lang),
-                reply_markup=get_select_quantity_kb(lang)
-            )
+        msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+        from config.kb import get_select_quantity_kb
+        context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
+            t("choose_or_enter_quantity", lang),
+            reply_markup=get_select_quantity_kb(lang)
+        )
 
-            return CollectOrderDataStates.QUANTITY
-        else:
-            logger.error(f"❌ Product not found: ID {product_id}")
-            # חזור לרשימת מוצרים
-            return await restore_order_state(update, context, {
-                "state": CollectOrderDataStates.PRODUCT_LIST,
-                "action": "product_not_found"
-            })
+        return CollectOrderDataStates.QUANTITY
+    else:
+        logger.error(f"❌ Product not found: ID {product_id}")
+        # חזור לרשימת מוצרים
+        return await restore_order_state(update, context, {
+            "state": CollectOrderDataStates.PRODUCT_LIST,
+            "action": "product_not_found"
+        })
 
     logger.warning("⚠️ Invalid product selection data")
     return CollectOrderDataStates.PRODUCT_LIST
