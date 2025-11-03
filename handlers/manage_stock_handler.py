@@ -283,8 +283,14 @@ async def list_products(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     products = get_all_products()
 
     if not products:
-        # כפתור חזור עם טקסט מיוחד
-        back_text = "⬅️ חזרה לניהול מלאי" if lang == 'he' else "⬅️ Back to Stock Management"
+        # כפתור חזור עם טקסט לפי שפה
+        if lang == 'he':
+            back_text = "⬅️ חזרה לניהול מלאי"
+        elif lang == 'ru':
+            back_text = "⬅️ Назад к управлению складом"
+        else:
+            back_text = "⬅️ Back to Stock Management"
+
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton(back_text, callback_data="manage_stock")]
         ])
@@ -300,8 +306,14 @@ async def list_products(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         for i, p in enumerate(products)
     ])
 
-    # כפתור חזור עם טקסט מיוחד
-    back_text = "⬅️ חזרה לניהול מלאי" if lang == 'he' else "⬅️ Back to Stock Management"
+    # כפתור חזור עם טקסט לפי שפה
+    if lang == 'he':
+        back_text = "⬅️ חזרה לניהול מלאי"
+    elif lang == 'ru':
+        back_text = "⬅️ Назад к управлению складом"
+    else:
+        back_text = "⬅️ Back to Stock Management"
+
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton(back_text, callback_data="manage_stock")]
     ])
