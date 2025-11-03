@@ -346,6 +346,7 @@ async def collect_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 
 async def collect_address(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Collecting address."""
+    logger = logging.getLogger(__name__)
     lang = context.user_data["collect_order_data"]["lang"]
     
     if not update.callback_query:
@@ -1668,6 +1669,7 @@ async def restore_edit_state(update, context, state_data):
 
 
 async def confirm_order(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    logger = logging.getLogger(__name__)
     await update.callback_query.answer()
     lang = context.user_data["collect_order_data"]["lang"]
     context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.CONFIRM_OR_NOT
