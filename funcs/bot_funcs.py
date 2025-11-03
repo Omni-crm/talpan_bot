@@ -1711,6 +1711,10 @@ async def handle_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE) 
                 await quick_reports(update, context, from_back_button=True)
             elif menu_name == 'tg_sessions_menu':
                 await show_tg_sessions(update, context, from_back_button=True)
+            elif menu_name == 'list_products_menu':
+                # חזרה לתפריט ניהול מלאי
+                from handlers.manage_stock_handler import manage_stock
+                await manage_stock(update, context)
             else:
                 # תפריט לא מוכר - חזור לעמוד הבית
                 await start(update, context)

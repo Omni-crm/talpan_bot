@@ -260,6 +260,11 @@ async def list_products(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
 
+    # הוספה: ניקוי הודעה קודמת ורישום ב-navigation
+    from funcs.utils import clean_previous_message, add_to_navigation_history
+    await clean_previous_message(update, context)
+    add_to_navigation_history(context, 'list_products_menu')
+
     # לא צריך clean_previous_message כי אנחנו עושים edit_text על ההודעה הקיימת
 
     from db.db import get_all_products
