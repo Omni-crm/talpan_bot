@@ -33,18 +33,26 @@ def get_shift_end_kb(lang='ru'):
 SHIFT_END_KB = get_shift_end_kb('ru')
 
 async def build_start_menu(user_id):
+    """Build main menu keyboard for user"""
+    import logging
+    logger = logging.getLogger(__name__)
+
+    logger.info(f"🔧 build_start_menu() called for user {user_id}")
+
     # Using Supabase only
     from db.db import db_client, get_opened_shift
-    
+
     users = db_client.select('users', {'user_id': user_id})
     user = users[0] if users else None
-    
+    logger.info(f"👤 User data loaded: {user}")
+
     # Check for open shift using the centralized function
     shift = get_opened_shift()
-    print(f"🔧 build_start_menu: Checking for open shift... found: {shift is not None}")
-    
+    logger.info(f"🔧 Shift check result: {shift is not None}")
+
     # Get user's language
     lang = user.get('lang', 'ru') if user else 'ru'
+    logger.info(f"🌍 Menu language: {lang}")
     
     inline_keyboard=[
         [InlineKeyboardButton(t('btn_new_order', lang), callback_data="new")],
@@ -61,6 +69,8 @@ async def build_start_menu(user_id):
 
     if user and user.get('role', 'guest') != 'guest':
         user_role = user.get('role', 'guest')
+        logger.info(f"👤 User role: {user_role}")
+
         if user_role == 'admin':
             inline_keyboard = inline_keyboard[:]
         elif user_role == 'operator':
@@ -70,15 +80,19 @@ async def build_start_menu(user_id):
         elif user_role == 'courier':  # CRITICAL FIX: Use 'courier' (Role.RUNNER.value) not 'runner'!
             from db.db import get_bot_setting
             order_chat = get_bot_setting('order_chat') or links.ORDER_CHAT
+            logger.info(f"🚚 Courier order_chat: {order_chat}")
             if order_chat:
                 inline_keyboard=[
                     [InlineKeyboardButton(t('btn_couriers_group', lang), url=f"https://t.me/{order_chat.replace('@', '')}")],
                 ]
 
         START_KEYBOARD = InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
+        logger.info(f"✅ Main menu keyboard created with {len(inline_keyboard)} buttons")
     else:
         START_KEYBOARD = None
+        logger.warning(f"⚠️ No keyboard created - user not found or guest role")
 
+    logger.info(f"🎯 build_start_menu() completed for user {user_id}")
     return START_KEYBOARD
     
 

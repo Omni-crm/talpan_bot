@@ -69,8 +69,14 @@ async def set_language(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 @is_user_in_db
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Available features buttons."""
+    import logging
+    logger = logging.getLogger(__name__)
+
     user = update.effective_user
+    logger.info(f"🚀 start() called by user {user.id} ({user.username})")
+
     lang = get_user_lang(user.id)
+    logger.info(f"🌍 User language: {lang}")
 
     # TEMPORARILY DISABLED: מחיקת הודעת /start גורמת ללופ
     # if update.message and update.message.text == '/start':
@@ -90,6 +96,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     reply_markup = await build_start_menu(user.id)
     await send_message_with_cleanup(update, context, t("main_menu", lang), reply_markup=reply_markup)
+    logger.info(f"✅ Main menu displayed successfully for user {user.id}")
 
 
 @is_admin
@@ -1486,8 +1493,15 @@ async def show_menu_edit_crude_stock(update: Update, context: ContextTypes.DEFAU
     """
     Редактирование продуктов с сырьём.
     """
+    import logging
+    logger = logging.getLogger(__name__)
+
     await update.callback_query.answer()
-    lang = get_user_lang(update.effective_user.id)
+    user_id = update.effective_user.id
+    logger.info(f"📦 show_menu_edit_crude_stock() called by user {user_id}, from_back_button: {from_back_button}")
+
+    lang = get_user_lang(user_id)
+    logger.info(f"🌍 Stock management language: {lang}")
 
     # Clean previous message
     await clean_previous_message(update, context)
@@ -1503,9 +1517,11 @@ async def show_menu_edit_crude_stock(update: Update, context: ContextTypes.DEFAU
     inline_markup = get_products_markup_left_edit_stock_crude(lang)
 
     msg = await send_message_with_cleanup(update, context, t('edit_crude_stock_prompt', lang), reply_markup=inline_markup)
-    
+
     # Save ID for future cleanup
     save_message_id(context, msg.message_id)
+
+    logger.info(f"✅ Stock management menu displayed successfully for user {user_id}")
 
 
 async def handle_conversation_back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -1659,8 +1675,16 @@ async def handle_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     1. ניווט רגיל בין תפריטים (כשהמשתמש לא בתוך conversation)
     2. ניווט בתוך conversation (כשהמשתמש בעיצומו של תהליך)
     """
+    import logging
+    logger = logging.getLogger(__name__)
+
     await update.callback_query.answer()
-    lang = get_user_lang(update.effective_user.id)
+    user_id = update.effective_user.id
+    callback_data = update.callback_query.data
+    logger.info(f"🧭 handle_navigation() called by user {user_id} with callback: {callback_data}")
+
+    lang = get_user_lang(user_id)
+    logger.info(f"🌍 Navigation language: {lang}")
 
     try:
         if update.callback_query.data == "back":

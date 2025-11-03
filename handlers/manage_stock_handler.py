@@ -88,8 +88,15 @@ class StockManagementStates:
 @is_admin
 async def manage_stock(update: Update, context: ContextTypes.DEFAULT_TYPE, from_back_button: bool = False) -> None:
     """Show stock management menu"""
+    import logging
+    logger = logging.getLogger(__name__)
+
     await update.callback_query.answer()
-    lang = get_user_lang(update.effective_user.id)
+    user_id = update.effective_user.id
+    logger.info(f"📦 manage_stock() called by user {user_id}, from_back_button: {from_back_button}")
+
+    lang = get_user_lang(user_id)
+    logger.info(f"🌍 Stock management language: {lang}")
 
     # בדיקה אם באנו מ-list_products (אז זה כמו חזרה)
     came_from_list_products = context.user_data.get('came_from_list_products', False)
@@ -115,6 +122,8 @@ async def manage_stock(update: Update, context: ContextTypes.DEFAULT_TYPE, from_
         reply_markup=reply_markup,
         parse_mode="HTML"
     )
+
+    logger.info(f"✅ Stock management menu displayed successfully for user {user_id}")
 
 @is_admin
 async def add_product_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -266,8 +275,15 @@ async def add_product_price(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 async def list_products(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Show all products"""
+    import logging
+    logger = logging.getLogger(__name__)
+
     await update.callback_query.answer()
-    lang = get_user_lang(update.effective_user.id)
+    user_id = update.effective_user.id
+    logger.info(f"📋 list_products() called by user {user_id}")
+
+    lang = get_user_lang(user_id)
+    logger.info(f"🌍 Products list language: {lang}")
 
     # הוספה: ניקוי הודעה קודמת ורישום ב-navigation
     from funcs.utils import clean_previous_message, add_to_navigation_history
@@ -323,6 +339,8 @@ async def list_products(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         parse_mode="HTML",
         reply_markup=keyboard
     )
+
+    logger.info(f"✅ Products list displayed successfully for user {user_id}, {len(products)} products shown")
 
 @is_admin
 async def edit_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
