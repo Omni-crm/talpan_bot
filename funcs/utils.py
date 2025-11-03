@@ -783,14 +783,16 @@ def add_to_navigation_history(context, menu_name, data=None, max_history=5):
     print(f"🔍 Navigation history: {[m['menu'] for m in context.user_data['navigation_history']]}")
 
 def get_previous_menu(context):
-    """קבלת התפריט הקודם"""
+    """קבלת התפריט הקודם והוצאת התפריט הנוכחי מה-history"""
     if 'navigation_history' in context.user_data and len(context.user_data['navigation_history']) > 0:
-        print(f"🔍 Navigation history before pop: {context.user_data['navigation_history']}")
-        menu = context.user_data['navigation_history'].pop()
-        print(f"🔍 Going back to: {menu['menu']}")
-        print(f"🔍 Navigation history after pop: {context.user_data['navigation_history']}")
-        return menu
-    print(f"🔍 No previous menu - navigation_history: {context.user_data.get('navigation_history', 'NOT SET')}")
+        # הוצא את התפריט הנוכחי
+        context.user_data['navigation_history'].pop()
+        # אם יש עוד תפריטים, החזר את האחרון (הקודם)
+        if len(context.user_data['navigation_history']) > 0:
+            return context.user_data['navigation_history'][-1]
+        else:
+            # אין עוד תפריטים, חזור לעמוד הבית
+            return {'menu': 'main_menu'}
     return None
 
 
