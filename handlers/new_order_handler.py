@@ -499,134 +499,261 @@ async def resume_order_with_product(update: Update, context: ContextTypes.DEFAUL
 
 
 async def collect_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Collecting product."""
+    """Collecting product - Phase 3: Product Addition"""
+    logger = logging.getLogger(__name__)
     lang = context.user_data["collect_order_data"]["lang"]
     await update.callback_query.answer()
-    context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.PRODUCT
 
     if update.callback_query.data.isdigit():
+        product_id = int(update.callback_query.data)
+
         # Using Supabase only
         from db.db import get_product_by_id
-        product = get_product_by_id(int(update.callback_query.data))
+        product = get_product_by_id(product_id)
 
         if product:
-            context.user_data["collect_order_data"]["product"] = product.get('name', '')
-            context.user_data["collect_order_data"]["product_stock"] = product.get('stock', 0)
+            # יצירת active_product חדש
+            context.user_data["collect_order_data"]["active_product"] = {
+                "index": len(context.user_data["collect_order_data"]["products"]),  # אינדקס ברשימה (מוצר חדש)
+                "state": ProductStates.ENTER_QUANTITY,
+                "temp_data": {
+                    "selected_product_id": product_id,
+                    "name": product.get('name', ''),
+                    "stock": product.get('stock', 0),
+                    "quantity": None,
+                    "unit_price": None
+                }
+            }
 
-    msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-    from config.kb import get_select_quantity_kb
-    context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(t("choose_or_enter_quantity", lang), reply_markup=get_select_quantity_kb(lang))
+            # הוסף ל-navigation stack
+            push_navigation_state(context, "product", {
+                "product_index": len(context.user_data["collect_order_data"]["products"]),
+                "state": ProductStates.ENTER_QUANTITY,
+                "action": f'selected_product_{product.get("name", "")}'
+            })
 
-    return CollectOrderDataStates.QUANTITY
+            # עדכן מצב נוכחי
+            context.user_data["collect_order_data"]["current_state"] = ProductStates.ENTER_QUANTITY
+
+            logger.info(f"🛒 Selected product: {product.get('name', '')} (ID: {product_id})")
+
+            msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+            from config.kb import get_select_quantity_kb
+            context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
+                t("choose_or_enter_quantity", lang),
+                reply_markup=get_select_quantity_kb(lang)
+            )
+
+            return CollectOrderDataStates.QUANTITY
+        else:
+            logger.error(f"❌ Product not found: ID {product_id}")
+            # חזור לרשימת מוצרים
+            return await restore_order_state(update, context, {
+                "state": CollectOrderDataStates.PRODUCT_LIST,
+                "action": "product_not_found"
+            })
+
+    logger.warning("⚠️ Invalid product selection data")
+    return CollectOrderDataStates.PRODUCT_LIST
 
 async def collect_quantity(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Collecting quantity."""
+    """Collecting quantity - Phase 3: Product Addition"""
+    logger = logging.getLogger(__name__)
     lang = context.user_data["collect_order_data"]["lang"]
-    
+
     if not update.callback_query:
         await update.effective_message.delete()
 
-    context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.QUANTITY
+    # בדוק שיש active_product
+    if "active_product" not in context.user_data["collect_order_data"]:
+        logger.error("❌ No active_product in collect_quantity")
+        return await restore_order_state(update, context, {
+            "state": CollectOrderDataStates.PRODUCT_LIST,
+            "action": "no_active_product"
+        })
+
+    active_product = context.user_data["collect_order_data"]["active_product"]
 
     if not update.callback_query:
-        quantity = int(update.message.text[:100])
+        # קבלת כמות מההודעה
+        try:
+            quantity = int(update.message.text[:100])
+        except ValueError:
+            logger.warning("⚠️ Invalid quantity format")
+            # הצג הודעת שגיאה וחזור להזנת כמות
+            msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+            from config.kb import get_select_quantity_kb
+            await msg.edit_text(
+                t("invalid_quantity", lang),
+                reply_markup=get_select_quantity_kb(lang)
+            )
+            return CollectOrderDataStates.QUANTITY
 
-        if context.user_data["collect_order_data"]["product_stock"] < int(quantity):
+        # בדוק מלאי
+        available_stock = active_product["temp_data"]["stock"]
+        if available_stock < quantity:
+            logger.warning(f"⚠️ Not enough stock: requested {quantity}, available {available_stock}")
             msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
             # הצג הודעת שגיאה עם כפתורים לחזרה או ביטול
             from config.kb import get_back_cancel_kb
             await msg.edit_text(
-                t("not_enough_stock", lang) + "\n" + 
-                t("available_stock", lang).format(context.user_data["collect_order_data"]["product_stock"]),
+                t("not_enough_stock", lang) + "\n" +
+                t("available_stock", lang).format(available_stock),
                 reply_markup=get_back_cancel_kb(lang)
             )
-            # נשאר באותו state כדי שהמשתמש יוכל לנסות שוב
             return CollectOrderDataStates.QUANTITY
 
-        context.user_data["collect_order_data"]["quantity"] = quantity
-    else:
-        await update.callback_query.answer()
+        # עדכן active_product עם הכמות
+        active_product["temp_data"]["quantity"] = quantity
+        active_product["state"] = ProductStates.ENTER_PRICE
 
-        if update.callback_query.data.isdigit():
-            quantity = int(update.callback_query.data)
+        # עדכן מצב נוכחי
+        context.user_data["collect_order_data"]["current_state"] = ProductStates.ENTER_PRICE
 
-            if context.user_data["collect_order_data"]["product_stock"] < int(quantity):
-                msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-                # הצג הודעת שגיאה עם כפתורים לחזרה או ביטול
-                from config.kb import get_back_cancel_kb
-                await msg.edit_text(
-                    t("not_enough_stock", lang) + "\n" + 
-                    t("available_stock", lang).format(context.user_data["collect_order_data"]["product_stock"]),
-                    reply_markup=get_back_cancel_kb(lang)
-                )
-                # נשאר באותו state כדי שהמשתמש יוכל לנסות שוב
-                return CollectOrderDataStates.QUANTITY
+        # הוסף ל-navigation stack
+        push_navigation_state(context, "product", {
+            "product_index": active_product["index"],
+            "state": ProductStates.ENTER_PRICE,
+            "action": f'quantity_entered_{quantity}'
+        })
 
-            context.user_data["collect_order_data"]["quantity"] = quantity
+        logger.info(f"📦 Quantity set: {quantity} for product {active_product['temp_data']['name']}")
 
+        # עבור להזנת מחיר
+        msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+        prompt = t("choose_or_enter_total_price", lang)
+        if active_product["temp_data"]["name"]:
+            prompt = f"{t('enter_price_for', lang)} {active_product['temp_data']['name']}"
 
-    msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+        from config.kb import get_select_price_kb
+        context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
+            prompt,
+            reply_markup=get_select_price_kb(lang)
+        )
 
-    from config.kb import get_select_price_kb
-    context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(t("choose_or_enter_total_price", lang), reply_markup=get_select_price_kb(lang))
-
-    return CollectOrderDataStates.TOTAL_PRICE
-
+        return CollectOrderDataStates.TOTAL_PRICE
 async def collect_total_price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Collecting total_price."""
+    """Collecting total_price - Phase 3: Product Addition Completion"""
+    logger = logging.getLogger(__name__)
     lang = context.user_data["collect_order_data"]["lang"]
-    context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.TOTAL_PRICE
+
+    # בדוק שיש active_product
+    if "active_product" not in context.user_data["collect_order_data"]:
+        logger.error("❌ No active_product in collect_total_price")
+        return await restore_order_state(update, context, {
+            "state": CollectOrderDataStates.PRODUCT_LIST,
+            "action": "no_active_product_price"
+        })
+
+    active_product = context.user_data["collect_order_data"]["active_product"]
+    temp_data = active_product["temp_data"]
+
+    unit_price = None
 
     if update.callback_query:
         await update.callback_query.answer()
 
         if update.callback_query.data.isdigit():
-            total_price = int(update.callback_query.data[:11])
-            context.user_data["collect_order_data"]["total_price"] = total_price
-
-            context.user_data["collect_order_data"]["products"].append(
-                {
-                    "name": context.user_data["collect_order_data"]["product"],
-                    "quantity": context.user_data["collect_order_data"]["quantity"],
-                    "total_price": context.user_data["collect_order_data"]["total_price"],
-                }
-            )
-
-            if len(context.user_data["collect_order_data"]["products"]) > 1:
-                for product in context.user_data["collect_order_data"]["products"][:-1]:
-                    if context.user_data["collect_order_data"]["products"][-1]['name'] == product['name']:
-                        context.user_data["collect_order_data"]["products"].remove(product)
+            unit_price = float(update.callback_query.data[:11])
     else:
         await update.effective_message.delete()
-        total_price = int(update.effective_message.text[:11])
-        context.user_data["collect_order_data"]["total_price"] = total_price
+        try:
+            unit_price = float(update.effective_message.text[:11])
+        except ValueError:
+            logger.warning("⚠️ Invalid price format")
+            # הצג הודעת שגיאה וחזור להזנת מחיר
+            msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+            from config.kb import get_select_price_kb
+            prompt = t("invalid_price", lang)
+            if temp_data.get("name"):
+                prompt = f"{t('enter_price_for', lang)} {temp_data['name']}"
+            await msg.edit_text(
+                prompt,
+                reply_markup=get_select_price_kb(lang)
+            )
+            return CollectOrderDataStates.TOTAL_PRICE
 
-        context.user_data["collect_order_data"]["products"].append(
-            {
-                "name": context.user_data["collect_order_data"]["product"],
-                "quantity": context.user_data["collect_order_data"]["quantity"],
-                "total_price": context.user_data["collect_order_data"]["total_price"],
-            }
+    if unit_price is not None:
+        # עדכן active_product עם המחיר
+        temp_data["unit_price"] = unit_price
+
+        # חשב מחיר כולל
+        total_price = temp_data["quantity"] * unit_price
+
+        # צור את המוצר הסופי
+        final_product = {
+            "id": temp_data["selected_product_id"],
+            "name": temp_data["name"],
+            "quantity": temp_data["quantity"],
+            "unit_price": unit_price,
+            "total_price": total_price
+        }
+
+        # הוסף לרשימת מוצרים (במקום הנכון לפי אינדקס)
+        product_index = active_product["index"]
+        products = context.user_data["collect_order_data"]["products"]
+
+        if product_index < len(products):
+            # החלף מוצר קיים (עריכה)
+            products[product_index] = final_product
+            logger.info(f"✏️ Product updated at index {product_index}: {temp_data['name']}")
+        else:
+            # הוסף מוצר חדש
+            products.append(final_product)
+            logger.info(f"➕ Product added: {temp_data['name']}")
+
+        # נקה את active_product
+        del context.user_data["collect_order_data"]["active_product"]
+
+        # עדכן מצב נוכחי
+        context.user_data["collect_order_data"]["current_state"] = CollectOrderDataStates.PRODUCT_LIST
+
+        # הוסף ל-navigation stack - חזרה לרשימת מוצרים
+        push_navigation_state(context, "order", {
+            "state": CollectOrderDataStates.PRODUCT_LIST,
+            "action": f'product_added_{temp_data["name"]}'
+        })
+
+        logger.info(f"💰 Price set: {unit_price}₪, Total: {total_price}₪ for {temp_data['name']}")
+
+        # הצג רשימת מוצרים עם אפשרות הוספה/עריכה/אישור
+        msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+        from funcs.utils import create_product_list_text
+        product_list_text = create_product_list_text(context.user_data["collect_order_data"]["products"], lang)
+
+        from config.kb import get_product_management_kb
+        context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
+            product_list_text,
+            reply_markup=get_product_management_kb(lang),
+            parse_mode=ParseMode.HTML
         )
-        if len(context.user_data["collect_order_data"]["products"]) > 1:
-            for product in context.user_data["collect_order_data"]["products"][:-1]:
-                if context.user_data["collect_order_data"]["products"][-1]['name'] == product['name']:
-                    context.user_data["collect_order_data"]["products"].remove(product)
 
-    msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-    context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(t("add_more_or_confirm", lang), reply_markup=get_add_more_or_confirm_kb(lang), parse_mode=ParseMode.HTML)
-
-    return CollectOrderDataStates.ADD_MORE_PRODUCTS_OR_CONFIRM
+        return CollectOrderDataStates.PRODUCT_LIST
 
 async def add_more_products(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Add more products - Phase 3: Product Addition"""
+    logger = logging.getLogger(__name__)
     lang = context.user_data["collect_order_data"]["lang"]
     await update.callback_query.answer()
-    context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.PRODUCT
+
+    # עדכן מצב נוכחי
+    context.user_data["collect_order_data"]["current_state"] = CollectOrderDataStates.PRODUCT_LIST
+
+    # הוסף ל-navigation stack
+    push_navigation_state(context, "order", {
+        "state": CollectOrderDataStates.PRODUCT_LIST,
+        "action": "add_more_products_selected"
+    })
+
+    logger.info("➕ User chose to add more products")
 
     msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-    context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(t("choose_product", lang), reply_markup=get_products_markup(update.effective_user))
+    context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
+        t("choose_product", lang),
+        reply_markup=get_products_markup(update.effective_user)
+    )
 
-    return CollectOrderDataStates.PRODUCT
+    return CollectOrderDataStates.PRODUCT_LIST
 
 async def go_to_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Go to final confirming order."""
@@ -796,14 +923,73 @@ async def restore_order_state(update, context, state_data):
 
 
 async def restore_product_state(update, context, state_data):
-    """שחזור מצב הוספת מוצר"""
+    """שחזור מצב הוספת מוצר - Phase 3: Product Addition"""
     logger = logging.getLogger(__name__)
     logger.info(f"🔄 Restoring product state: {state_data}")
 
-    # עדיין לא מיושם - יחזור לרשימת מוצרים
+    lang = context.user_data["collect_order_data"]["lang"]
+    state = state_data["state"]
+    msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+
+    # צור active_product אם לא קיים
+    if "active_product" not in context.user_data["collect_order_data"]:
+        logger.warning("⚠️ No active_product during restore, creating from state_data")
+        # נסה ליצור active_product מהמידע ב-state_data
+        return await restore_order_state(update, context, {
+            "state": CollectOrderDataStates.PRODUCT_LIST,
+            "action": "fallback_to_product_list"
+        })
+
+    active_product = context.user_data["collect_order_data"]["active_product"]
+    temp_data = active_product["temp_data"]
+
+    if state == ProductStates.SELECT_PRODUCT:
+        # חזרה לבחירת מוצר
+        context.user_data["collect_order_data"]["current_state"] = ProductStates.SELECT_PRODUCT
+        active_product["state"] = ProductStates.SELECT_PRODUCT
+
+        context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
+            t("choose_product", lang),
+            reply_markup=get_products_markup(update.effective_user)
+        )
+        return CollectOrderDataStates.PRODUCT_LIST
+
+    elif state == ProductStates.ENTER_QUANTITY:
+        # חזרה להזנת כמות
+        context.user_data["collect_order_data"]["current_state"] = ProductStates.ENTER_QUANTITY
+        active_product["state"] = ProductStates.ENTER_QUANTITY
+
+        prompt = t("choose_or_enter_quantity", lang)
+        if temp_data.get("name"):
+            prompt = f"{t('choose_quantity_for', lang)} {temp_data['name']}"
+
+        from config.kb import get_select_quantity_kb
+        context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
+            prompt,
+            reply_markup=get_select_quantity_kb(lang)
+        )
+        return CollectOrderDataStates.QUANTITY
+
+    elif state == ProductStates.ENTER_PRICE:
+        # חזרה להזנת מחיר
+        context.user_data["collect_order_data"]["current_state"] = ProductStates.ENTER_PRICE
+        active_product["state"] = ProductStates.ENTER_PRICE
+
+        prompt = t("choose_or_enter_total_price", lang)
+        if temp_data.get("name"):
+            prompt = f"{t('enter_price_for', lang)} {temp_data['name']}"
+
+        from config.kb import get_select_price_kb
+        context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
+            prompt,
+            reply_markup=get_select_price_kb(lang)
+        )
+        return CollectOrderDataStates.TOTAL_PRICE
+
+    logger.error(f"🔄 Unknown product state: {state}")
     return await restore_order_state(update, context, {
         "state": CollectOrderDataStates.PRODUCT_LIST,
-        "action": "back_to_product_list"
+        "action": "unknown_product_state"
     })
 
 
