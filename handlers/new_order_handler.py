@@ -739,19 +739,17 @@ async def collect_total_price(update: Update, context: ContextTypes.DEFAULT_TYPE
             return CollectOrderDataStates.TOTAL_PRICE
 
     if unit_price is not None:
-        # עדכן active_product עם המחיר
-        temp_data["unit_price"] = unit_price
-
-        # חשב מחיר כולל
-        total_price = temp_data["quantity"] * unit_price
+        # המחיר שהוזן הוא המחיר הכולל (לא מחיר יחידה!)
+        total_price = unit_price
+        unit_price_calculated = total_price / temp_data["quantity"]
 
         # צור את המוצר הסופי
         final_product = {
             "id": temp_data["selected_product_id"],
             "name": temp_data["name"],
             "quantity": temp_data["quantity"],
-            "unit_price": unit_price,
-            "total_price": total_price
+            "unit_price": unit_price_calculated,  # מחיר יחידה מחושב
+            "total_price": total_price  # המחיר שהוזן על ידי המשתמש
         }
 
         # הוסף לרשימת מוצרים (במקום הנכון לפי אינדקס)
@@ -1462,6 +1460,16 @@ async def step_back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     # טפל לפי סוג המצב הקודם
     if previous_state["type"] == "order":
+        # בדוק אם חזרנו מתהליך הוספת מוצר (שני PRODUCT_LIST ברציפות)
+        if (current_state.get("type") == "order" and
+            current_state.get("state") == CollectOrderDataStates.PRODUCT_LIST and
+            previous_state.get("state") == CollectOrderDataStates.PRODUCT_LIST):
+            # חזרנו מתהליך הוספת מוצר - מחק את המוצר האחרון
+            products = context.user_data["collect_order_data"].get("products", [])
+            if products:
+                removed_product = products.pop()
+                logger.info(f"🔄 Removed product due to back navigation: {removed_product.get('name', 'unknown')}")
+
         return await restore_order_state(update, context, previous_state)
 
     elif previous_state["type"] == "product":
