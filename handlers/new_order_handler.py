@@ -402,20 +402,14 @@ async def collect_address(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
         # שמור את הכתובת במבנה החדש
         context.user_data["collect_order_data"]["customer"]["address"] = address
-        context.user_data["collect_order_data"]["current_state"] = CollectOrderDataStates.PRODUCT_LIST
-
-        # הוסף ל-navigation stack
-        push_navigation_state(context, "order", {
-            "state": CollectOrderDataStates.PRODUCT_LIST,
-            "action": f'choose_product (address: {address})'
-        })
 
         logger.info(f"📝 Customer address collected: {address}")
 
-    msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-    context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(t("choose_product", lang), reply_markup=get_products_markup(update.effective_user))
+    # אחרי איסוף פרטי הלקוח - התחל בחירת מוצר
+    session = get_session(context)
+    session["current_step"] = ST_PRODUCT
 
-    return CollectOrderDataStates.PRODUCT_LIST
+    return await show_product(update, context)
 
 
 async def new_product_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -589,8 +583,7 @@ async def collect_product(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     session = get_session(context)
     await update.callback_query.answer()
 
-    _, value = update.callback_query.data.split(":", 1)
-    product_id = int(value)
+    product_id = int(update.callback_query.data)
 
     # Get product from DB
     from db.db import get_product_by_id
@@ -614,8 +607,7 @@ async def collect_product(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 async def collect_quantity(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Collect quantity according to new spec"""
     session = get_session(context)
-    _, value = update.callback_query.data.split(":", 1)
-    qty = int(value)
+    qty = int(update.callback_query.data)
 
     it = ensure_item(session)
     it["quantity"] = qty
@@ -624,8 +616,7 @@ async def collect_quantity(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 async def collect_total_price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Collect price according to new spec"""
     session = get_session(context)
-    _, value = update.callback_query.data.split(":", 1)
-    price = int(value)
+    price = int(update.callback_query.data)
 
     it = ensure_item(session)
     it["price"] = price
@@ -1303,6 +1294,8 @@ async def show_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text(txt, reply_markup=get_products_markup(update.effective_user))
 
+    return ST_PRODUCT
+
 async def show_quantity(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """הצג בחירת כמות"""
     session = get_session(context)
@@ -1311,6 +1304,8 @@ async def show_quantity(update: Update, context: ContextTypes.DEFAULT_TYPE):
     txt = t("choose_or_enter_quantity", lang)
     await update.callback_query.edit_message_text(txt, reply_markup=get_select_quantity_kb(lang))
 
+    return ST_QUANTITY
+
 async def show_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """הצג בחירת מחיר"""
     session = get_session(context)
@@ -1318,6 +1313,8 @@ async def show_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     txt = t("choose_or_enter_total_price", lang)
     await update.callback_query.edit_message_text(txt, reply_markup=get_select_price_kb(lang))
+
+    return ST_PRICE
 
 def format_summary(session) -> str:
     """פורמט סיכום ההזמנה"""
@@ -1348,6 +1345,8 @@ async def show_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ])
 
     await update.callback_query.edit_message_text(txt, reply_markup=kb)
+
+    return ST_SUMMARY
 
 async def restore_order_state(update, context, state_data):
     """שחזור מצב הזמנה כללי"""
@@ -1665,13 +1664,13 @@ states = {
         MessageHandler(filters.LOCATION, collect_address),
     ],
     ST_PRODUCT: [
-        CallbackQueryHandler(collect_product, r'^SET_PRODUCT:.+'),
+        CallbackQueryHandler(collect_product, r'^\d+$'),
     ],
     ST_QUANTITY: [
-        CallbackQueryHandler(collect_quantity, r'^SET_QTY:\d+'),
+        CallbackQueryHandler(collect_quantity, r'^\d+$'),
     ],
     ST_PRICE: [
-        CallbackQueryHandler(collect_total_price, r'^SET_PRICE:\d+'),
+        CallbackQueryHandler(collect_total_price, r'^\d+$'),
     ],
     ST_SUMMARY: [
         CallbackQueryHandler(go_to_confirm, '^confirm$'),
