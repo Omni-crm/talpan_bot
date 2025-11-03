@@ -1714,7 +1714,7 @@ async def handle_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             elif menu_name == 'list_products_menu':
                 # חזרה לתפריט ניהול מלאי
                 from handlers.manage_stock_handler import manage_stock
-                await manage_stock(update, context)
+                await manage_stock(update, context, from_back_button=True)
             else:
                 # תפריט לא מוכר - חזור לעמוד הבית
                 await start(update, context)

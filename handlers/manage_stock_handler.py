@@ -86,16 +86,19 @@ class StockManagementStates:
     EDIT_PRICE_FIELD = 5
 
 @is_admin
-async def manage_stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def manage_stock(update: Update, context: ContextTypes.DEFAULT_TYPE, from_back_button: bool = False) -> None:
     """Show stock management menu"""
-    print(f"🔍 manage_stock called - opening stock management menu")
+    print(f"🔍 manage_stock called - opening stock management menu (from_back_button: {from_back_button})")
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
 
     # הוספה: ניקוי הודעה קודמת ורישום ב-navigation
     from funcs.utils import clean_previous_message, add_to_navigation_history
     await clean_previous_message(update, context)
-    add_to_navigation_history(context, 'stock_menu')
+
+    # הוספה ל-navigation רק אם לא בא מהכפתור חזור
+    if not from_back_button:
+        add_to_navigation_history(context, 'stock_menu')
 
     from config.kb import get_stock_management_kb
 
