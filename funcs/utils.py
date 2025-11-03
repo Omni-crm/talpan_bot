@@ -1,6 +1,7 @@
 from telegram.ext import CallbackQueryHandler, TypeHandler, ContextTypes, ConversationHandler, MessageHandler, filters
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
+from telegram.error import BadRequest, Forbidden
 from db.db import Status, Order, Shift, ShiftStatus, Product
 from config.config import *
 from config.translations import t, get_user_lang
@@ -50,14 +51,21 @@ def create_order_obj(order_dict: dict):
 async def cleanup_old_messages(context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     פונקציה כללית למחיקת הודעות קודמות
+    Handles deletion gracefully - ignores errors if messages already deleted
     """
     if context.user_data.get("msgs_to_delete"):
         msgs = context.user_data["msgs_to_delete"]
         for msg in msgs:
             try:
                 await msg.delete()
-            except:
+            except (BadRequest, Forbidden):
+                # Message already deleted or no permission - silently ignore
                 pass
+            except Exception as e:
+                # Other errors - log but don't crash
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.debug(f"Could not delete message in cleanup_old_messages: {e}")
         context.user_data["msgs_to_delete"] = []
 
 
@@ -73,25 +81,43 @@ def save_message_for_cleanup(context: ContextTypes.DEFAULT_TYPE, msg) -> None:
 async def send_message_with_cleanup(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str, **kwargs):
     """
     פונקציה כללית לשליחת הודעה עם ניקוי אוטומטי של הודעות קודמות
+    CRITICAL: Handles errors gracefully - messages may already be deleted
     """
-    # מחיקת הודעות קודמות
+    # מחיקת הודעות קודמות (handles errors gracefully)
     await cleanup_old_messages(context)
     
     # שליחת הודעה חדשה
-    if update.callback_query:
-        msg = await update.callback_query.message.reply_text(text, **kwargs)
-    else:
-        msg = await update.effective_message.reply_text(text, **kwargs)
-    
-    # שמירת הודעה למחיקה עתידית
-    save_message_for_cleanup(context, msg)
-    
-    return msg
+    try:
+        if update.callback_query:
+            msg = await update.callback_query.message.reply_text(text, **kwargs)
+        else:
+            msg = await update.effective_message.reply_text(text, **kwargs)
+        
+        # שמירת הודעה למחיקה עתידית
+        save_message_for_cleanup(context, msg)
+        return msg
+    except Exception as e:
+        # If reply fails, try alternative method
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Failed to send message in send_message_with_cleanup: {e}")
+        # Try sending directly to chat
+        if update.callback_query:
+            msg = await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=text,
+                **kwargs
+            )
+        else:
+            msg = await update.effective_message.reply_text(text, **kwargs)
+        save_message_for_cleanup(context, msg)
+        return msg
 
 
 async def edit_message_with_cleanup(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str, message_to_edit=None, **kwargs):
     """
     פונקציה כללית לעריכת הודעה עם ניקוי אוטומטי של הודעות קודמות
+    CRITICAL: Handles errors gracefully - if edit fails, sends new message instead
     
     Args:
         update: Telegram Update object
@@ -100,25 +126,58 @@ async def edit_message_with_cleanup(update: Update, context: ContextTypes.DEFAUL
         message_to_edit: Optional - specific message to edit. If not provided, tries to infer from update.
         **kwargs: Additional arguments for edit_text
     """
-    # מחיקת הודעות קודמות
+    # מחיקת הודעות קודמות (handles errors gracefully)
     await cleanup_old_messages(context)
     
     # עריכת הודעה קיימת
-    if message_to_edit:
-        # If a specific message was provided, edit it
-        msg = await message_to_edit.edit_text(text, **kwargs)
-    elif update.callback_query:
-        # If it's a callback query, edit the message that contains the button
-        msg = await update.callback_query.message.edit_text(text, **kwargs)
-    else:
-        # WARNING: This will fail if update.effective_message is from the user!
-        # Only works if the effective_message is from the bot
-        msg = await update.effective_message.edit_text(text, **kwargs)
-    
-    # שמירת הודעה למחיקה עתידית
-    save_message_for_cleanup(context, msg)
-    
-    return msg
+    try:
+        if message_to_edit:
+            # If a specific message was provided, edit it
+            msg = await message_to_edit.edit_text(text, **kwargs)
+        elif update.callback_query:
+            # If it's a callback query, edit the message that contains the button
+            msg = await update.callback_query.message.edit_text(text, **kwargs)
+        else:
+            # WARNING: This will fail if update.effective_message is from the user!
+            # Only works if the effective_message is from the bot
+            msg = await update.effective_message.edit_text(text, **kwargs)
+        
+        # שמירת הודעה למחיקה עתידית
+        save_message_for_cleanup(context, msg)
+        return msg
+    except (BadRequest, Forbidden) as e:
+        # Message was deleted or can't be edited - send new message instead
+        # This is expected in some cases, so don't log as error
+        import logging
+        logger = logging.getLogger(__name__)
+        if 'message not found' not in str(e).lower() and 'message to edit not found' not in str(e).lower():
+            logger.debug(f"Could not edit message, sending new: {e}")
+        
+        # Send new message instead
+        if update.callback_query:
+            msg = await update.callback_query.message.reply_text(text, **kwargs)
+        else:
+            msg = await update.effective_message.reply_text(text, **kwargs)
+        
+        save_message_for_cleanup(context, msg)
+        return msg
+    except Exception as e:
+        # Other unexpected errors - log and try to send new message
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Unexpected error in edit_message_with_cleanup: {e}")
+        
+        # Try sending new message as fallback
+        try:
+            if update.callback_query:
+                msg = await update.callback_query.message.reply_text(text, **kwargs)
+            else:
+                msg = await update.effective_message.reply_text(text, **kwargs)
+            save_message_for_cleanup(context, msg)
+            return msg
+        except Exception as e2:
+            logger.error(f"Failed to send new message after edit failure: {e2}")
+            raise
 
 
 async def edit_conversation_message(message_to_edit, text: str, **kwargs):
@@ -633,17 +692,37 @@ def add_navigation_buttons_to_keyboard(keyboard, lang):
 
 # מערכת ניקוי הודעות
 async def clean_previous_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """מחיקת ההודעה הקודמת לפני הצגת תפריט חדש"""
+    """
+    מחיקת ההודעה הקודמת לפני הצגת תפריט חדש
+    CRITICAL: Handles errors gracefully - messages may already be deleted by cleanup_old_messages
+    """
     if 'last_message_id' in context.user_data:
         try:
             await context.bot.delete_message(
                 chat_id=update.effective_chat.id,
                 message_id=context.user_data['last_message_id']
             )
+            # Clear the ID after successful deletion
+            del context.user_data['last_message_id']
+        except (BadRequest, Forbidden) as e:
+            # Message already deleted or no permission - this is OK, silently ignore
+            # Don't log errors that are expected (message already deleted)
+            if 'message to delete not found' not in str(e).lower() and 'message not found' not in str(e).lower():
+                # Only log unexpected BadRequest/Forbidden errors
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.debug(f"Could not delete message in clean_previous_message: {e}")
+            # Clear the ID even if deletion failed (message doesn't exist)
+            if 'last_message_id' in context.user_data:
+                del context.user_data['last_message_id']
         except Exception as e:
-            # הודעה כבר נמחקה או אין הרשאה
-            print(f"Could not delete message: {e}")
-            pass
+            # Other unexpected errors - log but don't crash
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Unexpected error in clean_previous_message: {e}")
+            # Clear the ID to prevent repeated attempts
+            if 'last_message_id' in context.user_data:
+                del context.user_data['last_message_id']
 
 def save_message_id(context, message_id):
     """שמירת ID של הודעה לניקוי עתידי"""

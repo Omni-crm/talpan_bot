@@ -72,16 +72,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     lang = get_user_lang(user.id)
 
-    if not context.user_data.get("msgs_to_delete"):
-        context.user_data["msgs_to_delete"] = []
-    else:
-        msgs = context.user_data["msgs_to_delete"]
-
-        for msg in msgs:
-            try:
-                await msg.delete()
-            except:
-                pass
+    # send_message_with_cleanup already handles cleanup_old_messages, so no need to do it here
+    # Just clear navigation history when returning to main menu
+    if 'navigation_history' in context.user_data:
+        context.user_data['navigation_history'] = []
     
     reply_markup = await build_start_menu(user.id)
     await send_message_with_cleanup(update, context, t("main_menu", lang), reply_markup=reply_markup)
@@ -142,10 +136,8 @@ async def show_daily_profit_options(update: Update, context: ContextTypes.DEFAUL
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await update.effective_message.reply_text(
-        t("choose_period", lang),
-        reply_markup=reply_markup
-    )
+    # Use send_message_with_cleanup for consistent cleanup handling
+    await send_message_with_cleanup(update, context, t("choose_period", lang), reply_markup=reply_markup)
 
 
 @is_admin
@@ -401,11 +393,9 @@ async def show_admin_action_kb(update: Update, context: ContextTypes.DEFAULT_TYP
 
 @is_operator
 async def beginning(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle shift start/status check"""
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
-    
-    # מחיקת הודעות קודמות
-    await cleanup_old_messages(context)
     
     # Using Supabase only
     from db.db import get_opened_shift
@@ -420,7 +410,9 @@ async def beginning(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     if shift:
         shift_start_date = shift.opened_time.strftime("%d.%m.%Y, %H:%M:%S")
-        await update.effective_message.edit_text(
+        # Use edit_message_with_cleanup for graceful error handling
+        await edit_message_with_cleanup(
+            update, context,
             t('shift_not_closed', lang).format(shift_start_date), 
             reply_markup=get_shift_end_kb(lang), 
             parse_mode=ParseMode.HTML
@@ -428,6 +420,7 @@ async def beginning(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     else:
         products = Shift.set_products()
         prod_txt = " | ".join([f"{product['name']} {product['stock']}" for product in products])
+        # send_message_with_cleanup already handles cleanup
         await send_message_with_cleanup(update, context, t('available_stock', lang).format(prod_txt), 
                                        reply_markup=get_operator_shift_start_kb(lang), 
                                        parse_mode=ParseMode.HTML)
@@ -1497,64 +1490,86 @@ async def show_menu_edit_crude_stock(update: Update, context: ContextTypes.DEFAU
 
 # Central navigation handler
 async def handle_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle navigation buttons (back and home) - ONLY for regular menus"""
+    """
+    Handle navigation buttons (back and home) - ONLY for regular menus
+    CRITICAL: Handles errors gracefully - messages may already be deleted
+    """
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
     
-    if update.callback_query.data == "back":
-        # Try to get previous menu
-        previous_menu = get_previous_menu(context)
-        if not previous_menu:
-            # אין היסטוריה - חזור לעמוד הבית
-            await clean_previous_message(update, context)
+    try:
+        if update.callback_query.data == "back":
+            # Try to get previous menu
+            previous_menu = get_previous_menu(context)
+            if not previous_menu:
+                # אין היסטוריה - חזור לעמוד הבית
+                # send_message_with_cleanup in start() will handle cleanup
+                await start(update, context)
+                return
+            
+            # Temporarily store the menu we're going back to
+            menu_name = previous_menu['menu']
+            print(f"🔍 Attempting to go back to: {menu_name}")
+            
+            # send_message_with_cleanup in menu functions will handle cleanup
+            # חזרה לתפריט הקודם - Pass from_back_button=True to prevent re-adding to history!
+            if menu_name == 'main_menu':
+                await start(update, context)
+            elif menu_name == 'stock_menu':
+                await show_menu_edit_crude_stock(update, context, from_back_button=True)
+            elif menu_name == 'stock_list_menu':
+                await show_rest_from_last_day(update, context, from_back_button=True)
+            elif menu_name == 'admin_menu':
+                await show_admin_action_kb(update, context, from_back_button=True)
+            elif menu_name == 'orders_filter_menu':
+                await all_orders(update, context, from_back_button=True)
+            elif menu_name == 'manage_roles_menu':
+                await manage_roles(update, context, from_back_button=True)
+            elif menu_name == 'security_menu':
+                await show_security_menu(update, context, from_back_button=True)
+            elif menu_name == 'daily_profit_menu':
+                await show_daily_profit_options(update, context, from_back_button=True)
+            elif menu_name == 'quick_reports_menu':
+                await quick_reports(update, context, from_back_button=True)
+            elif menu_name == 'tg_sessions_menu':
+                await show_tg_sessions(update, context, from_back_button=True)
+            else:
+                # תפריט לא מוכר - חזור לעמוד הבית
+                await start(update, context)
+        
+        elif update.callback_query.data == "home":
+            # ניקוי היסטוריה וחזרה לעמוד הבית
+            if 'navigation_history' in context.user_data:
+                context.user_data['navigation_history'].clear()
+            
+            # ניקוי נתוני ConversationHandler אם יש
+            for key in list(context.user_data.keys()):
+                if key.endswith("_data"):
+                    del context.user_data[key]
+                    print(f"🔍 Cleaned up conversation data: {key}")
+            
+            # send_message_with_cleanup in start() will handle cleanup
             await start(update, context)
-            return
+    except Exception as e:
+        # Critical error handling - ensure user gets main menu even if navigation fails
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"❌ handle_navigation: Critical error: {repr(e)}")
+        import traceback
+        traceback.print_exc()
         
-        # Temporarily store the menu we're going back to
-        menu_name = previous_menu['menu']
-        print(f"🔍 Attempting to go back to: {menu_name}")
-        
-        # יש לאן לחזור - מחק את המסך הנוכחי
-        await clean_previous_message(update, context)
-        
-        # חזרה לתפריט הקודם - Pass from_back_button=True to prevent re-adding to history!
-        if menu_name == 'main_menu':
+        # Fallback: try to show main menu
+        try:
             await start(update, context)
-        elif menu_name == 'stock_menu':
-            await show_menu_edit_crude_stock(update, context, from_back_button=True)
-        elif menu_name == 'stock_list_menu':
-            await show_rest_from_last_day(update, context, from_back_button=True)
-        elif menu_name == 'admin_menu':
-            await show_admin_action_kb(update, context, from_back_button=True)
-        elif menu_name == 'orders_filter_menu':
-            await all_orders(update, context, from_back_button=True)
-        elif menu_name == 'manage_roles_menu':
-            await manage_roles(update, context, from_back_button=True)
-        elif menu_name == 'security_menu':
-            await show_security_menu(update, context, from_back_button=True)
-        elif menu_name == 'daily_profit_menu':
-            await show_daily_profit_options(update, context, from_back_button=True)
-        elif menu_name == 'quick_reports_menu':
-            await quick_reports(update, context, from_back_button=True)
-        elif menu_name == 'tg_sessions_menu':
-            await show_tg_sessions(update, context, from_back_button=True)
-        else:
-            # תפריט לא מוכר - חזור לעמוד הבית
-            await start(update, context)
-    
-    elif update.callback_query.data == "home":
-        # ניקוי היסטוריה וחזרה לעמוד הבית
-        if 'navigation_history' in context.user_data:
-            context.user_data['navigation_history'].clear()
-        
-        # ניקוי נתוני ConversationHandler אם יש
-        for key in list(context.user_data.keys()):
-            if key.endswith("_data"):
-                del context.user_data[key]
-                print(f"🔍 Cleaned up conversation data: {key}")
-        
-        await clean_previous_message(update, context)
-        await start(update, context)
+        except Exception as e2:
+            logger.error(f"❌ handle_navigation: Failed to show main menu after error: {repr(e2)}")
+            # Last resort: send error message
+            try:
+                await update.callback_query.message.reply_text(
+                    f"⚠️ {t('error', lang)}: Navigation error. Please try /start"
+                )
+            except:
+                pass  # If even this fails, give up
 
 @is_admin
 async def show_staff_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
