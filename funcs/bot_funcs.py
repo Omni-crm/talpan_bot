@@ -72,8 +72,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     lang = get_user_lang(user.id)
 
-    # הוספה: ניקוי הודעות /start לפני הצגת התפריט
-    await cleanup_start_messages(update, context)
+    # הוספה: ניקוי הודעת /start נוכחית בלבד (ללא היסטוריה כדי למנוע לופ)
+    if update.message and update.message.text == '/start':
+        try:
+            await update.message.delete()
+            print(f"🧹 Deleted /start message from user {update.effective_user.id}")
+        except Exception as e:
+            print(f"Could not delete /start message: {e}")
 
     # send_message_with_cleanup already handles cleanup_old_messages, so no need to do it here
     # Just clear navigation history when returning to main menu
