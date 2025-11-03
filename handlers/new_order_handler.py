@@ -35,9 +35,12 @@ def push_navigation_state(context, state_type, state_data):
     }
     stack.append(new_state)
 
-    # הגבל לגודל מקסימלי
-    if len(stack) > 20:  # יותר מ-20 שלבים אחורה
-        stack.pop(0)
+    # הגבל לגודל מקסימלי - מנע דליפת זיכרון
+    MAX_STACK_SIZE = 20
+    if len(stack) > MAX_STACK_SIZE:
+        # הסר את הערך הישן ביותר
+        removed = stack.pop(0)
+        logger.warning(f"🔄 Navigation stack exceeded max size ({MAX_STACK_SIZE}), removed oldest entry: {removed.get('type', 'unknown')}")
 
     logger.info(f"🔄 Pushed to navigation stack: {state_type} - {state_data}")
 
@@ -172,8 +175,18 @@ async def collect_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     """Collecting name and go to next step @username."""
     logger = logging.getLogger(__name__)
     print(f"🔧 collect_name called")
-    lang = context.user_data["collect_order_data"]["lang"]
-    
+
+    # בדיקת אבטחה - וודא שיש נתוני שיחה
+    if "collect_order_data" not in context.user_data:
+        logger.error("❌ collect_name: No collect_order_data in context")
+        return ConversationHandler.END
+
+    try:
+        lang = context.user_data["collect_order_data"]["lang"]
+    except KeyError:
+        logger.error("❌ collect_name: No lang in collect_order_data")
+        return ConversationHandler.END
+
     if update.callback_query:
         await update.callback_query.answer()
         # אם זה callback query, זה כנראה כפתור "חזור" או "ביטול"
@@ -186,9 +199,18 @@ async def collect_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
             print(f"⚠️ Could not delete message: {e}")
             pass
 
+        # אימות קלט בסיסי
+        if not update.message or not update.message.text:
+            logger.warning("⚠️ collect_name: No message text")
+            return CollectOrderDataStates.NAME
+
         # שמור את השם במבנה החדש
-        context.user_data["collect_order_data"]["customer"]["name"] = update.message.text[:100]
-        context.user_data["collect_order_data"]["current_state"] = CollectOrderDataStates.USERNAME
+        try:
+            context.user_data["collect_order_data"]["customer"]["name"] = update.message.text[:100]
+            context.user_data["collect_order_data"]["current_state"] = CollectOrderDataStates.USERNAME
+        except KeyError as e:
+            logger.error(f"❌ collect_name: Missing key in context: {e}")
+            return ConversationHandler.END
 
         # הוסף ל-navigation stack
         push_navigation_state(context, "order", {
@@ -199,14 +221,27 @@ async def collect_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         logger.info(f"📝 Customer name collected: {update.message.text[:100]}")
 
         # Edit the bot's message, not the user's message
-        msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-        from funcs.utils import edit_conversation_message
-        context.user_data["collect_order_data"]["start_msg"] = await edit_conversation_message(
-            msg,
-            t("enter_client_username", lang),
-            reply_markup=get_username_kb(lang)
-        )
-        print(f"🔧 Edited bot message to ask for username")
+        try:
+            msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+            from funcs.utils import edit_conversation_message
+            context.user_data["collect_order_data"]["start_msg"] = await edit_conversation_message(
+                msg,
+                t("enter_client_username", lang),
+                reply_markup=get_username_kb(lang)
+            )
+            print(f"🔧 Edited bot message to ask for username")
+        except Exception as e:
+            logger.error(f"❌ collect_name: Failed to edit message: {e}")
+            # נסה לשלוח הודעה חדשה כגיבוי
+            try:
+                new_msg = await update.effective_chat.send_message(
+                    t("enter_client_username", lang),
+                    reply_markup=get_username_kb(lang)
+                )
+                context.user_data["collect_order_data"]["start_msg"] = new_msg
+            except Exception as e2:
+                logger.error(f"❌ collect_name: Failed to send new message: {e2}")
+                return ConversationHandler.END
 
         return CollectOrderDataStates.USERNAME
 
@@ -244,11 +279,23 @@ async def collect_username(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         logger.info(f"📝 Customer username collected: {username}")
 
         # Update message to ask for phone
-        msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-        context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
-            t("enter_client_phone", lang),
-            reply_markup=get_back_cancel_kb(lang)
-        )
+        try:
+            msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+            context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
+                t("enter_client_phone", lang),
+                reply_markup=get_back_cancel_kb(lang)
+            )
+        except Exception as e:
+            logger.error(f"❌ collect_username: Failed to edit message: {e}")
+            try:
+                new_msg = await update.effective_chat.send_message(
+                    t("enter_client_phone", lang),
+                    reply_markup=get_back_cancel_kb(lang)
+                )
+                context.user_data["collect_order_data"]["start_msg"] = new_msg
+            except Exception as e2:
+                logger.error(f"❌ collect_username: Failed to send new message: {e2}")
+                return ConversationHandler.END
         
         return CollectOrderDataStates.PHONE
     except Exception as e:
@@ -505,8 +552,13 @@ async def collect_product(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     lang = context.user_data["collect_order_data"]["lang"]
     await update.callback_query.answer()
 
-    if update.callback_query.data.isdigit():
+    try:
         product_id = int(update.callback_query.data)
+        if product_id <= 0:
+            raise ValueError(f"Invalid product ID: {product_id}")
+    except (ValueError, AttributeError) as e:
+        logger.error(f"❌ collect_product: Invalid product ID in callback data: {update.callback_query.data} - {e}")
+        return CollectOrderDataStates.PRODUCT_LIST
 
         # Using Supabase only
         from db.db import get_product_by_id
@@ -1350,7 +1402,16 @@ async def step_back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         logger.warning("🔄 No conversation data - conversation already ended")
         return ConversationHandler.END
 
-    stack = context.user_data["collect_order_data"]["navigation_stack"]
+    # בדיקת אבטחה נוספת
+    if "navigation_stack" not in context.user_data["collect_order_data"]:
+        logger.error("❌ step_back: No navigation_stack in collect_order_data")
+        return ConversationHandler.END
+
+    try:
+        stack = context.user_data["collect_order_data"]["navigation_stack"]
+    except KeyError:
+        logger.error("❌ step_back: Failed to access navigation_stack")
+        return ConversationHandler.END
 
     if len(stack) <= 1:
         # אין אחורה - סגור הזמנה וחזור לתפריט ראשי
@@ -1638,20 +1699,33 @@ async def confirm_order(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     order_obj = create_order_obj(result)
     new_text = await form_confirm_order(order_obj, lang)
 
-    final_msg = await msg.edit_text(new_text, parse_mode=ParseMode.HTML)
+    try:
+        final_msg = await msg.edit_text(new_text, parse_mode=ParseMode.HTML)
+    except Exception as e:
+        logger.error(f"❌ confirm_order: Failed to edit final message: {e}")
+        # נסה לשלוח הודעה חדשה
+        try:
+            final_msg = await update.effective_chat.send_message(new_text, parse_mode=ParseMode.HTML)
+        except Exception as e2:
+            logger.error(f"❌ confirm_order: Failed to send final message: {e2}")
+            final_msg = None
 
+    # שליחת הודעה לקבוצת השליחים
     try:
         from db.db import get_bot_setting
         order_chat = get_bot_setting('order_chat') or links.ORDER_CHAT
-        if order_chat:
+        if order_chat and order_obj and hasattr(order_obj, 'id') and order_obj.id:
             # Send BILINGUAL message to courier group (RU + HE)
             crourier_text = await form_confirm_order_courier(order_obj, 'ru')  # lang param ignored - now bilingual
             from config.kb import form_courier_action_kb
             markup = await form_courier_action_kb(order_obj.id, 'ru')  # lang param ignored - now bilingual
             await context.bot.send_message(order_chat, crourier_text, parse_mode=ParseMode.HTML, reply_markup=markup)
+            logger.info(f"📨 Order notification sent to courier group: {order_chat}")
+        else:
+            logger.warning("⚠️ No order_chat configured or invalid order_obj - order notification not sent")
     except Exception as e:
+        logger.error(f"❌ Failed to send order notification to courier group: {e}")
         traceback.print_exc()
-        print(f'Failed to forward message about new order. Error: {e}')
 
     del context.user_data["collect_order_data"]
 
@@ -1663,9 +1737,24 @@ async def confirm_order(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     return ConversationHandler.END
 
 async def timeout_reached(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-    await msg.reply_text(t("timeout_error", get_user_lang(update.effective_user.id)))
-    del context.user_data["collect_order_data"]
+    logger = logging.getLogger(__name__)
+
+    # בדיקת אבטחה
+    if "collect_order_data" not in context.user_data:
+        logger.warning("⚠️ timeout_reached: No collect_order_data in context")
+        return ConversationHandler.END
+
+    try:
+        msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+        lang = get_user_lang(update.effective_user.id) if update.effective_user else 'ru'
+        await msg.reply_text(t("timeout_error", lang))
+        logger.info("⏰ Conversation timed out - cleaned up user data")
+    except Exception as e:
+        logger.error(f"❌ timeout_reached: Failed to send timeout message: {e}")
+
+    # נקה את הנתונים בכל מקרה
+    if "collect_order_data" in context.user_data:
+        del context.user_data["collect_order_data"]
 
     return ConversationHandler.END
 
