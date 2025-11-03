@@ -551,10 +551,13 @@ async def resume_order_with_product(update: Update, context: ContextTypes.DEFAUL
 
 
 async def collect_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Collecting product - Phase 3: Product Addition"""
+    """Collect product selection - Phase 3: Product Addition"""
     logger = logging.getLogger(__name__)
     lang = context.user_data["collect_order_data"]["lang"]
     await update.callback_query.answer()
+
+    # איפוס ה-flag כשמתחילים תהליך חדש
+    context.user_data["collect_order_data"]["last_action_was_product_addition"] = False
 
     try:
         product_id = int(update.callback_query.data)
@@ -766,6 +769,9 @@ async def collect_total_price(update: Update, context: ContextTypes.DEFAULT_TYPE
             # הוסף מוצר חדש
             products.append(final_product)
             logger.info(f"➕ Product added: {temp_data['name']}")
+
+        # סמן שהפעולה האחרונה הייתה הוספת מוצר
+        context.user_data["collect_order_data"]["last_action_was_product_addition"] = True
 
         # נקה את active_product
         del context.user_data["collect_order_data"]["active_product"]
@@ -1462,17 +1468,15 @@ async def step_back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     # טפל לפי סוג המצב הקודם
     if previous_state["type"] == "order":
-        # בדוק אם חזרנו מתהליך הוספת מוצר (שני PRODUCT_LIST ברציפות)
-        if (current_state.get("type") == "order" and
-            current_state.get("state") == CollectOrderDataStates.PRODUCT_LIST and
-            previous_state.get("state") == CollectOrderDataStates.PRODUCT_LIST):
-            # חזרנו מתהליך הוספת מוצר - מחק את המוצר האחרון שהתווסף
+        # בדוק אם הפעולה האחרונה הייתה הוספת מוצר - אם כן, מחק אותו
+        if context.user_data["collect_order_data"].get("last_action_was_product_addition", False):
             products = context.user_data["collect_order_data"].get("products", [])
             if products:
-                # מיין לפי added_at וקח את האחרון (החדש ביותר)
-                products.sort(key=lambda x: x.get("added_at", ""), reverse=True)
-                removed_product = products.pop(0)  # הראשון אחרי מיון = החדש ביותר
+                # מחק את המוצר האחרון שהתווסף (האחרון ברשימה)
+                removed_product = products.pop()
                 logger.info(f"🔄 Removed recently added product due to back navigation: {removed_product.get('name', 'unknown')} (added at: {removed_product.get('added_at', 'unknown')})")
+                # איפוס ה-flag
+                context.user_data["collect_order_data"]["last_action_was_product_addition"] = False
 
         return await restore_order_state(update, context, previous_state)
 
@@ -1694,6 +1698,9 @@ async def confirm_order(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     await update.callback_query.answer()
     lang = context.user_data["collect_order_data"]["lang"]
     context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.CONFIRM_OR_NOT
+
+    # איפוס ה-flag כשמאשרים הזמנה סופית
+    context.user_data["collect_order_data"]["last_action_was_product_addition"] = False
 
     msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
 
