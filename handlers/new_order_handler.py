@@ -17,10 +17,10 @@ from typing import Dict, Any, Optional
 
 # Constants לפי המפרט החדש
 SESSION_KEY = "collect_order_data"
-ST_PRODUCT = "product_selection"
-ST_QUANTITY = "quantity_selection"
-ST_PRICE = "price_selection"
-ST_SUMMARY = "summary"
+ST_PRODUCT = 10  # מספרים במקום strings
+ST_QUANTITY = 11
+ST_PRICE = 12
+ST_SUMMARY = 13
 
 def get_session(context) -> Dict[str, Any]:
     """Get session data according to the new spec"""
@@ -342,6 +342,7 @@ async def collect_username(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 async def collect_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Collecting phone."""
     logger = logging.getLogger(__name__)
+    print("🔧 collect_phone called")  # לוג חובה לפי ChatGPT
     lang = context.user_data["collect_order_data"]["lang"]
     
     if update.callback_query:
@@ -358,29 +359,22 @@ async def collect_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         # שמור את הטלפון במבנה החדש
         phone = update.message.text[:36]
         context.user_data["collect_order_data"]["customer"]["phone"] = phone
-        context.user_data["collect_order_data"]["current_state"] = CollectOrderDataStates.ADDRESS
-
-        # הוסף ל-navigation stack
-        push_navigation_state(context, "order", {
-            "state": CollectOrderDataStates.ADDRESS,
-            "action": f'enter_client_address (phone: {phone})'
-        })
 
         logger.info(f"📝 Customer phone collected: {phone}")
 
-        msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-        from funcs.utils import edit_conversation_message
-        context.user_data["collect_order_data"]["start_msg"] = await edit_conversation_message(
-            msg,
-            t("enter_client_address", lang),
-            reply_markup=get_back_cancel_kb(lang)
-        )
+    # אחרי איסוף פרטי הלקוח - התחל בחירת מוצר
+    session = get_session(context)
+    session["current_step"] = ST_PRODUCT
+    print(f"✅ set session.current_step = {ST_PRODUCT}")
 
-        return CollectOrderDataStates.ADDRESS
+    result = ST_PRODUCT
+    print(f"✅ collect_phone returning: {result}")
+    return result
 
 async def collect_address(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Collecting address."""
     logger = logging.getLogger(__name__)
+    print("🔧 collect_address called")  # לוג חובה לפי ChatGPT
     lang = context.user_data["collect_order_data"]["lang"]
     
     if not update.callback_query:
@@ -408,8 +402,11 @@ async def collect_address(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     # אחרי איסוף פרטי הלקוח - התחל בחירת מוצר
     session = get_session(context)
     session["current_step"] = ST_PRODUCT
+    print(f"✅ set session.current_step = {ST_PRODUCT}")
 
-    return await show_product(update, context)
+    result = ST_PRODUCT
+    print(f"✅ collect_address returning: {result}")
+    return result
 
 
 async def new_product_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
