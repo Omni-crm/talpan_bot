@@ -12,6 +12,43 @@ from funcs.bot_funcs import *
 import asyncio
 import datetime
 import logging
+from uuid import uuid4
+from typing import Dict, Any, Optional
+
+# Constants לפי המפרט החדש
+SESSION_KEY = "collect_order_data"
+ST_PRODUCT = "product_selection"
+ST_QUANTITY = "quantity_selection"
+ST_PRICE = "price_selection"
+ST_SUMMARY = "summary"
+
+def get_session(context) -> Dict[str, Any]:
+    """Get session data according to the new spec"""
+    return context.user_data.get(SESSION_KEY, {})
+
+def current_item(session) -> Optional[Dict[str, Any]]:
+    """Get current item being edited"""
+    cid = session.get("current_item_id")
+    for it in session.get("order_items", []):
+        if it.get("id") == cid:
+            return it
+    return None
+
+def ensure_item(session) -> Dict[str, Any]:
+    """Ensure we have a current item, create if needed"""
+    it = current_item(session)
+    if not it:
+        it = {"id": str(uuid4())}
+        session["order_items"].append(it)
+        session["current_item_id"] = it["id"]
+    return it
+
+def remove_current_item(session):
+    """Remove current item from order_items"""
+    cid = session.get("current_item_id")
+    if cid:
+        session["order_items"] = [it for it in session.get("order_items", []) if it.get("id") != cid]
+        session["current_item_id"] = None
 
 def push_navigation_state(context, state_type, state_data):
     """דוחף מצב חדש למחסנית הניווט"""
@@ -131,7 +168,7 @@ async def start_collect_data(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     start_msg = await send_message_with_cleanup(update, context, t("enter_client_name", lang), reply_markup=get_cancel_kb(lang))
 
-    # אתחול מבנה הנתונים לפי התכנית
+    # אתחול מבנה הנתונים לפי המפרט החדש
     context.user_data["collect_order_data"] = {
         # נתוני לקוח בסיסיים
         "customer": {
@@ -141,22 +178,19 @@ async def start_collect_data(update: Update, context: ContextTypes.DEFAULT_TYPE)
             "address": None
         },
 
-        # רשימת מוצרים
-        "products": [],
+        # לפי המפרט החדש
+        "current_step": "product_selection",  # התחלה עם בחירת מוצר
+        "order_items": [],  # רשימת הפריטים
+        "current_item_id": None,  # הפריט הנוכחי
 
-        # מצב נוכחי של ההזמנה
-        "current_state": CollectOrderDataStates.NAME,
-
-        # מוצר שנמצא כרגע בעריכה/הוספה (אם קיים)
-        "active_product": None,
-
-        # היסטוריית ניווט
-        "navigation_stack": [],
-
-        # נתונים ישנים לתאימות (זמני)
+        # נתונים נוספים
         "start_msg": start_msg,
-        "step": CollectOrderDataStates.START,
-        "lang": lang
+        "lang": lang,
+        "meta": {
+            "created_at": datetime.datetime.now().isoformat(),
+            "updated_at": datetime.datetime.now().isoformat(),
+            "ttl_sec": 3600
+        }
     }
 
     # הוספת השלב הראשון ל-navigation stack
@@ -551,256 +585,52 @@ async def resume_order_with_product(update: Update, context: ContextTypes.DEFAUL
 
 
 async def collect_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Collect product selection - Phase 3: Product Addition"""
-    logger = logging.getLogger(__name__)
-    lang = context.user_data["collect_order_data"]["lang"]
+    """Collect product selection according to new spec"""
+    session = get_session(context)
     await update.callback_query.answer()
 
-    # איפוס ה-flag כשמתחילים תהליך חדש
-    context.user_data["collect_order_data"]["last_action_was_product_addition"] = False
+    _, value = update.callback_query.data.split(":", 1)
+    product_id = int(value)
 
-    try:
-        product_id = int(update.callback_query.data)
-        if product_id <= 0:
-            raise ValueError(f"Invalid product ID: {product_id}")
-    except (ValueError, AttributeError) as e:
-        logger.error(f"❌ collect_product: Invalid product ID in callback data: {update.callback_query.data} - {e}")
-        return CollectOrderDataStates.PRODUCT_LIST
-
-    # Using Supabase only
+    # Get product from DB
     from db.db import get_product_by_id
     product = get_product_by_id(product_id)
 
     if product:
-        # יצירת active_product חדש
-        context.user_data["collect_order_data"]["active_product"] = {
-            "index": len(context.user_data["collect_order_data"]["products"]),  # אינדקס ברשימה (מוצר חדש)
-            "state": ProductStates.ENTER_QUANTITY,
-            "temp_data": {
-                "selected_product_id": product_id,
-                "name": product.get('name', ''),
-                "stock": product.get('stock', 0),
-                "quantity": None,
-                "unit_price": None
-            }
-        }
+        # Create new item
+        it = ensure_item(session)
+        # Reset quantity/price if changing product
+        if it.get("product") and it["product"] != product['name']:
+            it.pop("quantity", None)
+            it.pop("price", None)
+        it["product"] = product['name']
 
-        # הוסף ל-navigation stack
-        push_navigation_state(context, "product", {
-            "product_index": len(context.user_data["collect_order_data"]["products"]),
-            "state": ProductStates.ENTER_QUANTITY,
-            "action": f'selected_product_{product.get("name", "")}'
-        })
-
-        # עדכן מצב נוכחי
-        context.user_data["collect_order_data"]["current_state"] = ProductStates.ENTER_QUANTITY
-
-        logger.info(f"🛒 Selected product: {product.get('name', '')} (ID: {product_id})")
-
-        msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-        from config.kb import get_select_quantity_kb
-        context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
-            t("choose_or_enter_quantity", lang),
-            reply_markup=get_select_quantity_kb(lang)
-        )
-
-        return CollectOrderDataStates.QUANTITY
+        session["current_step"] = ST_QUANTITY
+        return await show_quantity(update, context)
     else:
         logger.error(f"❌ Product not found: ID {product_id}")
-        # חזור לרשימת מוצרים
-        return await restore_order_state(update, context, {
-            "state": CollectOrderDataStates.PRODUCT_LIST,
-            "action": "product_not_found"
-        })
-
-    logger.warning("⚠️ Invalid product selection data")
-    return CollectOrderDataStates.PRODUCT_LIST
+        return await show_product(update, context)
 
 async def collect_quantity(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Collecting quantity - Phase 3: Product Addition"""
-    logger = logging.getLogger(__name__)
-    lang = context.user_data["collect_order_data"]["lang"]
+    """Collect quantity according to new spec"""
+    session = get_session(context)
+    _, value = update.callback_query.data.split(":", 1)
+    qty = int(value)
 
-    # בדוק שיש active_product
-    if "active_product" not in context.user_data["collect_order_data"]:
-        logger.error("❌ No active_product in collect_quantity")
-        return await restore_order_state(update, context, {
-            "state": CollectOrderDataStates.PRODUCT_LIST,
-            "action": "no_active_product"
-        })
-
-    active_product = context.user_data["collect_order_data"]["active_product"]
-
-    quantity = None
-
-    if update.callback_query:
-        await update.callback_query.answer()
-        # קבלת כמות מכפתור
-        if update.callback_query.data.isdigit():
-            quantity = int(update.callback_query.data)
-        else:
-            logger.warning(f"⚠️ Invalid callback data in collect_quantity: {update.callback_query.data}")
-            return CollectOrderDataStates.QUANTITY
-    else:
-        await update.effective_message.delete()
-        # קבלת כמות מההודעה
-        try:
-            quantity = int(update.message.text[:100])
-        except ValueError:
-            logger.warning("⚠️ Invalid quantity format")
-            # הצג הודעת שגיאה וחזור להזנת כמות
-            msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-            from config.kb import get_select_quantity_kb
-            await msg.edit_text(
-                t("invalid_quantity", lang),
-                reply_markup=get_select_quantity_kb(lang)
-            )
-            return CollectOrderDataStates.QUANTITY
-
-    # בדוק מלאי
-    available_stock = active_product["temp_data"]["stock"]
-    if available_stock < quantity:
-        logger.warning(f"⚠️ Not enough stock: requested {quantity}, available {available_stock}")
-        msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-        # הצג הודעת שגיאה עם כפתורים לחזרה או ביטול
-        from config.kb import get_back_cancel_kb
-        await msg.edit_text(
-            t("not_enough_stock", lang) + "\n" +
-            t("available_stock", lang).format(available_stock),
-            reply_markup=get_back_cancel_kb(lang)
-        )
-        return CollectOrderDataStates.QUANTITY
-
-    # עדכן active_product עם הכמות
-    active_product["temp_data"]["quantity"] = quantity
-    active_product["state"] = ProductStates.ENTER_PRICE
-
-    # עדכן מצב נוכחי
-    context.user_data["collect_order_data"]["current_state"] = ProductStates.ENTER_PRICE
-
-    # הוסף ל-navigation stack
-    push_navigation_state(context, "product", {
-        "product_index": active_product["index"],
-        "state": ProductStates.ENTER_PRICE,
-        "action": f'quantity_entered_{quantity}'
-    })
-
-    logger.info(f"📦 Quantity set: {quantity} for product {active_product['temp_data']['name']}")
-
-    # עבור להזנת מחיר
-    msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-    prompt = t("choose_or_enter_total_price", lang)
-    if active_product["temp_data"]["name"]:
-        prompt = f"{t('enter_price_for', lang)} {active_product['temp_data']['name']}"
-
-    from config.kb import get_select_price_kb
-    context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
-        prompt,
-        reply_markup=get_select_price_kb(lang)
-    )
-
-    return CollectOrderDataStates.TOTAL_PRICE
+    it = ensure_item(session)
+    it["quantity"] = qty
+    session["current_step"] = ST_PRICE
+    return await show_price(update, context)
 async def collect_total_price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Collecting total_price - Phase 3: Product Addition Completion"""
-    logger = logging.getLogger(__name__)
-    lang = context.user_data["collect_order_data"]["lang"]
+    """Collect price according to new spec"""
+    session = get_session(context)
+    _, value = update.callback_query.data.split(":", 1)
+    price = int(value)
 
-    # בדוק שיש active_product
-    if "active_product" not in context.user_data["collect_order_data"]:
-        logger.error("❌ No active_product in collect_total_price")
-        return await restore_order_state(update, context, {
-            "state": CollectOrderDataStates.PRODUCT_LIST,
-            "action": "no_active_product_price"
-        })
-
-    active_product = context.user_data["collect_order_data"]["active_product"]
-    temp_data = active_product["temp_data"]
-
-    unit_price = None
-
-    if update.callback_query:
-        await update.callback_query.answer()
-
-        if update.callback_query.data.isdigit():
-            unit_price = float(update.callback_query.data[:11])
-    else:
-        await update.effective_message.delete()
-        try:
-            unit_price = float(update.effective_message.text[:11])
-        except ValueError:
-            logger.warning("⚠️ Invalid price format")
-            # הצג הודעת שגיאה וחזור להזנת מחיר
-            msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-            from config.kb import get_select_price_kb
-            prompt = t("invalid_price", lang)
-            if temp_data.get("name"):
-                prompt = f"{t('enter_price_for', lang)} {temp_data['name']}"
-            await msg.edit_text(
-                prompt,
-                reply_markup=get_select_price_kb(lang)
-            )
-            return CollectOrderDataStates.TOTAL_PRICE
-
-    if unit_price is not None:
-        # המחיר שהוזן הוא המחיר הכולל (לא מחיר יחידה!)
-        total_price = unit_price
-        unit_price_calculated = total_price / temp_data["quantity"]
-
-        # צור את המוצר הסופי עם timestamp
-        import datetime
-        final_product = {
-            "id": temp_data["selected_product_id"],
-            "name": temp_data["name"],
-            "quantity": temp_data["quantity"],
-            "unit_price": unit_price_calculated,  # מחיר יחידה מחושב
-            "total_price": total_price,  # המחיר שהוזן על ידי המשתמש
-            "added_at": datetime.datetime.now().isoformat()  # timestamp להבחנה
-        }
-
-        # הוסף לרשימת מוצרים (במקום הנכון לפי אינדקס)
-        product_index = active_product["index"]
-        products = context.user_data["collect_order_data"]["products"]
-
-        if product_index < len(products):
-            # החלף מוצר קיים (עריכה)
-            products[product_index] = final_product
-            logger.info(f"✏️ Product updated at index {product_index}: {temp_data['name']}")
-        else:
-            # הוסף מוצר חדש
-            products.append(final_product)
-            logger.info(f"➕ Product added: {temp_data['name']}")
-
-        # סמן שהפעולה האחרונה הייתה הוספת מוצר
-        context.user_data["collect_order_data"]["last_action_was_product_addition"] = True
-
-        # נקה את active_product
-        del context.user_data["collect_order_data"]["active_product"]
-
-        # עדכן מצב נוכחי
-        context.user_data["collect_order_data"]["current_state"] = CollectOrderDataStates.PRODUCT_LIST
-
-        # הוסף ל-navigation stack - חזרה לרשימת מוצרים
-        push_navigation_state(context, "order", {
-            "state": CollectOrderDataStates.PRODUCT_LIST,
-            "action": f'product_added_{temp_data["name"]}'
-        })
-
-        logger.info(f"💰 Price set: {unit_price}₪, Total: {total_price}₪ for {temp_data['name']}")
-
-        # הצג רשימת מוצרים עם אפשרות הוספה/עריכה/אישור
-        msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-        from funcs.utils import create_product_list_text
-        product_list_text = create_product_list_text(context.user_data["collect_order_data"]["products"], lang)
-
-    from config.kb import get_product_management_kb
-    context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
-        product_list_text,
-        reply_markup=get_product_management_kb(products, lang),
-        parse_mode=ParseMode.HTML
-    )
-
-    return CollectOrderDataStates.PRODUCT_LIST
-
+    it = ensure_item(session)
+    it["price"] = price
+    session["current_step"] = ST_SUMMARY
+    return await show_summary(update, context)
 async def add_more_products(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Add more products - Phase 3: Product Addition"""
     logger = logging.getLogger(__name__)
@@ -1426,147 +1256,98 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return ConversationHandler.END
 
 async def step_back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """חזרה חכמה עם טיפול בכל התרחישים"""
-    logger = logging.getLogger(__name__)
-    logger.info("🔄 step_back called - Advanced navigation")
+    """חזרה לפי חוקי המפרט החדש"""
+    session = get_session(context)
+    step = session.get("current_step")
+    it = current_item(session)
 
-    await update.callback_query.answer()
+    if step == ST_SUMMARY:
+        # מסיכום → לבחירת מחיר (לא מוחקים כלום)
+        session["current_step"] = ST_PRICE
+        return await show_price(update, context)
+    elif step == ST_PRICE and it:
+        # ממחיר → לכמות (מוחקים מחיר)
+        it.pop("price", None)
+        session["current_step"] = ST_QUANTITY
+        return await show_quantity(update, context)
+    elif step == ST_QUANTITY and it:
+        # מכמות → למוצר (מוחקים כמות)
+        it.pop("quantity", None)
+        session["current_step"] = ST_PRODUCT
+        return await show_product(update, context)
+    elif step == ST_PRODUCT:
+        # ממוצר → מסיכום או להתחלה
+        if it:
+            remove_current_item(session)
+        if session.get("order_items"):
+            session["current_step"] = ST_SUMMARY
+            return await show_summary(update, context)
+        else:
+            # חזרה לתחילת הזמנה
+            await update.callback_query.edit_message_text("הזמנה בוטלה - חוזרים לתפריט הראשי")
+            return ConversationHandler.END
 
-    # Check if conversation data exists
-    if "collect_order_data" not in context.user_data:
-        logger.warning("🔄 No conversation data - conversation already ended")
-        return ConversationHandler.END
+    # fallback
+    await update.callback_query.answer("אין שלב קודם")
+    return session.get("current_step", ST_PRODUCT)
 
-    # בדיקת אבטחה נוספת
-    if "navigation_stack" not in context.user_data["collect_order_data"]:
-        logger.error("❌ step_back: No navigation_stack in collect_order_data")
-        return ConversationHandler.END
+# פונקציות תצוגה לפי המפרט החדש
+async def show_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """הצג בחירת מוצר"""
+    session = get_session(context)
+    lang = session.get("lang", "he")
 
-    try:
-        stack = context.user_data["collect_order_data"]["navigation_stack"]
-    except KeyError:
-        logger.error("❌ step_back: Failed to access navigation_stack")
-        return ConversationHandler.END
+    txt = t("choose_product", lang)
+    if update.callback_query:
+        await update.callback_query.edit_message_text(txt, reply_markup=get_products_markup(update.effective_user))
+    else:
+        await update.message.reply_text(txt, reply_markup=get_products_markup(update.effective_user))
 
-    if len(stack) <= 1:
-        # אין אחורה - סגור הזמנה וחזור לתפריט ראשי
-        logger.info("🔄 No more steps back - ending conversation")
-        msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-        await msg.delete()
-        del context.user_data["collect_order_data"]
+async def show_quantity(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """הצג בחירת כמות"""
+    session = get_session(context)
+    lang = session.get("lang", "he")
 
-        # Return to main menu
-        from funcs.bot_funcs import start
-        await start(update, context)
+    txt = t("choose_or_enter_quantity", lang)
+    await update.callback_query.edit_message_text(txt, reply_markup=get_select_quantity_kb(lang))
 
-        return ConversationHandler.END
+async def show_price(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """הצג בחירת מחיר"""
+    session = get_session(context)
+    lang = session.get("lang", "he")
 
-    # אם אנחנו במצב NAME (הראשון) - סיים שיחה במקום לנסות לשחזר
-    current_state_data = stack[-1] if stack else None
-    if current_state_data and current_state_data.get("state") == CollectOrderDataStates.NAME:
-        logger.info("🔄 At first state (NAME) - ending conversation")
-        msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-        await msg.delete()
-        del context.user_data["collect_order_data"]
+    txt = t("choose_or_enter_total_price", lang)
+    await update.callback_query.edit_message_text(txt, reply_markup=get_select_price_kb(lang))
 
-        # Return to main menu
-        from funcs.bot_funcs import start
-        await start(update, context)
+def format_summary(session) -> str:
+    """פורמט סיכום ההזמנה"""
+    lang = session.get("lang", "he")
+    lines = [t("order_summary", lang)]
+    total = 0
+    for it in session.get("order_items", []):
+        p, q, r = it.get("product"), it.get("quantity"), it.get("price")
+        if p and q and r:
+            lines.append(f"• {p} × {q} = ₪{r}")
+            total += r
+    lines.append(f"{t('total', lang)}: ₪{total}")
+    return "\n".join(lines)
 
-        return ConversationHandler.END
+async def show_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """הצג סיכום הזמנה"""
+    session = get_session(context)
+    txt = format_summary(session)
+    lang = session.get("lang", "he")
 
-    # הוצא את המצב הנוכחי
-    current_state = stack.pop()
-    logger.info(f"🔄 Popped current state: {current_state}")
+    # יצירת כפתורים לסיכום
+    from config.kb import InlineKeyboardButton, InlineKeyboardMarkup
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton(t("btn_confirm_order", lang), callback_data="confirm")],
+        [InlineKeyboardButton(t("btn_add", lang), callback_data="add_new_after_selection")],
+        [InlineKeyboardButton(t("btn_back", lang), callback_data="back")],
+        [InlineKeyboardButton(t("btn_cancel", lang), callback_data="cancel")]
+    ])
 
-    # קבל את המצב הקודם
-    previous_state = stack[-1]
-    logger.info(f"🔄 Going back to: {previous_state}")
-
-    # טפל לפי סוג המצב הקודם
-    state_type = previous_state.get("type")
-
-    if state_type == "order":
-        # אם חוזרים אחורה מרשימת מוצרים עם מוצרים, מחק את המוצר האחרון
-        if previous_state.get("state") == CollectOrderDataStates.PRODUCT_LIST:
-            products = context.user_data["collect_order_data"].get("products", [])
-            if products:
-                # מחק את המוצר האחרון בהדרגה (step-by-step deletion)
-                removed_product = products.pop()
-                logger.info(f"🔄 Step-back deletion: Removed {removed_product.get('name', 'unknown')}")
-
-                # אם עדיין יש מוצרים - הצג רשימת מוצרים מעודכנת
-                if products:
-                    msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-                    from funcs.utils import create_product_list_text
-                    lang = context.user_data["collect_order_data"]["lang"]
-                    product_list_text = create_product_list_text(products, lang)
-
-                    from config.kb import get_product_management_kb
-                    context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
-                        f"🗑️ {t('product_deleted', lang)}: {removed_product.get('name', 'מוצר')}\n\n{product_list_text}",
-                        reply_markup=get_product_management_kb(products, lang),
-                        parse_mode=ParseMode.HTML
-                    )
-                    return CollectOrderDataStates.PRODUCT_LIST
-                else:
-                    # אין יותר מוצרים - חזור לבחירת מוצר ראשון
-                    return await restore_order_state(update, context, {
-                        "state": CollectOrderDataStates.PRODUCT,
-                        "action": "all_products_deleted"
-                    })
-            else:
-                # אין מוצרים - חזור לבחירת מוצר ראשון
-                return await restore_order_state(update, context, {
-                    "state": CollectOrderDataStates.PRODUCT,
-                    "action": "back_from_empty_product_list"
-                })
-        return await restore_order_state(update, context, previous_state)
-
-    elif state_type == "edit":
-        # בטל עריכה - החזר לנתונים המקוריים
-        active_product = context.user_data["collect_order_data"].get("active_product")
-        if active_product and active_product.get("edit_mode"):
-            product_index = active_product.get("index")
-            products = context.user_data["collect_order_data"].get("products", [])
-            if product_index is not None and 0 <= product_index < len(products):
-                original_data = active_product.get("original_data")
-                if original_data:
-                    products[product_index] = original_data.copy()
-                    logger.info(f"🔄 Reverted product {product_index} to original data")
-            del context.user_data["collect_order_data"]["active_product"]
-        return await restore_edit_state(update, context, previous_state)
-
-    elif state_type == "product":
-        # טפל בחזרה אחורה בתוך מוצר
-        active_product = context.user_data["collect_order_data"].get("active_product")
-        if active_product and not active_product.get("edit_mode"):
-            current_state = active_product.get("state")
-
-            if current_state == ProductStates.ENTER_PRICE:
-                # חזור לכמות
-                return await show_quantity_for_existing_product(update, context, active_product["index"])
-            elif current_state == ProductStates.ENTER_QUANTITY:
-                # חזור לבחירת מוצר
-                return await show_product_selection_for_existing(update, context, active_product["index"])
-            elif current_state == ProductStates.SELECT_PRODUCT:
-                # חזור לרשימת מוצרים
-                return await restore_order_state(update, context, {
-                    "state": CollectOrderDataStates.PRODUCT_LIST,
-                    "action": "back_from_product_selection"
-                })
-
-        # ביטול הוספה לא שלמה
-        if active_product:
-            logger.info("🔄 Cancelled incomplete product addition")
-            del context.user_data["collect_order_data"]["active_product"]
-        return await restore_product_state(update, context, previous_state)
-
-
-    # אם לא מצא סוג - סגור הזמנה
-    logger.error(f"🔄 Unknown state type: {previous_state}")
-    return ConversationHandler.END
-
+    await update.callback_query.edit_message_text(txt, reply_markup=kb)
 
 async def restore_order_state(update, context, state_data):
     """שחזור מצב הזמנה כללי"""
@@ -1883,26 +1664,20 @@ states = {
         MessageHandler(filters.Regex('^.+$'), collect_address),
         MessageHandler(filters.LOCATION, collect_address),
     ],
-    CollectOrderDataStates.PRODUCT_LIST: [
-        CallbackQueryHandler(new_product_name, '^create$'),
-        CallbackQueryHandler(collect_product, r'^\d+$'),
-        CallbackQueryHandler(add_more_products, '^add$'),
-        CallbackQueryHandler(go_to_confirm, '^to_confirm$'),
+    ST_PRODUCT: [
+        CallbackQueryHandler(collect_product, r'^SET_PRODUCT:.+'),
     ],
-    CollectOrderDataStates.QUANTITY: [
-        CallbackQueryHandler(collect_quantity, r'^\d+$'),
-        MessageHandler(filters.Regex(r'^\d+$'), collect_quantity)
+    ST_QUANTITY: [
+        CallbackQueryHandler(collect_quantity, r'^SET_QTY:\d+'),
     ],
-    CollectOrderDataStates.TOTAL_PRICE: [
-        MessageHandler(filters.Regex(r'^\d+$'), collect_total_price),
-        CallbackQueryHandler(collect_total_price, r'^\d+$')
+    ST_PRICE: [
+        CallbackQueryHandler(collect_total_price, r'^SET_PRICE:\d+'),
     ],
-    CollectOrderDataStates.ADD_MORE_PRODUCTS_OR_CONFIRM: [
-        CallbackQueryHandler(go_to_confirm, '^to_confirm$'),
-        CallbackQueryHandler(add_more_products, '^add$'),
-    ],
-    CollectOrderDataStates.CONFIRM_OR_NOT: [
-        CallbackQueryHandler(confirm_order, '^confirm$')
+    ST_SUMMARY: [
+        CallbackQueryHandler(go_to_confirm, '^confirm$'),
+        CallbackQueryHandler(add_more_products, '^add_new_after_selection$'),
+        CallbackQueryHandler(step_back, '^back$'),
+        CallbackQueryHandler(cancel, '^cancel$'),
     ],
     EditStates.SELECT_EDIT_ACTION: [
         CallbackQueryHandler(edit_product_quantity, '^edit_quantity$'),
