@@ -139,6 +139,51 @@ async def cleanup_start_messages(update: Update, context: ContextTypes.DEFAULT_T
         # לא נזרוק שגיאה - פונקציית ניקוי לא צריכה להפיל את הבוט
 
 
+def is_in_conversation(context: ContextTypes.DEFAULT_TYPE) -> bool:
+    """
+    בודק אם המשתמש נמצא כרגע בתוך ConversationHandler
+
+    זה חשוב לניווט - כפתורי חזור צריכים להתנהג שונה בתוך conversation
+    לעומת ניווט רגיל בין תפריטים.
+
+    הבדיקה מבוססת על נתוני context שמאפיינים conversation פעיל:
+    - add_product: הוספת מוצר חדש
+    - edit_product_data: עריכת מוצר קיים
+    - new_order_data: יצירת הזמנה חדשה
+    - edit_crude_data: עריכת מלאי
+    - template_data: עריכת תבנית
+    - session_data: ניהול סשנים
+
+    Returns:
+        bool: True אם המשתמש בתוך conversation, False אחרת
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    # רשימת כל המפתחות שמציינים conversation פעיל
+    conversation_indicators = [
+        'add_product',           # הוספת מוצר חדש
+        'edit_product_data',     # עריכת מוצר קיים
+        'new_order_data',        # יצירת הזמנה חדשה
+        'edit_crude_data',       # עריכת מלאי
+        'template_data',         # עריכת תבנית
+        'session_data',          # ניהול סשנים
+        'create_template_data',  # יצירת תבנית חדשה
+        'send_template_data',    # שליחת תבנית
+        'end_shift_data',        # סיום משמרת
+        'change_links_data',     # שינוי קישורים
+        'make_session_data'      # יצירת סשן
+    ]
+
+    for indicator in conversation_indicators:
+        if indicator in context.user_data:
+            logger.debug(f"🗣️ User detected in conversation: {indicator}")
+            return True
+
+    logger.debug("📱 User not in conversation - regular navigation")
+    return False
+
+
 async def send_message_with_cleanup(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str, **kwargs):
     """
     פונקציה כללית לשליחת הודעה עם ניקוי אוטומטי של הודעות קודמות

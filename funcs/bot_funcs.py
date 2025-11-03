@@ -1495,25 +1495,130 @@ async def show_menu_edit_crude_stock(update: Update, context: ContextTypes.DEFAU
     # Save ID for future cleanup
     save_message_id(context, msg.message_id)
 
+
+async def handle_conversation_back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    טיפול בכפתור חזור בתוך ConversationHandler
+
+    כשמשתמש לוחץ על חזור בזמן שהוא בתוך conversation,
+    אנחנו צריכים לטפל בזה בצורה שונה מניווט רגיל.
+
+    הפונקציה מזהה את סוג ה-conversation ומפנה לטיפול המתאים:
+    - edit_product: חזרה לרשימת מלאי
+    - add_product: חזרה לתפריט מלאי
+    - new_order: חזרה לתפריט ראשי
+    - וכו'
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    # זיהוי סוג ה-conversation
+    conversation_name = context.user_data.get('conversation_name')
+
+    logger.info(f"🔙 Handling back button in conversation: {conversation_name}")
+
+    try:
+        if 'edit_product_data' in context.user_data:
+            # אנחנו בעריכת מוצר - חזרה לרשימת מלאי
+            logger.debug("🔙 Back from edit_product conversation")
+            from handlers.edit_product_handler import cancel
+            await cancel(update, context)
+
+        elif 'add_product' in context.user_data:
+            # אנחנו בהוספת מוצר - חזרה לתפריט מלאי
+            logger.debug("🔙 Back from add_product conversation")
+            from handlers.manage_stock_handler import cancel_stock_management
+            await cancel_stock_management(update, context)
+
+        elif 'new_order_data' in context.user_data:
+            # אנחנו בהזמנה חדשה - חזרה לתפריט ראשי
+            logger.debug("🔙 Back from new_order conversation")
+            await start(update, context)
+
+        elif 'edit_crude_data' in context.user_data:
+            # אנחנו בעריכת מלאי - חזרה לתפריט מלאי
+            logger.debug("🔙 Back from edit_crude conversation")
+            await show_menu_edit_crude_stock(update, context, from_back_button=True)
+
+        elif 'template_data' in context.user_data:
+            # אנחנו בעריכת תבנית - חזרה לתפריט תבניות
+            logger.debug("🔙 Back from template conversation")
+            from funcs.bot_funcs import show_templates
+            await show_templates(update, context)
+
+        elif 'session_data' in context.user_data:
+            # אנחנו בניהול סשנים - חזרה לתפריט סשנים
+            logger.debug("🔙 Back from session conversation")
+            await show_tg_sessions(update, context)
+
+        elif 'create_template_data' in context.user_data:
+            # אנחנו ביצירת תבנית - חזרה לתפריט תבניות
+            logger.debug("🔙 Back from create_template conversation")
+            from funcs.bot_funcs import show_templates
+            await show_templates(update, context)
+
+        elif 'send_template_data' in context.user_data:
+            # אנחנו בשליחת תבנית - חזרה לתפריט תבניות
+            logger.debug("🔙 Back from send_template conversation")
+            from funcs.bot_funcs import show_templates
+            await show_templates(update, context)
+
+        elif 'end_shift_data' in context.user_data:
+            # אנחנו בסיום משמרת - חזרה לתפריט ראשי
+            logger.debug("🔙 Back from end_shift conversation")
+            await start(update, context)
+
+        elif 'change_links_data' in context.user_data:
+            # אנחנו בשינוי קישורים - חזרה לתפריט ניהול
+            logger.debug("🔙 Back from change_links conversation")
+            await show_admin_action_kb(update, context, from_back_button=True)
+
+        elif 'make_session_data' in context.user_data:
+            # אנחנו ביצירת סשן - חזרה לתפריט סשנים
+            logger.debug("🔙 Back from make_session conversation")
+            await show_tg_sessions(update, context)
+
+        else:
+            # conversation לא מזוהה - חזרה לעמוד הבית
+            logger.warning(f"🔙 Unknown conversation type, falling back to home")
+            await start(update, context)
+
+    except Exception as e:
+        logger.error(f"❌ Error in handle_conversation_back: {e}")
+        # במקרה של שגיאה, חזרה לעמוד הבית
+        await start(update, context)
+
+
 # Central navigation handler
 async def handle_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
-    Handle navigation buttons (back and home) - ONLY for regular menus
+    Handle navigation buttons (back and home) - IMPROVED for conversations
     CRITICAL: Handles errors gracefully - messages may already be deleted
+
+    שיפור קריטי: הפונקציה עכשיו יודעת להבדיל בין:
+    1. ניווט רגיל בין תפריטים (כשהמשתמש לא בתוך conversation)
+    2. ניווט בתוך conversation (כשהמשתמש בעיצומו של תהליך)
     """
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
-    
+
     try:
         if update.callback_query.data == "back":
-            # Try to get previous menu
+            # הוספה: בדיקה אם אנחנו בתוך conversation
+            from funcs.utils import is_in_conversation
+            if is_in_conversation(context):
+                # טיפול מיוחד ל-conversation
+                await handle_conversation_back(update, context)
+                return
+
+            # לוגיקה רגילה של ניווט
             previous_menu = get_previous_menu(context)
             if not previous_menu:
                 # אין היסטוריה - חזור לעמוד הבית
                 # send_message_with_cleanup in start() will handle cleanup
                 await start(update, context)
                 return
-            
+
             # Temporarily store the menu we're going back to
             menu_name = previous_menu['menu']
             print(f"🔍 Attempting to go back to: {menu_name}")
