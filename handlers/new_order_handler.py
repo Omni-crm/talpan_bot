@@ -743,13 +743,15 @@ async def collect_total_price(update: Update, context: ContextTypes.DEFAULT_TYPE
         total_price = unit_price
         unit_price_calculated = total_price / temp_data["quantity"]
 
-        # צור את המוצר הסופי
+        # צור את המוצר הסופי עם timestamp
+        import datetime
         final_product = {
             "id": temp_data["selected_product_id"],
             "name": temp_data["name"],
             "quantity": temp_data["quantity"],
             "unit_price": unit_price_calculated,  # מחיר יחידה מחושב
-            "total_price": total_price  # המחיר שהוזן על ידי המשתמש
+            "total_price": total_price,  # המחיר שהוזן על ידי המשתמש
+            "added_at": datetime.datetime.now().isoformat()  # timestamp להבחנה
         }
 
         # הוסף לרשימת מוצרים (במקום הנכון לפי אינדקס)
@@ -1464,11 +1466,13 @@ async def step_back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         if (current_state.get("type") == "order" and
             current_state.get("state") == CollectOrderDataStates.PRODUCT_LIST and
             previous_state.get("state") == CollectOrderDataStates.PRODUCT_LIST):
-            # חזרנו מתהליך הוספת מוצר - מחק את המוצר האחרון
+            # חזרנו מתהליך הוספת מוצר - מחק את המוצר האחרון שהתווסף
             products = context.user_data["collect_order_data"].get("products", [])
             if products:
-                removed_product = products.pop()
-                logger.info(f"🔄 Removed product due to back navigation: {removed_product.get('name', 'unknown')}")
+                # מיין לפי added_at וקח את האחרון (החדש ביותר)
+                products.sort(key=lambda x: x.get("added_at", ""), reverse=True)
+                removed_product = products.pop(0)  # הראשון אחרי מיון = החדש ביותר
+                logger.info(f"🔄 Removed recently added product due to back navigation: {removed_product.get('name', 'unknown')} (added at: {removed_product.get('added_at', 'unknown')})")
 
         return await restore_order_state(update, context, previous_state)
 
