@@ -8,73 +8,131 @@ from config.translations import t, get_user_lang
 from funcs.utils import *
 from funcs.bot_funcs import *
 import asyncio
+import datetime
 
 class DebugConversationHandler(ConversationHandler):
-    """ConversationHandler with debug logging"""
-    
-    async def handle_update(self, update, application, check_result, context):
-        """Override to add logging"""
-        print(f"🔍 ConversationHandler.handle_update called")
-        print(f"🔍 Update ID: {update.update_id}")
-        print(f"🔍 Check result: {check_result}")
-        
-        # Try to get conversation key safely
-        try:
-            key = self._get_key(update)
-            current_state = self.conversations.get(key, 'NO STATE')
-            print(f"🔍 Conversation key: {key}")
-            print(f"🔍 Current conversation state: {current_state}")
-        except Exception as e:
-            print(f"🔍 Could not get conversation key: {e}")
-        
-        result = await super().handle_update(update, application, check_result, context)
-        
-        # Try to get state after handling
-        try:
-            key = self._get_key(update)
-            new_state = self.conversations.get(key, 'NO STATE')
-            print(f"🔍 After handling, conversation state: {new_state}")
-        except Exception as e:
-            print(f"🔍 Could not get conversation state after handling: {e}")
-        
-        print(f"🔍 Result: {result}")
-        
-        return result
-    
+    """ConversationHandler with comprehensive debug logging"""
+
     def check_update(self, update):
-        """Override to add logging"""
-        print(f"🔍 ConversationHandler.check_update called")
-        print(f"🔍 Update type: {type(update).__name__}")
-        
-        # Extract user and chat info
+        """Override to log conversation entry points"""
+        import logging
+        logger = logging.getLogger(__name__)
+
+        # Get user info
         user_id = None
         chat_id = None
-        if hasattr(update, 'effective_user') and update.effective_user:
-            user_id = update.effective_user.id
-        if hasattr(update, 'effective_chat') and update.effective_chat:
-            chat_id = update.effective_chat.id
-        
-        print(f"🔍 User ID: {user_id}, Chat ID: {chat_id}")
-        
-        if hasattr(update, 'message') and update.message:
-            print(f"🔍 Message text: {update.message.text if update.message.text else 'NO TEXT'}")
-            print(f"🔍 Message chat ID: {update.message.chat.id}")
-            print(f"🔍 Message user ID: {update.message.from_user.id}")
-        if hasattr(update, 'callback_query') and update.callback_query:
-            print(f"🔍 Callback data: {update.callback_query.data}")
-            print(f"🔍 Callback chat ID: {update.callback_query.message.chat.id}")
-            print(f"🔍 Callback user ID: {update.callback_query.from_user.id}")
-        
-        # Try to see current conversations
+        callback_data = None
+        message_text = None
+
         try:
-            # Access the conversation dict through the parent class
-            conv_dict = getattr(self, '_conversations', {})
-            print(f"🔍 Active conversations: {list(conv_dict.keys())}")
-        except Exception as e:
-            print(f"🔍 Could not access conversations: {e}")
-        
+            if hasattr(update, 'effective_user') and update.effective_user:
+                user_id = update.effective_user.id
+            if hasattr(update, 'effective_chat') and update.effective_chat:
+                chat_id = update.effective_chat.id
+
+            if hasattr(update, 'callback_query') and update.callback_query:
+                callback_data = update.callback_query.data
+            elif hasattr(update, 'message') and update.message:
+                message_text = update.message.text
+        except:
+            pass
+
+        logger.info(f"🔍 CONVERSATION CHECK: User {user_id}, Chat {chat_id}, Type: {type(update).__name__}")
+
         result = super().check_update(update)
-        print(f"🔍 Check result: {result}")
+
+        if result:
+            trigger = callback_data or message_text or 'unknown'
+            target_state = result[1] if isinstance(result, tuple) and len(result) > 1 else result
+            logger.info(f"🔍 📥 CONVERSATION ENTRY: '{trigger}' → State {target_state} ({self.name or 'unnamed'})")
+
+            # Mark conversation start in context
+            try:
+                if hasattr(update, 'callback_query') and update.callback_query:
+                    context = update.callback_query._context
+                elif hasattr(update, 'message') and update.message:
+                    context = update.message._context
+                else:
+                    context = None
+
+                if context:
+                    context.user_data['current_conversation'] = self.name or 'unnamed'
+                    context.user_data['conversation_started_at'] = datetime.datetime.now()
+                    context.user_data['conversation_entry_trigger'] = trigger
+                    logger.info(f"🔍 💾 Marked conversation start: {self.name or 'unnamed'} via '{trigger}'")
+            except Exception as e:
+                logger.error(f"🔍 Could not mark conversation start: {e}")
+
+        logger.info(f"🔍 Check result: {result}")
+        return result
+
+    async def handle_update(self, update, application, check_result, context):
+        """Override to add comprehensive logging"""
+        import logging
+        logger = logging.getLogger(__name__)
+
+        user_id = update.effective_user.id if hasattr(update, 'effective_user') else 'unknown'
+
+        logger.info(f"🔍 CONVERSATION HANDLE: User {user_id}, Check result: {check_result}")
+
+        # Get current state before handling
+        try:
+            key = self._get_key(update)
+            current_state = self.conversations.get(key, 'NO ACTIVE CONVERSATION')
+            logger.info(f"🔍 Current conversation state: {current_state}")
+        except Exception as e:
+            logger.error(f"🔍 Could not get current state: {e}")
+            current_state = 'UNKNOWN'
+
+        # Log the incoming update
+        if hasattr(update, 'callback_query') and update.callback_query:
+            logger.info(f"🔍 Incoming callback: '{update.callback_query.data}'")
+        elif hasattr(update, 'message') and update.message:
+            logger.info(f"🔍 Incoming message: '{update.message.text}'")
+
+        result = await super().handle_update(update, application, check_result, context)
+
+        # Check state after handling
+        try:
+            key = self._get_key(update)
+            new_state = self.conversations.get(key, 'NO ACTIVE CONVERSATION')
+
+            if new_state == 'NO ACTIVE CONVERSATION':
+                conversation_name = context.user_data.get('current_conversation', 'unnamed')
+                start_time = context.user_data.get('conversation_started_at')
+                trigger = context.user_data.get('conversation_entry_trigger', 'unknown')
+
+                duration = None
+                if start_time:
+                    duration = (datetime.datetime.now() - start_time).total_seconds()
+
+                logger.info(f"🔍 ✅ CONVERSATION ENDED: {conversation_name} for user {user_id}")
+                logger.info(f"🔍 📊 Duration: {duration:.1f}s, Trigger: '{trigger}'")
+
+                # Clean up conversation markers
+                context.user_data.pop('current_conversation', None)
+                context.user_data.pop('conversation_started_at', None)
+                context.user_data.pop('conversation_entry_trigger', None)
+
+                # Clean up conversation data
+                cleaned_keys = []
+                for key in list(context.user_data.keys()):
+                    if key.endswith('_data'):
+                        cleaned_keys.append(key)
+                        context.user_data.pop(key, None)
+
+                if cleaned_keys:
+                    logger.info(f"🔍 🧹 Cleaned up conversation data: {cleaned_keys}")
+
+            elif current_state != new_state:
+                logger.info(f"🔍 🔄 STATE CHANGE: {current_state} → {new_state}")
+            else:
+                logger.info(f"🔍 ➡️ State unchanged: {current_state}")
+
+        except Exception as e:
+            logger.error(f"🔍 Could not check post-handling state: {e}")
+
+        logger.info(f"🔍 Handle result: {result}")
         return result
 
 class StockManagementStates:
@@ -128,70 +186,81 @@ async def manage_stock(update: Update, context: ContextTypes.DEFAULT_TYPE, from_
 @is_admin
 async def add_product_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Start adding a new product"""
-    print(f"🔧 add_product_start called")
-    print(f"🔧 User ID: {update.effective_user.id}")
-    print(f"🔧 Chat ID: {update.effective_chat.id}")
-    
+    import logging
+    logger = logging.getLogger(__name__)
+
+    logger.info(f"🔧 add_product_start called by user {update.effective_user.id}")
     await update.callback_query.answer()
+
     lang = get_user_lang(update.effective_user.id)
-    print(f"🔧 Language: {lang}")
+    logger.info(f"🌍 Add product language: {lang}")
+
+    context.user_data['add_product_data'] = {
+        'start_msg': update.callback_query.message,
+        'lang': lang,
+        'step': 'name'
+    }
     
     context.user_data["add_product"] = {}
     context.user_data["add_product"]["msg"] = await update.effective_message.edit_text(
         t("enter_product_name", lang),
         reply_markup=get_cancel_kb(lang)
     )
-    
+
     # Explicitly store state in user_data for debugging
     context.user_data["conversation_state"] = "ENTER_NAME"
-    
-    print(f"🔧 State set to ENTER_NAME: {StockManagementStates.ENTER_NAME}")
-    print(f"🔧 Conversation will be active for state {StockManagementStates.ENTER_NAME}")
-    print(f"🔧 Returning state: {StockManagementStates.ENTER_NAME}")
+
+    logger.info(f"🔄 Add product conversation started - waiting for product name")
+    logger.info(f"🔧 Returning state: {StockManagementStates.ENTER_NAME}")
     
     return StockManagementStates.ENTER_NAME
 
 async def add_product_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Process product name"""
-    print(f"🔧🔧🔧 add_product_name CALLED! 🔧🔧🔧")
-    print(f"🔧 Update type: {type(update)}")
-    print(f"🔧 Update: {update}")
-    print(f"🔧 Context user_data: {context.user_data}")
-    
+    import logging
+    logger = logging.getLogger(__name__)
+
+    logger.info(f"📝 add_product_name called by user {update.effective_user.id}")
+
     if update.message:
         product_name = update.message.text[:50]  # Limit to 50 characters
-        print(f"🔧 Product name: {product_name}")
-        
+        logger.info(f"📝 Product name received: '{product_name}'")
+
         lang = get_user_lang(update.effective_user.id)
-        print(f"🔧 Language: {lang}")
-        
+
         await update.effective_message.delete()
-        print(f"🔧 Message deleted")
-        
+        logger.info(f"🗑️ User message deleted")
+
         if "add_product" not in context.user_data:
-            print(f"⚠️ add_product not in context.user_data! Initializing...")
+            logger.warning(f"⚠️ add_product not in context.user_data! Initializing...")
             context.user_data["add_product"] = {}
-        
+
         context.user_data["add_product"]["name"] = product_name
-        
+        logger.info(f"💾 Product name saved: '{product_name}'")
+
         msg = context.user_data.get("add_product", {}).get("msg")
         if msg:
             await msg.edit_text(
                 t("enter_product_stock", lang).format(product_name),
                 reply_markup=get_cancel_kb(lang)
             )
-            print(f"🔧 Asking for stock, returning to state {StockManagementStates.ENTER_STOCK}")
+            logger.info(f"🔄 Moving to stock input - state: {StockManagementStates.ENTER_STOCK}")
             return StockManagementStates.ENTER_STOCK
         else:
-            print(f"❌ ERROR: msg not found in context.user_data!")
+            logger.error(f"❌ ERROR: msg not found in context.user_data!")
     else:
-        print(f"❌ ERROR: update.message is None!")
-    
-    print(f"🔧 Something went wrong - returning END")
+        logger.error(f"❌ ERROR: update.message is None!")
+
+    logger.warning(f"🔚 Something went wrong - ending conversation")
     return ConversationHandler.END
 
 async def add_product_stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Process product stock and ask for price"""
+    import logging
+    logger = logging.getLogger(__name__)
+
+    logger.info(f"📦 add_product_stock called by user {update.effective_user.id}")
+
     lang = get_user_lang(update.effective_user.id)
     
     try:
