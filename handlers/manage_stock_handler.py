@@ -252,26 +252,41 @@ async def list_products(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     """Show all products"""
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
-    
+
+    # הוספה: ניקוי הודעה קודמת ורישום ב-navigation
+    from funcs.utils import clean_previous_message, add_to_navigation_history
+    await clean_previous_message(update, context)
+    add_to_navigation_history(context, 'list_products_menu')
+
     from db.db import get_all_products
     products = get_all_products()
-    
+
     if not products:
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton(t("btn_back", lang), callback_data="back")]
+        ])
         await update.effective_message.edit_text(
             t("no_products", lang),
-            reply_markup=get_cancel_kb(lang)
+            reply_markup=keyboard
         )
         return
-    
+
+    # שינוי: טקסט בעברית במקום רוסית
+    stock_text = "יחידות" if lang == 'he' else "шт."
     products_text = "\n".join([
-        f"{i+1}. {p.get('name', '')} - {p.get('stock', 0)} шт."
+        f"{i+1}. {p.get('name', '')} - {p.get('stock', 0)} {stock_text}"
         for i, p in enumerate(products)
     ])
-    
+
+    # שינוי: רק כפתור חזור (לא ביטול + back + home)
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton(t("btn_back", lang), callback_data="back")]
+    ])
+
     await update.effective_message.edit_text(
         f"{t('all_products', lang)}:\n\n{products_text}",
         parse_mode="HTML",
-        reply_markup=get_cancel_kb(lang)
+        reply_markup=keyboard
     )
 
 @is_admin
