@@ -913,6 +913,64 @@ async def show_quantity_for_existing_product(update, context, product_index: int
 
     return ProductStates.ENTER_QUANTITY
 
+async def show_product_selection_menu(update, context) -> int:
+    """Show menu to select which product to edit or add new one"""
+    logger = logging.getLogger(__name__)
+    lang = context.user_data["collect_order_data"]["lang"]
+
+    # הוסף ל-navigation stack
+    push_navigation_state(context, "product_selection", {
+        "state": "SELECT_PRODUCT_TO_EDIT",
+        "action": "showing_product_selection_menu"
+    })
+
+    # עדכן מצב נוכחי
+    context.user_data["collect_order_data"]["current_state"] = "SELECT_PRODUCT_TO_EDIT"
+
+    # צור הודעה עם רשימת מוצרים
+    products = context.user_data["collect_order_data"].get("products", [])
+    product_list_text = "🔄 בחר מוצר לעריכה:\n\n"
+
+    from config.kb import InlineKeyboardButton
+    inline_keyboard = []
+
+    for i, product in enumerate(products):
+        product_name = product.get('name', f'מוצר {i+1}')
+        # קיצור השם אם ארוך מדי
+        short_name = product_name[:20] + "..." if len(product_name) > 20 else product_name
+
+        # הוסף פרטי מוצר
+        qty = product.get('quantity', 0)
+        price = product.get('price', 0)
+        total = product.get('total_price', 0)
+
+        product_list_text += f"{i+1}. {short_name}\n"
+        product_list_text += f"   📦 {qty} יח' × ₪{price} = ₪{total}\n\n"
+
+        # כפתור עריכה למוצר זה
+        edit_button = InlineKeyboardButton(
+            f"✏️ ערוך {short_name}",
+            callback_data=f"select_edit_{i}"
+        )
+        inline_keyboard.append([edit_button])
+
+    # כפתור הוספת מוצר חדש
+    inline_keyboard.append([InlineKeyboardButton("➕ הוסף מוצר חדש", callback_data="add_new_after_selection")])
+    inline_keyboard.append([InlineKeyboardButton("❌ ביטול - חזור לרשימה", callback_data="cancel_selection_back_to_list")])
+
+    from config.kb import InlineKeyboardMarkup
+    markup = InlineKeyboardMarkup(inline_keyboard)
+
+    # שלח הודעה
+    msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+    context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
+        product_list_text,
+        reply_markup=markup,
+        parse_mode=ParseMode.HTML
+    )
+
+    return "SELECT_PRODUCT_TO_EDIT"
+
 async def show_product_selection_for_existing(update, context, product_index: int) -> int:
     """Show product selection for existing product (back navigation)"""
     logger = logging.getLogger(__name__)
@@ -939,6 +997,58 @@ async def show_product_selection_for_existing(update, context, product_index: in
     )
 
     return ProductStates.SELECT_PRODUCT
+
+async def handle_product_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Handle selection from product selection menu"""
+    logger = logging.getLogger(__name__)
+    lang = context.user_data["collect_order_data"]["lang"]
+    await update.callback_query.answer()
+
+    callback_data = update.callback_query.data
+
+    if callback_data.startswith('select_edit_'):
+        # בחירת מוצר לעריכה
+        try:
+            product_index = int(callback_data.split('_')[2])
+        except (IndexError, ValueError):
+            logger.error(f"❌ Cannot parse product index from: {callback_data}")
+            return await restore_order_state(update, context, {
+                "state": CollectOrderDataStates.PRODUCT_LIST,
+                "action": "invalid_selection_callback"
+            })
+
+        # בדוק שיש מוצרים ושהאינדקס תקין
+        products = context.user_data["collect_order_data"].get("products", [])
+        if product_index >= len(products) or product_index < 0:
+            logger.error(f"❌ Product index out of range: {product_index}, products count: {len(products)}")
+            return await restore_order_state(update, context, {
+                "state": CollectOrderDataStates.PRODUCT_LIST,
+                "action": "product_index_out_of_range"
+            })
+
+        # התחל עריכה של המוצר הנבחר
+        return await start_edit_product_by_index(update, context, product_index)
+
+    elif callback_data == 'add_new_after_selection':
+        # הוספת מוצר חדש - חזור לרשימת מוצרים ואז הוסף
+        return await restore_order_state(update, context, {
+            "state": CollectOrderDataStates.PRODUCT_LIST,
+            "action": "add_new_product_selected"
+        })
+
+    elif callback_data == 'cancel_selection_back_to_list':
+        # ביטול - חזור לרשימת מוצרים
+        return await restore_order_state(update, context, {
+            "state": CollectOrderDataStates.PRODUCT_LIST,
+            "action": "cancelled_product_selection"
+        })
+
+    else:
+        logger.error(f"❌ Unknown selection callback: {callback_data}")
+        return await restore_order_state(update, context, {
+            "state": CollectOrderDataStates.PRODUCT_LIST,
+            "action": "unknown_selection_callback"
+        })
 
 async def start_edit_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Start editing a product - Phase 4: Product Editing"""
@@ -1583,13 +1693,12 @@ async def step_back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     state_type = previous_state.get("type")
 
     if state_type == "order":
-        # אם חוזרים אחורה מרשימת מוצרים עם מוצרים, ערוך את המוצר האחרון
+        # אם חוזרים אחורה מרשימת מוצרים עם מוצרים, הצג תפריט בחירה
         if previous_state.get("state") == CollectOrderDataStates.PRODUCT_LIST:
             products = context.user_data["collect_order_data"].get("products", [])
             if products:
-                # ערוך את המוצר האחרון שהתווסף
-                last_product_index = len(products) - 1
-                return await start_edit_product_by_index(update, context, last_product_index)
+                # הצג תפריט בחירת מוצר לעריכה
+                return await show_product_selection_menu(update, context)
             else:
                 # אין מוצרים - חזור לבחירת מוצר ראשון
                 return await restore_order_state(update, context, {
@@ -1636,6 +1745,13 @@ async def step_back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             logger.info("🔄 Cancelled incomplete product addition")
             del context.user_data["collect_order_data"]["active_product"]
         return await restore_product_state(update, context, previous_state)
+
+    elif state_type == "product_selection":
+        # חזור מרשימת בחירת מוצר - חזור לרשימת מוצרים
+        return await restore_order_state(update, context, {
+            "state": CollectOrderDataStates.PRODUCT_LIST,
+            "action": "back_from_product_selection_menu"
+        })
 
     # אם לא מצא סוג - סגור הזמנה
     logger.error(f"🔄 Unknown state type: {previous_state}")
@@ -1962,6 +2078,11 @@ states = {
         CallbackQueryHandler(collect_product, r'^\d+$'),
         CallbackQueryHandler(add_more_products, '^add$'),
         CallbackQueryHandler(go_to_confirm, '^to_confirm$'),
+    ],
+    "SELECT_PRODUCT_TO_EDIT": [
+        CallbackQueryHandler(handle_product_selection, r'^select_edit_\d+$'),
+        CallbackQueryHandler(handle_product_selection, '^add_new_after_selection$'),
+        CallbackQueryHandler(handle_product_selection, '^cancel_selection_back_to_list$'),
     ],
     CollectOrderDataStates.QUANTITY: [
         CallbackQueryHandler(collect_quantity, r'^\d+$'),
