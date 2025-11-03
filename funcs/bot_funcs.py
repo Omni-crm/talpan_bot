@@ -1435,7 +1435,6 @@ async def order_ready(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         )
 
 
-@is_operator
 async def notif_client(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)

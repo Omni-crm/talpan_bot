@@ -1601,13 +1601,16 @@ async def confirm_order(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     import json
     import datetime
     
+    # שימוש במבנה הנתונים החדש
+    customer = context.user_data["collect_order_data"]["customer"]
+
     order_data = {
-        'client_name': context.user_data["collect_order_data"]["name"],
-        'client_username': context.user_data["collect_order_data"]["username"],
-        'client_phone': context.user_data["collect_order_data"]["phone"],
-        'address': context.user_data["collect_order_data"]["address"],
+        'client_name': customer.get("name"),
+        'client_username': customer.get("username"),
+        'client_phone': customer.get("phone"),
+        'client_address': customer.get("address"),
         'products': json.dumps(context.user_data["collect_order_data"]["products"]),
-        'total_order_price': 0,
+        'total_order_price': sum(product.get('total_price', 0) for product in context.user_data["collect_order_data"]["products"]),
         'status': 'active',
         'created': datetime.datetime.now().isoformat()
     }
@@ -1628,6 +1631,7 @@ async def confirm_order(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         if order_chat:
             # Send BILINGUAL message to courier group (RU + HE)
             crourier_text = await form_confirm_order_courier(order_obj, 'ru')  # lang param ignored - now bilingual
+            from config.kb import form_courier_action_kb
             markup = await form_courier_action_kb(order_obj.id, 'ru')  # lang param ignored - now bilingual
             await context.bot.send_message(order_chat, crourier_text, parse_mode=ParseMode.HTML, reply_markup=markup)
     except Exception as e:

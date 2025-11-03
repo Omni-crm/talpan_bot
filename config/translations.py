@@ -1199,6 +1199,30 @@ TEXTS["no_products_in_order"] = {
     "ru": "В заказе нет продуктов",
     "he": "אין מוצרים בהזמנה"
 }
+TEXTS["already_have_active_order"] = {
+    "ru": "У вас уже есть активный заказ",
+    "he": "כבר יש לך הזמנה פעילה"
+}
+TEXTS["order_taken_successfully"] = {
+    "ru": "Заказ успешно взят",
+    "he": "ההזמנה נלקחה בהצלחה"
+}
+TEXTS["order_id"] = {
+    "ru": "Номер заказа",
+    "he": "מספר הזמנה"
+}
+TEXTS["order_take_failed"] = {
+    "ru": "Не удалось взять заказ",
+    "he": "לא הצלחנו לקחת את ההזמנה"
+}
+TEXTS["order_not_found"] = {
+    "ru": "Заказ не найден",
+    "he": "הזמנה לא נמצאה"
+}
+TEXTS["order_details"] = {
+    "ru": "Детали заказа",
+    "he": "פרטי הזמנה"
+}
 
 TEXTS["btn_back"] = {
     "ru": "⬅️ Назад",

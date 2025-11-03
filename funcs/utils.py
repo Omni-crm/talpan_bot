@@ -886,6 +886,7 @@ def create_product_list_text(products, lang='he'):
 
     return text
 
+
 def save_message_id(context, message_id):
     """שמירת ID של הודעה לניקוי עתידי"""
     context.user_data['last_message_id'] = message_id
