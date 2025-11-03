@@ -367,7 +367,7 @@ async def collect_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     session["current_step"] = ST_PRODUCT
     print(f"✅ set session.current_step = {ST_PRODUCT}")
 
-    result = ST_PRODUCT
+    result = 10  # ST_PRODUCT
     print(f"✅ collect_phone returning: {result}")
     return result
 
@@ -404,7 +404,7 @@ async def collect_address(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     session["current_step"] = ST_PRODUCT
     print(f"✅ set session.current_step = {ST_PRODUCT}")
 
-    result = ST_PRODUCT
+    result = 10  # ST_PRODUCT
     print(f"✅ collect_address returning: {result}")
     return result
 
