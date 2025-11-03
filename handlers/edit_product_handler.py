@@ -29,7 +29,13 @@ async def start_edit_product(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     product = get_product_by_id(product_id)
 
-    start_msg = await update.effective_message.edit_text(t("product_info", lang).format(product.get('name'), product.get('stock')), reply_markup=get_edit_product_kb(lang), parse_mode=ParseMode.HTML)
+    # שינוי: שימוש ב-keyboard החדש עם כפתור חזור
+    from config.kb import get_edit_product_kb_with_back
+    start_msg = await update.effective_message.edit_text(
+        t("product_info", lang).format(product.get('name'), product.get('stock')),
+        reply_markup=get_edit_product_kb_with_back(lang),
+        parse_mode=ParseMode.HTML
+    )
     context.user_data["edit_product_data"] = {}
     context.user_data["edit_product_data"]["start_msg"] = start_msg
     context.user_data["edit_product_data"]["product"] = product
@@ -177,6 +183,23 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     return ConversationHandler.END
 
+async def back_to_product_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """חזרה לרשימת המוצרים ללא שמירת שינויים"""
+    await update.callback_query.answer()
+
+    # מחיקת הודעה נוכחית
+    msg = context.user_data["edit_product_data"]["start_msg"]
+    await msg.delete()
+
+    # ניקוי נתונים
+    del context.user_data["edit_product_data"]
+
+    # חזרה לרשימת מלאי נוכחי
+    from funcs.bot_funcs import show_rest_from_last_day
+    await show_rest_from_last_day(update, context, from_back_button=True)
+
+    return ConversationHandler.END
+
 async def timeout_reached(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     msg: Message = context.user_data["edit_product_data"]["start_msg"]
     await msg.reply_text(t("timeout_error", get_user_lang(update.effective_user.id)))
@@ -191,6 +214,7 @@ states = {
         CallbackQueryHandler(edit_product_name, '^edit_name$'),
         CallbackQueryHandler(edit_product_price, '^edit_price$'),
         CallbackQueryHandler(delete_product, '^delete$'),
+        CallbackQueryHandler(back_to_product_list, '^back_to_product_list$'),  # הוספה
     ],
     EditProductStates.EDIT_STOCK_END: [
         MessageHandler(filters.Regex(r'^\d+$'), edit_product_stock_end)

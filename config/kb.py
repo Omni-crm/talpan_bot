@@ -681,6 +681,17 @@ def get_stock_management_kb(lang='ru'):
     
     return InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
 
+def get_edit_product_kb_with_back(lang):
+    """יצירת keyboard לבחירת פעולת עריכה עם כפתור חזור"""
+    keyboard = [
+        [InlineKeyboardButton(t("btn_edit_name", lang), callback_data="edit_name")],
+        [InlineKeyboardButton(t("btn_edit_stock", lang), callback_data="edit_stock")],
+        [InlineKeyboardButton(t("btn_edit_price", lang), callback_data="edit_price")],
+        [InlineKeyboardButton(t("btn_delete", lang), callback_data="delete")],
+        [InlineKeyboardButton(t("btn_back", lang), callback_data="back_to_product_list")]  # כפתור חדש
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
 def get_edit_product_actions_kb(lang='ru', product_id=0):
     """כפתורים לעריכת מוצר"""
     inline_keyboard = [
