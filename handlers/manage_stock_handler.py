@@ -90,9 +90,14 @@ async def manage_stock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     """Show stock management menu"""
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
-    
+
+    # הוספה: ניקוי הודעה קודמת ורישום ב-navigation
+    from funcs.utils import clean_previous_message, add_to_navigation_history
+    await clean_previous_message(update, context)
+    add_to_navigation_history(context, 'stock_menu')
+
     from config.kb import get_stock_management_kb
-    
+
     reply_markup = get_stock_management_kb(lang)
     await update.effective_message.edit_text(
         t("stock_management_menu", lang),
