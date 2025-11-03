@@ -1480,7 +1480,31 @@ async def step_back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
         return await restore_order_state(update, context, previous_state)
 
+    elif previous_state["type"] == "edit":
+        # בדוק אם יש active_product בעריכה - אם כן, בטל את השינויים
+        active_product = context.user_data["collect_order_data"].get("active_product")
+        if active_product and active_product.get("edit_mode"):
+            product_index = active_product.get("index")
+            products = context.user_data["collect_order_data"].get("products", [])
+            if product_index is not None and 0 <= product_index < len(products):
+                # החזר את הנתונים המקוריים
+                original_data = active_product.get("original_data")
+                if original_data:
+                    products[product_index] = original_data.copy()
+                    logger.info(f"🔄 Reverted product {product_index} to original data due to back navigation")
+                # נקה את active_product
+                del context.user_data["collect_order_data"]["active_product"]
+
+        return await restore_edit_state(update, context, previous_state)
+
     elif previous_state["type"] == "product":
+        # בדוק אם יש active_product בהוספה - אם כן, נקה אותו (ביטול הוספה)
+        active_product = context.user_data["collect_order_data"].get("active_product")
+        if active_product and not active_product.get("edit_mode"):
+            logger.info("🔄 Cancelled product addition due to back navigation")
+            # נקה את active_product
+            del context.user_data["collect_order_data"]["active_product"]
+
         return await restore_product_state(update, context, previous_state)
 
     elif previous_state["type"] == "edit":
