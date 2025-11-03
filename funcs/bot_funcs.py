@@ -1456,10 +1456,14 @@ async def show_rest_from_last_day(update: Update, context: ContextTypes.DEFAULT_
     """
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
-    
+
     # Add to navigation history ONLY if not coming from back button
     if not from_back_button:
         add_to_navigation_history(context, 'stock_list_menu')
+
+    # הוספה: שמירת מידע על מלאי נוכחי
+    context.user_data['current_inventory_view'] = 'stock_list'
+    context.user_data['came_from_inventory'] = True  # דגל חדש
 
     inline_markup = get_products_markup_left_edit_stock(lang)
 

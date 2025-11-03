@@ -164,10 +164,16 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     msg: Message = context.user_data["edit_product_data"]["start_msg"]
     await msg.delete()
     del context.user_data["edit_product_data"]
-    
-    # Return to main menu
-    from funcs.bot_funcs import start
-    await start(update, context)
+
+    # פתרון: בדיקה מאיפה באנו וחזרה לשם
+    if context.user_data.get('came_from_inventory'):
+        # באנו ממלאי נוכחי - חזרה לשם
+        from funcs.bot_funcs import show_rest_from_last_day
+        await show_rest_from_last_day(update, context, from_back_button=True)
+    else:
+        # באנו ממקום אחר - חזרה לעמוד הבית
+        from funcs.bot_funcs import start
+        await start(update, context)
 
     return ConversationHandler.END
 

@@ -279,19 +279,23 @@ async def edit_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     """Start editing a product"""
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
-    
+
     product_id = int(update.callback_query.data.replace('edit_', ''))
-    
+
     from db.db import get_product_by_id
     product = get_product_by_id(product_id)
-    
+
     if not product:
         await update.effective_message.reply_text(t("product_not_found", lang))
         return
-    
+
     from config.kb import get_edit_product_actions_kb
     reply_markup = get_edit_product_actions_kb(lang, product_id)
-    
+
+    # הוספה: שמירת מידע על מוצר לעריכה
+    context.user_data['editing_product_id'] = product_id
+    context.user_data['came_from_inventory'] = True  # דגל חשוב
+
     await update.effective_message.edit_text(
         t("edit_product_menu", lang).format(product.get('name'), product.get('stock'), product.get('price', 0)),
         reply_markup=reply_markup,
