@@ -253,9 +253,7 @@ async def list_products(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
 
-    # הוספה: ניקוי הודעה קודמת
-    from funcs.utils import clean_previous_message
-    await clean_previous_message(update, context)
+    # לא צריך clean_previous_message כי אנחנו עושים edit_text על ההודעה הקיימת
 
     from db.db import get_all_products
     products = get_all_products()
