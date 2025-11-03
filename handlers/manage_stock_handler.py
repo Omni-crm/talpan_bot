@@ -283,9 +283,10 @@ async def list_products(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     products = get_all_products()
 
     if not products:
-        # כפתור חזור שקורא ל-manage_stock כמו הכפתור במסך ראשי
+        # כפתור חזור עם טקסט מיוחד
+        back_text = "⬅️ חזרה לניהול מלאי" if lang == 'he' else "⬅️ Back to Stock Management"
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton(t("btn_manage_stock", lang), callback_data="manage_stock")]
+            [InlineKeyboardButton(back_text, callback_data="manage_stock")]
         ])
         await update.effective_message.edit_text(
             t("no_products", lang),
@@ -299,9 +300,10 @@ async def list_products(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         for i, p in enumerate(products)
     ])
 
-    # כפתור חזור שקורא ל-manage_stock כמו הכפתור במסך ראשי
+    # כפתור חזור עם טקסט מיוחד
+    back_text = "⬅️ חזרה לניהול מלאי" if lang == 'he' else "⬅️ Back to Stock Management"
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton(t("btn_manage_stock", lang), callback_data="manage_stock")]
+        [InlineKeyboardButton(back_text, callback_data="manage_stock")]
     ])
 
     await update.effective_message.edit_text(
