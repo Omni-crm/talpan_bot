@@ -271,10 +271,9 @@ async def list_products(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         )
         return
 
-    # שינוי: טקסט בעברית במקום רוסית
-    stock_text = "יחידות" if lang == 'he' else "шт."
+    # שינוי: שימוש בתרגום הקיים
     products_text = "\n".join([
-        f"{i+1}. {p.get('name', '')} - {p.get('stock', 0)} {stock_text}"
+        f"{i+1}. {p.get('name', '')} - {p.get('stock', 0)} {t('units', lang)}"
         for i, p in enumerate(products)
     ])
 
