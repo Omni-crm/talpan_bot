@@ -1467,48 +1467,39 @@ async def step_back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     logger.info(f"🔄 Going back to: {previous_state}")
 
     # טפל לפי סוג המצב הקודם
-    if previous_state["type"] == "order":
+    state_type = previous_state.get("type")
+
+    if state_type == "order":
         # בדוק אם הפעולה האחרונה הייתה הוספת מוצר - אם כן, מחק אותו
-        if context.user_data["collect_order_data"].get("last_action_was_product_addition", False):
+        if context.user_data["collect_order_data"].get("last_action_was_product_addition"):
             products = context.user_data["collect_order_data"].get("products", [])
             if products:
-                # מחק את המוצר האחרון שהתווסף (האחרון ברשימה)
                 removed_product = products.pop()
-                logger.info(f"🔄 Removed recently added product due to back navigation: {removed_product.get('name', 'unknown')} (added at: {removed_product.get('added_at', 'unknown')})")
-                # איפוס ה-flag
-                context.user_data["collect_order_data"]["last_action_was_product_addition"] = False
-
+                logger.info(f"🔄 Removed product: {removed_product.get('name', 'unknown')}")
+            context.user_data["collect_order_data"]["last_action_was_product_addition"] = False
         return await restore_order_state(update, context, previous_state)
 
-    elif previous_state["type"] == "edit":
-        # בדוק אם יש active_product בעריכה - אם כן, בטל את השינויים
+    elif state_type == "edit":
+        # בטל עריכה - החזר לנתונים המקוריים
         active_product = context.user_data["collect_order_data"].get("active_product")
         if active_product and active_product.get("edit_mode"):
             product_index = active_product.get("index")
             products = context.user_data["collect_order_data"].get("products", [])
             if product_index is not None and 0 <= product_index < len(products):
-                # החזר את הנתונים המקוריים
                 original_data = active_product.get("original_data")
                 if original_data:
                     products[product_index] = original_data.copy()
-                    logger.info(f"🔄 Reverted product {product_index} to original data due to back navigation")
-                # נקה את active_product
-                del context.user_data["collect_order_data"]["active_product"]
-
+                    logger.info(f"🔄 Reverted product {product_index} to original data")
+            del context.user_data["collect_order_data"]["active_product"]
         return await restore_edit_state(update, context, previous_state)
 
-    elif previous_state["type"] == "product":
-        # בדוק אם יש active_product בהוספה - אם כן, נקה אותו (ביטול הוספה)
+    elif state_type == "product":
+        # בטל הוספת מוצר - נקה active_product
         active_product = context.user_data["collect_order_data"].get("active_product")
         if active_product and not active_product.get("edit_mode"):
-            logger.info("🔄 Cancelled product addition due to back navigation")
-            # נקה את active_product
+            logger.info("🔄 Cancelled incomplete product addition")
             del context.user_data["collect_order_data"]["active_product"]
-
         return await restore_product_state(update, context, previous_state)
-
-    elif previous_state["type"] == "edit":
-        return await restore_edit_state(update, context, previous_state)
 
     # אם לא מצא סוג - סגור הזמנה
     logger.error(f"🔄 Unknown state type: {previous_state}")
