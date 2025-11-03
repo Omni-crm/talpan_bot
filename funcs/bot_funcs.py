@@ -1664,8 +1664,6 @@ async def handle_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     try:
         if update.callback_query.data == "back":
-            print(f"🔍 BACK BUTTON PRESSED - navigation_history: {context.user_data.get('navigation_history', 'NOT SET')}")
-
             # הוספה: בדיקה אם אנחנו בתוך conversation
             from funcs.utils import is_in_conversation
             if is_in_conversation(context):
@@ -1675,25 +1673,20 @@ async def handle_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
             # לוגיקה רגילה של ניווט
             previous_menu = get_previous_menu(context)
-            print(f"🔍 get_previous_menu returned: {previous_menu}")
             if not previous_menu:
                 # אין היסטוריה - חזור לעמוד הבית
                 # send_message_with_cleanup in start() will handle cleanup
-                print(f"🔍 No previous menu - going to start()")
                 await start(update, context)
                 return
 
             # Temporarily store the menu we're going back to
             menu_name = previous_menu['menu']
-            print(f"🔍 Going back to menu: {menu_name}")
 
             # send_message_with_cleanup in menu functions will handle cleanup
             # חזרה לתפריט הקודם - Pass from_back_button=True to prevent re-adding to history!
             if menu_name == 'main_menu':
-                print(f"🔍 Calling start() for main_menu")
                 await start(update, context)
             elif menu_name == 'stock_menu':
-                print(f"🔍 Calling show_menu_edit_crude_stock() for stock_menu")
                 await show_menu_edit_crude_stock(update, context, from_back_button=True)
             elif menu_name == 'stock_list_menu':
                 await show_rest_from_last_day(update, context, from_back_button=True)

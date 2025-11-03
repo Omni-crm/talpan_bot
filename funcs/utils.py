@@ -763,13 +763,11 @@ async def form_daily_profit_report(date_option: str, lang: str = 'ru') -> str:
 # מערכת היסטוריית ניווט
 def add_to_navigation_history(context, menu_name, data=None, max_history=5):
     """הוספת תפריט להיסטוריית הניווט (מקסימום 5 מסכים)"""
-    print(f"🔍 add_to_navigation_history called: {menu_name}")
     if 'navigation_history' not in context.user_data:
         context.user_data['navigation_history'] = []
 
     # מניעת כפילויות - אם התפריט האחרון זהה, לא מוסיפים
     if context.user_data['navigation_history'] and context.user_data['navigation_history'][-1]['menu'] == menu_name:
-        print(f"🔍 Skipping duplicate: {menu_name} (already last in history)")
         return
 
     # הגבלה ל-5 מסכים אחרונים
@@ -781,25 +779,18 @@ def add_to_navigation_history(context, menu_name, data=None, max_history=5):
         'data': data,
         'timestamp': datetime.datetime.now()
     })
-    print(f"🔍 Added to history: {menu_name} - history now: {[m['menu'] for m in context.user_data['navigation_history']]}")
 
 def get_previous_menu(context):
     """קבלת התפריט הקודם והוצאת התפריט הנוכחי מה-history"""
-    print(f"🔍 get_previous_menu called - history before: {[m['menu'] for m in context.user_data.get('navigation_history', [])]}")
     if 'navigation_history' in context.user_data and len(context.user_data['navigation_history']) > 0:
         # הוצא את התפריט הנוכחי
-        popped = context.user_data['navigation_history'].pop()
-        print(f"🔍 Popped current menu: {popped['menu']}")
+        context.user_data['navigation_history'].pop()
         # אם יש עוד תפריטים, החזר את האחרון (הקודם)
         if len(context.user_data['navigation_history']) > 0:
-            result = context.user_data['navigation_history'][-1]
-            print(f"🔍 Returning previous menu: {result['menu']}")
-            return result
+            return context.user_data['navigation_history'][-1]
         else:
             # אין עוד תפריטים, חזור לעמוד הבית
-            print(f"🔍 No more menus, returning main_menu")
             return {'menu': 'main_menu'}
-    print(f"🔍 No navigation history")
     return None
 
 
