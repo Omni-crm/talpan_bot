@@ -61,10 +61,10 @@ async def edit_product_stock(update: Update, context: ContextTypes.DEFAULT_TYPE)
     product = context.user_data["edit_product_data"]["product"]
 
     # הוספת כפתור חזרה להודעת הטקסט
-    from config.kb import get_cancel_kb
+    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(t('btn_cancel', lang), callback_data="cancel")]])
     await msg.edit_text(
         t("enter_new_stock", lang).format(product.get('name')),
-        reply_markup=get_cancel_kb(lang)
+        reply_markup=keyboard
     )
 
     return EditProductStates.EDIT_STOCK_END
@@ -103,10 +103,10 @@ async def edit_product_name(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     product = context.user_data["edit_product_data"]["product"]
 
     # הוספת כפתור חזרה להודעת הטקסט
-    from config.kb import get_cancel_kb
+    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(t('btn_cancel', lang), callback_data="cancel")]])
     await msg.edit_text(
         t("enter_new_name", lang).format(product.get('name')),
-        reply_markup=get_cancel_kb(lang)
+        reply_markup=keyboard
     )
 
     return EditProductStates.EDIT_NAME_END
@@ -146,10 +146,10 @@ async def edit_product_price(update: Update, context: ContextTypes.DEFAULT_TYPE)
     product = context.user_data["edit_product_data"]["product"]
 
     # הוספת כפתור חזרה להודעת הטקסט
-    from config.kb import get_cancel_kb
+    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(t('btn_cancel', lang), callback_data="cancel")]])
     await msg.edit_text(
         t("enter_new_price", lang).format(product.get('name'), product.get('price', 0)),
-        reply_markup=get_cancel_kb(lang)
+        reply_markup=keyboard
     )
 
     return EditProductStates.EDIT_PRICE_END
@@ -246,6 +246,23 @@ async def back_to_product_list(update: Update, context: ContextTypes.DEFAULT_TYP
 
     return ConversationHandler.END
 
+async def back_to_edit_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """חזרה לתפריט בחירת הפעולה בעריכת מוצר (לא יציאה מה-conversation)"""
+    await update.callback_query.answer()
+    lang = context.user_data["edit_product_data"]["lang"]
+    product = context.user_data["edit_product_data"]["product"]
+
+    # חזרה לתפריט הבחירה
+    msg = context.user_data["edit_product_data"]["start_msg"]
+    from config.kb import get_edit_product_kb_with_back
+    await msg.edit_text(
+        t("product_info", lang).format(product.get('name'), product.get('stock')),
+        reply_markup=get_edit_product_kb_with_back(lang),
+        parse_mode=ParseMode.HTML
+    )
+
+    return EditProductStates.CHOOSE_ACTION
+
 async def timeout_reached(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     msg: Message = context.user_data["edit_product_data"]["start_msg"]
     await msg.reply_text(t("timeout_error", get_user_lang(update.effective_user.id)))
@@ -264,15 +281,15 @@ states = {
     ],
     EditProductStates.EDIT_STOCK_END: [
         MessageHandler(filters.Regex(r'^\d+$'), edit_product_stock_end),
-        CallbackQueryHandler(cancel, '^cancel$'),  # כפתור ביטול
+        CallbackQueryHandler(back_to_edit_menu, '^cancel$'),  # כפתור חזרה לתפריט
     ],
     EditProductStates.EDIT_NAME_END: [
         MessageHandler(filters.TEXT & ~filters.COMMAND, edit_product_name_end),
-        CallbackQueryHandler(cancel, '^cancel$'),  # כפתור ביטול
+        CallbackQueryHandler(back_to_edit_menu, '^cancel$'),  # כפתור חזרה לתפריט
     ],
     EditProductStates.EDIT_PRICE_END: [
         MessageHandler(filters.Regex(r'^\d+$'), edit_product_price_end),
-        CallbackQueryHandler(cancel, '^cancel$'),  # כפתור ביטול
+        CallbackQueryHandler(back_to_edit_menu, '^cancel$'),  # כפתור חזרה לתפריט
     ],
     ConversationHandler.TIMEOUT: [TypeHandler(Update, timeout_reached)]
 }
