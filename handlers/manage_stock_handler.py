@@ -253,8 +253,6 @@ async def list_products(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
 
-    print(f"🔍 list_products called - navigation_history: {context.user_data.get('navigation_history', 'NOT SET')}")
-
     # לא צריך clean_previous_message כי אנחנו עושים edit_text על ההודעה הקיימת
 
     from db.db import get_all_products

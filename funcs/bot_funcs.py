@@ -1664,8 +1664,6 @@ async def handle_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     try:
         if update.callback_query.data == "back":
-            print(f"🔍 handle_navigation: back button pressed - navigation_history: {context.user_data.get('navigation_history', 'NOT SET')}")
-
             # הוספה: בדיקה אם אנחנו בתוך conversation
             from funcs.utils import is_in_conversation
             if is_in_conversation(context):
