@@ -82,6 +82,11 @@ async def edit_product_stock_end(update: Update, context: ContextTypes.DEFAULT_T
 
     del context.user_data["edit_product_data"]
 
+    # פתיחה אוטומטית של תפריט
+    import asyncio
+    from funcs.utils import delayed_start
+    asyncio.create_task(delayed_start(update, context))
+
     return ConversationHandler.END
 
 async def edit_product_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -114,6 +119,11 @@ async def edit_product_name_end(update: Update, context: ContextTypes.DEFAULT_TY
     await msg.edit_text(t("name_updated", lang).format(new_name))
 
     del context.user_data["edit_product_data"]
+
+    # פתיחה אוטומטית של תפריט
+    import asyncio
+    from funcs.utils import delayed_start
+    asyncio.create_task(delayed_start(update, context))
 
     return ConversationHandler.END
 
@@ -150,6 +160,11 @@ async def edit_product_price_end(update: Update, context: ContextTypes.DEFAULT_T
 
         del context.user_data["edit_product_data"]
 
+        # פתיחה אוטומטית של תפריט
+        import asyncio
+        from funcs.utils import delayed_start
+        asyncio.create_task(delayed_start(update, context))
+
         return ConversationHandler.END
     except ValueError:
         await update.effective_message.reply_text(t("invalid_price", lang))
@@ -170,6 +185,11 @@ async def delete_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     await msg.edit_text(t("product_deleted", lang).format(product.get('name')))
     del context.user_data["edit_product_data"]
+
+    # פתיחה אוטומטית של תפריט
+    import asyncio
+    from funcs.utils import delayed_start
+    asyncio.create_task(delayed_start(update, context))
 
     return ConversationHandler.END
 

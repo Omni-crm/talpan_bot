@@ -803,7 +803,13 @@ def add_back_button_to_keyboard(keyboard, lang):
     """הוספת כפתור חזרה לכל תפריט"""
     if isinstance(keyboard, list):
         keyboard.append([InlineKeyboardButton(t('btn_back', lang), callback_data="back")])
-    return keyboard
+
+async def delayed_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """פתיחת תפריט ראשי עם delay קטן"""
+    import asyncio
+    await asyncio.sleep(1.0)  # תן זמן לפעולה להסתיים
+    from funcs.bot_funcs import start
+    await start(update, context)
 
 def add_navigation_buttons_to_keyboard(keyboard, lang):
     """הוספת כפתורי חזרה ועמוד הבית לכל תפריט"""

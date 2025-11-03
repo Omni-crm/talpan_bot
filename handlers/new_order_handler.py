@@ -573,10 +573,11 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
     await msg.delete()
     del context.user_data["collect_order_data"]
-    
-    # Return to main menu after cancel
-    from funcs.bot_funcs import start
-    await start(update, context)
+
+    # פתיחה אוטומטית של תפריט
+    import asyncio
+    from funcs.utils import delayed_start
+    asyncio.create_task(delayed_start(update, context))
 
     return ConversationHandler.END
 
@@ -758,8 +759,13 @@ async def confirm_order(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     except Exception as e:
         traceback.print_exc()
         print(f'Failed to forward message about new order. Error: {e}')
-    
+
     del context.user_data["collect_order_data"]
+
+    # פתיחה אוטומטית של תפריט
+    import asyncio
+    from funcs.utils import delayed_start
+    asyncio.create_task(delayed_start(update, context))
 
     return ConversationHandler.END
 

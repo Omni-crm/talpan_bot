@@ -326,8 +326,14 @@ async def confirm_end_shift(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     if "end_shift_data" in context.user_data:
         del context.user_data["end_shift_data"]
-    
+
     print(f"✅ confirm_end_shift completed successfully")
+
+    # פתיחה אוטומטית של תפריט
+    import asyncio
+    from funcs.utils import delayed_start
+    asyncio.create_task(delayed_start(update, context))
+
     return ConversationHandler.END
 
 
