@@ -755,6 +755,524 @@ async def add_more_products(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     return CollectOrderDataStates.PRODUCT_LIST
 
+
+async def start_edit_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Start editing a product - Phase 4: Product Editing"""
+    logger = logging.getLogger(__name__)
+    lang = context.user_data["collect_order_data"]["lang"]
+    await update.callback_query.answer()
+
+    # קבל את אינדקס המוצר מה-callback data
+    callback_data = update.callback_query.data
+    if not callback_data.startswith('edit_'):
+        logger.error(f"❌ Invalid edit callback: {callback_data}")
+        return await restore_order_state(update, context, {
+            "state": CollectOrderDataStates.PRODUCT_LIST,
+            "action": "invalid_edit_callback"
+        })
+
+    try:
+        product_index = int(callback_data.split('_')[1])
+    except (IndexError, ValueError):
+        logger.error(f"❌ Cannot parse product index from: {callback_data}")
+        return await restore_order_state(update, context, {
+            "state": CollectOrderDataStates.PRODUCT_LIST,
+            "action": "invalid_product_index"
+        })
+
+    # בדוק שיש מוצרים ושהאינדקס תקין
+    products = context.user_data["collect_order_data"].get("products", [])
+    if product_index >= len(products) or product_index < 0:
+        logger.error(f"❌ Product index out of range: {product_index}, products count: {len(products)}")
+        return await restore_order_state(update, context, {
+            "state": CollectOrderDataStates.PRODUCT_LIST,
+            "action": "product_index_out_of_range"
+        })
+
+    product = products[product_index]
+
+    # יצור active_product לעריכה
+    context.user_data["collect_order_data"]["active_product"] = {
+        "index": product_index,
+        "state": EditStates.SELECT_EDIT_ACTION,
+        "edit_mode": True,
+        "original_data": product.copy(),  # שמור את הנתונים המקוריים
+        "temp_data": product.copy()  # נתונים זמניים לעריכה
+    }
+
+    # עדכן מצב נוכחי
+    context.user_data["collect_order_data"]["current_state"] = EditStates.SELECT_EDIT_ACTION
+
+    # הוסף ל-navigation stack
+    push_navigation_state(context, "edit", {
+        "product_index": product_index,
+        "state": EditStates.SELECT_EDIT_ACTION,
+        "action": f'started_editing_{product.get("name", "unknown")}'
+    })
+
+    logger.info(f"✏️ Started editing product: {product.get('name', 'unknown')} at index {product_index}")
+
+    # הצג אפשרויות עריכה
+    msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+    product_name = product.get("name", "מוצר לא ידוע")
+
+    from config.kb import get_edit_product_options_kb
+    context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
+        f"✏️ {t('editing_product', lang)}: {product_name}\n\n{t('choose_edit_action', lang)}",
+        reply_markup=get_edit_product_options_kb(lang)
+    )
+
+    return EditStates.SELECT_EDIT_ACTION
+
+
+async def edit_product_quantity(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Edit product quantity - Phase 4: Product Editing"""
+    logger = logging.getLogger(__name__)
+    lang = context.user_data["collect_order_data"]["lang"]
+    await update.callback_query.answer()
+
+    # בדוק שיש active_product במצב עריכה
+    if "active_product" not in context.user_data["collect_order_data"]:
+        logger.error("❌ No active_product for quantity edit")
+        return await restore_order_state(update, context, {
+            "state": CollectOrderDataStates.PRODUCT_LIST,
+            "action": "no_active_product_for_quantity_edit"
+        })
+
+    active_product = context.user_data["collect_order_data"]["active_product"]
+    if not active_product.get("edit_mode", False):
+        logger.error("❌ active_product not in edit mode")
+        return await restore_order_state(update, context, {
+            "state": CollectOrderDataStates.PRODUCT_LIST,
+            "action": "not_in_edit_mode"
+        })
+
+    # עדכן מצב
+    active_product["state"] = EditStates.EDIT_QUANTITY
+    context.user_data["collect_order_data"]["current_state"] = EditStates.EDIT_QUANTITY
+
+    # הוסף ל-navigation stack
+    push_navigation_state(context, "edit", {
+        "product_index": active_product["index"],
+        "state": EditStates.EDIT_QUANTITY,
+        "action": "chose_to_edit_quantity"
+    })
+
+    logger.info(f"📝 Starting quantity edit for product at index {active_product['index']}")
+
+    # הצג הזנת כמות חדשה
+    msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+    product_name = active_product["temp_data"].get("name", "מוצר לא ידוע")
+    current_quantity = active_product["temp_data"].get("quantity", 0)
+
+    from config.kb import get_select_quantity_kb
+    context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
+        f"📝 {t('edit_quantity_for', lang)} {product_name}\n\n{t('current_quantity', lang)}: {current_quantity}\n{t('enter_new_quantity', lang)}",
+        reply_markup=get_select_quantity_kb(lang)
+    )
+
+    return EditStates.EDIT_QUANTITY
+
+
+async def edit_product_price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Edit product price - Phase 4: Product Editing"""
+    logger = logging.getLogger(__name__)
+    lang = context.user_data["collect_order_data"]["lang"]
+    await update.callback_query.answer()
+
+    # בדוק שיש active_product במצב עריכה
+    if "active_product" not in context.user_data["collect_order_data"]:
+        logger.error("❌ No active_product for price edit")
+        return await restore_order_state(update, context, {
+            "state": CollectOrderDataStates.PRODUCT_LIST,
+            "action": "no_active_product_for_price_edit"
+        })
+
+    active_product = context.user_data["collect_order_data"]["active_product"]
+    if not active_product.get("edit_mode", False):
+        logger.error("❌ active_product not in edit mode")
+        return await restore_order_state(update, context, {
+            "state": CollectOrderDataStates.PRODUCT_LIST,
+            "action": "not_in_edit_mode"
+        })
+
+    # עדכן מצב
+    active_product["state"] = EditStates.EDIT_PRICE
+    context.user_data["collect_order_data"]["current_state"] = EditStates.EDIT_PRICE
+
+    # הוסף ל-navigation stack
+    push_navigation_state(context, "edit", {
+        "product_index": active_product["index"],
+        "state": EditStates.EDIT_PRICE,
+        "action": "chose_to_edit_price"
+    })
+
+    logger.info(f"💰 Starting price edit for product at index {active_product['index']}")
+
+    # הצג הזנת מחיר חדש
+    msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+    product_name = active_product["temp_data"].get("name", "מוצר לא ידוע")
+    current_price = active_product["temp_data"].get("unit_price", 0)
+
+    from config.kb import get_select_price_kb
+    context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
+        f"💰 {t('edit_price_for', lang)} {product_name}\n\n{t('current_price', lang)}: ₪{current_price}\n{t('enter_new_price', lang)}",
+        reply_markup=get_select_price_kb(lang)
+    )
+
+    return EditStates.EDIT_PRICE
+
+
+async def delete_product_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Delete product from order - Phase 4: Product Editing"""
+    logger = logging.getLogger(__name__)
+    lang = context.user_data["collect_order_data"]["lang"]
+    await update.callback_query.answer()
+
+    # בדוק שיש active_product במצב עריכה
+    if "active_product" not in context.user_data["collect_order_data"]:
+        logger.error("❌ No active_product for delete")
+        return await restore_order_state(update, context, {
+            "state": CollectOrderDataStates.PRODUCT_LIST,
+            "action": "no_active_product_for_delete"
+        })
+
+    active_product = context.user_data["collect_order_data"]["active_product"]
+    product_index = active_product["index"]
+    product_name = active_product["temp_data"].get("name", "מוצר לא ידוע")
+
+    # מחק את המוצר מהרשימה
+    products = context.user_data["collect_order_data"].get("products", [])
+    if 0 <= product_index < len(products):
+        deleted_product = products.pop(product_index)
+        logger.info(f"🗑️ Deleted product: {deleted_product.get('name', 'unknown')}")
+
+        # נקה active_product
+        del context.user_data["collect_order_data"]["active_product"]
+
+        # עדכן מצב נוכחי
+        context.user_data["collect_order_data"]["current_state"] = CollectOrderDataStates.PRODUCT_LIST
+
+        # הוסף ל-navigation stack
+        push_navigation_state(context, "order", {
+            "state": CollectOrderDataStates.PRODUCT_LIST,
+            "action": f"deleted_product_{product_name}"
+        })
+
+        # הצג רשימת מוצרים מעודכנת
+        msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+        if products:
+            from funcs.utils import create_product_list_text
+            product_list_text = create_product_list_text(products, lang)
+
+            from config.kb import get_product_management_kb
+            context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
+                f"🗑️ {t('product_deleted', lang)}: {product_name}\n\n{product_list_text}",
+                reply_markup=get_product_management_kb(lang),
+                parse_mode=ParseMode.HTML
+            )
+        else:
+            # אין יותר מוצרים - חזור לבחירת מוצר ראשון
+            context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
+                f"🗑️ {t('product_deleted', lang)}: {product_name}\n\n{t('no_products_in_order', lang)}\n\n{t('choose_product', lang)}",
+                reply_markup=get_products_markup(update.effective_user)
+            )
+
+        return CollectOrderDataStates.PRODUCT_LIST
+    else:
+        logger.error(f"❌ Cannot delete product at index {product_index}, products count: {len(products)}")
+        return await restore_order_state(update, context, {
+            "state": CollectOrderDataStates.PRODUCT_LIST,
+            "action": "cannot_delete_product"
+        })
+
+
+async def apply_edit_changes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Apply edit changes and return to product list - Phase 4: Product Editing"""
+    logger = logging.getLogger(__name__)
+    lang = context.user_data["collect_order_data"]["lang"]
+    await update.callback_query.answer()
+
+    # בדוק שיש active_product במצב עריכה
+    if "active_product" not in context.user_data["collect_order_data"]:
+        logger.error("❌ No active_product to apply changes")
+        return await restore_order_state(update, context, {
+            "state": CollectOrderDataStates.PRODUCT_LIST,
+            "action": "no_active_product_to_apply"
+        })
+
+    active_product = context.user_data["collect_order_data"]["active_product"]
+    if not active_product.get("edit_mode", False):
+        logger.error("❌ active_product not in edit mode")
+        return await restore_order_state(update, context, {
+            "state": CollectOrderDataStates.PRODUCT_LIST,
+            "action": "not_in_edit_mode_for_apply"
+        })
+
+    product_index = active_product["index"]
+    temp_data = active_product["temp_data"]
+
+    # עדכן את המוצר ברשימה עם הנתונים הזמניים
+    products = context.user_data["collect_order_data"].get("products", [])
+    if 0 <= product_index < len(products):
+        # חשב מחיר כולל חדש
+        temp_data["total_price"] = temp_data["quantity"] * temp_data["unit_price"]
+
+        products[product_index] = temp_data.copy()
+        logger.info(f"✅ Applied changes to product at index {product_index}: {temp_data.get('name', 'unknown')}")
+
+        # נקה active_product
+        del context.user_data["collect_order_data"]["active_product"]
+
+        # עדכן מצב נוכחי
+        context.user_data["collect_order_data"]["current_state"] = CollectOrderDataStates.PRODUCT_LIST
+
+        # הוסף ל-navigation stack
+        push_navigation_state(context, "order", {
+            "state": CollectOrderDataStates.PRODUCT_LIST,
+            "action": f"applied_changes_to_{temp_data.get('name', 'unknown')}"
+        })
+
+        # הצג רשימת מוצרים מעודכנת
+        msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+        from funcs.utils import create_product_list_text
+        product_list_text = create_product_list_text(products, lang)
+
+        from config.kb import get_product_management_kb
+        context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
+            f"✅ {t('changes_applied', lang)}\n\n{product_list_text}",
+            reply_markup=get_product_management_kb(lang),
+            parse_mode=ParseMode.HTML
+        )
+
+        return CollectOrderDataStates.PRODUCT_LIST
+    else:
+        logger.error(f"❌ Cannot apply changes to product at index {product_index}")
+        return await restore_order_state(update, context, {
+            "state": CollectOrderDataStates.PRODUCT_LIST,
+            "action": "cannot_apply_changes"
+        })
+
+
+async def cancel_edit_changes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Cancel edit changes and return to product list - Phase 4: Product Editing"""
+    logger = logging.getLogger(__name__)
+    lang = context.user_data["collect_order_data"]["lang"]
+    await update.callback_query.answer()
+
+    # בדוק שיש active_product במצב עריכה
+    if "active_product" not in context.user_data["collect_order_data"]:
+        logger.warning("⚠️ No active_product to cancel - already clean")
+        return await restore_order_state(update, context, {
+            "state": CollectOrderDataStates.PRODUCT_LIST,
+            "action": "no_active_product_to_cancel"
+        })
+
+    active_product = context.user_data["collect_order_data"]["active_product"]
+    if not active_product.get("edit_mode", False):
+        logger.warning("⚠️ active_product not in edit mode")
+        return await restore_order_state(update, context, {
+            "state": CollectOrderDataStates.PRODUCT_LIST,
+            "action": "not_in_edit_mode_for_cancel"
+        })
+
+    product_name = active_product["temp_data"].get("name", "מוצר לא ידוע")
+    logger.info(f"❌ Cancelled editing of product: {product_name}")
+
+    # נקה active_product - השינויים לא נשמרו
+    del context.user_data["collect_order_data"]["active_product"]
+
+    # עדכן מצב נוכחי
+    context.user_data["collect_order_data"]["current_state"] = CollectOrderDataStates.PRODUCT_LIST
+
+    # הוסף ל-navigation stack
+    push_navigation_state(context, "order", {
+        "state": CollectOrderDataStates.PRODUCT_LIST,
+        "action": f"cancelled_editing_{product_name}"
+    })
+
+    # הצג רשימת מוצרים (ללא שינויים)
+    msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+    products = context.user_data["collect_order_data"].get("products", [])
+
+    if products:
+        from funcs.utils import create_product_list_text
+        product_list_text = create_product_list_text(products, lang)
+
+        from config.kb import get_product_management_kb
+        context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
+            f"❌ {t('changes_cancelled', lang)}\n\n{product_list_text}",
+            reply_markup=get_product_management_kb(lang),
+            parse_mode=ParseMode.HTML
+        )
+    else:
+        # אין מוצרים
+        context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
+            f"❌ {t('changes_cancelled', lang)}\n\n{t('no_products_in_order', lang)}",
+            reply_markup=get_products_markup(update.effective_user)
+        )
+
+    return CollectOrderDataStates.PRODUCT_LIST
+
+
+async def apply_quantity_edit(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Apply quantity edit changes - Phase 4: Product Editing"""
+    logger = logging.getLogger(__name__)
+    lang = context.user_data["collect_order_data"]["lang"]
+
+    # בדוק שיש active_product במצב עריכה כמות
+    if "active_product" not in context.user_data["collect_order_data"]:
+        logger.error("❌ No active_product for quantity edit apply")
+        return await restore_order_state(update, context, {
+            "state": CollectOrderDataStates.PRODUCT_LIST,
+            "action": "no_active_product_for_quantity_apply"
+        })
+
+    active_product = context.user_data["collect_order_data"]["active_product"]
+    if not active_product.get("edit_mode", False) or active_product["state"] != EditStates.EDIT_QUANTITY:
+        logger.error("❌ Not in quantity edit mode")
+        return await restore_order_state(update, context, {
+            "state": CollectOrderDataStates.PRODUCT_LIST,
+            "action": "not_in_quantity_edit_mode"
+        })
+
+    if not update.callback_query:
+        await update.effective_message.delete()
+
+        try:
+            new_quantity = int(update.message.text[:100])
+        except ValueError:
+            logger.warning("⚠️ Invalid quantity in edit")
+            # הצג הודעת שגיאה וחזור להזנת כמות
+            msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+            from config.kb import get_select_quantity_kb
+            product_name = active_product["temp_data"].get("name", "מוצר לא ידוע")
+            await msg.edit_text(
+                f"📝 {t('edit_quantity_for', lang)} {product_name}\n\n{t('invalid_quantity', lang)}\n{t('enter_new_quantity', lang)}",
+                reply_markup=get_select_quantity_kb(lang)
+            )
+            return EditStates.EDIT_QUANTITY
+
+        # בדוק מלאי
+        available_stock = active_product["temp_data"]["stock"]
+        if available_stock < new_quantity:
+            logger.warning(f"⚠️ Not enough stock in edit: requested {new_quantity}, available {available_stock}")
+            msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+            from config.kb import get_back_cancel_kb
+            await msg.edit_text(
+                f"📝 {t('edit_quantity_for', lang)} {active_product['temp_data'].get('name', 'מוצר לא ידוע')}\n\n{t('not_enough_stock', lang)}\n{t('available_stock', lang)}: {available_stock}",
+                reply_markup=get_back_cancel_kb(lang)
+            )
+            return EditStates.EDIT_QUANTITY
+
+        # עדכן את הכמות ב-temp_data
+        active_product["temp_data"]["quantity"] = new_quantity
+        # חשב מחיר כולל חדש
+        active_product["temp_data"]["total_price"] = new_quantity * active_product["temp_data"]["unit_price"]
+
+        logger.info(f"📝 Updated quantity to {new_quantity} for product {active_product['temp_data']['name']}")
+
+        # חזור לאפשרויות עריכה
+        msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+        product_name = active_product["temp_data"].get("name", "מוצר לא ידוע")
+
+        from config.kb import get_edit_product_options_kb
+        context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
+            f"✅ {t('quantity_updated', lang)}: {new_quantity}\n\n✏️ {t('editing_product', lang)}: {product_name}\n\n{t('choose_edit_action', lang)}",
+            reply_markup=get_edit_product_options_kb(lang)
+        )
+
+        # עדכן מצב
+        active_product["state"] = EditStates.SELECT_EDIT_ACTION
+        context.user_data["collect_order_data"]["current_state"] = EditStates.SELECT_EDIT_ACTION
+
+        # הוסף ל-navigation stack
+        push_navigation_state(context, "edit", {
+            "product_index": active_product["index"],
+            "state": EditStates.SELECT_EDIT_ACTION,
+            "action": f"quantity_updated_to_{new_quantity}"
+        })
+
+        return EditStates.SELECT_EDIT_ACTION
+
+    # אם זה callback query, זה אומר שהמשתמש לחץ על כפתור כמות מהמקלדת
+    # נעביר את הערך לטיפול כהודעת טקסט
+    return await apply_quantity_edit(update, context)
+
+
+async def apply_price_edit(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Apply price edit changes - Phase 4: Product Editing"""
+    logger = logging.getLogger(__name__)
+    lang = context.user_data["collect_order_data"]["lang"]
+
+    # בדוק שיש active_product במצב עריכה מחיר
+    if "active_product" not in context.user_data["collect_order_data"]:
+        logger.error("❌ No active_product for price edit apply")
+        return await restore_order_state(update, context, {
+            "state": CollectOrderDataStates.PRODUCT_LIST,
+            "action": "no_active_product_for_price_apply"
+        })
+
+    active_product = context.user_data["collect_order_data"]["active_product"]
+    if not active_product.get("edit_mode", False) or active_product["state"] != EditStates.EDIT_PRICE:
+        logger.error("❌ Not in price edit mode")
+        return await restore_order_state(update, context, {
+            "state": CollectOrderDataStates.PRODUCT_LIST,
+            "action": "not_in_price_edit_mode"
+        })
+
+    if not update.callback_query:
+        await update.effective_message.delete()
+
+        try:
+            new_price = float(update.message.text[:11])
+        except ValueError:
+            logger.warning("⚠️ Invalid price in edit")
+            # הצג הודעת שגיאה וחזור להזנת מחיר
+            msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+            from config.kb import get_select_price_kb
+            product_name = active_product["temp_data"].get("name", "מוצר לא ידוע")
+            await msg.edit_text(
+                f"💰 {t('edit_price_for', lang)} {product_name}\n\n{t('invalid_price', lang)}\n{t('enter_new_price', lang)}",
+                reply_markup=get_select_price_kb(lang)
+            )
+            return EditStates.EDIT_PRICE
+
+        # עדכן את המחיר ב-temp_data
+        active_product["temp_data"]["unit_price"] = new_price
+        # חשב מחיר כולל חדש
+        active_product["temp_data"]["total_price"] = active_product["temp_data"]["quantity"] * new_price
+
+        logger.info(f"💰 Updated price to {new_price}₪ for product {active_product['temp_data']['name']}")
+
+        # חזור לאפשרויות עריכה
+        msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+        product_name = active_product["temp_data"].get("name", "מוצר לא ידוע")
+
+        from config.kb import get_edit_product_options_kb
+        context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
+            f"✅ {t('price_updated', lang)}: ₪{new_price}\n\n✏️ {t('editing_product', lang)}: {product_name}\n\n{t('choose_edit_action', lang)}",
+            reply_markup=get_edit_product_options_kb(lang)
+        )
+
+        # עדכן מצב
+        active_product["state"] = EditStates.SELECT_EDIT_ACTION
+        context.user_data["collect_order_data"]["current_state"] = EditStates.SELECT_EDIT_ACTION
+
+        # הוסף ל-navigation stack
+        push_navigation_state(context, "edit", {
+            "product_index": active_product["index"],
+            "state": EditStates.SELECT_EDIT_ACTION,
+            "action": f"price_updated_to_{new_price}"
+        })
+
+        return EditStates.SELECT_EDIT_ACTION
+
+    # אם זה callback query, זה אומר שהמשתמש לחץ על כפתור מחיר מהמקלדת
+    # נעביר את הערך לטיפול כהודעת טקסט
+    return await apply_price_edit(update, context)
+
+
 async def go_to_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Go to final confirming order."""
     print(f"🔧 go_to_confirm called")
@@ -994,14 +1512,80 @@ async def restore_product_state(update, context, state_data):
 
 
 async def restore_edit_state(update, context, state_data):
-    """שחזור מצב עריכת מוצר"""
+    """שחזור מצב עריכת מוצר - Phase 4: Product Editing"""
     logger = logging.getLogger(__name__)
     logger.info(f"🔄 Restoring edit state: {state_data}")
 
-    # עדיין לא מיושם - יחזור לרשימת מוצרים
+    lang = context.user_data["collect_order_data"]["lang"]
+    state = state_data["state"]
+    msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+
+    # צור active_product אם לא קיים
+    if "active_product" not in context.user_data["collect_order_data"]:
+        logger.warning("⚠️ No active_product during edit restore, creating from state_data")
+        return await restore_order_state(update, context, {
+            "state": CollectOrderDataStates.PRODUCT_LIST,
+            "action": "fallback_to_product_list_from_edit"
+        })
+
+    active_product = context.user_data["collect_order_data"]["active_product"]
+    if not active_product.get("edit_mode", False):
+        logger.warning("⚠️ active_product not in edit mode during restore")
+        return await restore_order_state(update, context, {
+            "state": CollectOrderDataStates.PRODUCT_LIST,
+            "action": "not_in_edit_mode_during_restore"
+        })
+
+    temp_data = active_product["temp_data"]
+
+    if state == EditStates.SELECT_EDIT_ACTION:
+        # חזרה לאפשרויות עריכה
+        context.user_data["collect_order_data"]["current_state"] = EditStates.SELECT_EDIT_ACTION
+        active_product["state"] = EditStates.SELECT_EDIT_ACTION
+
+        product_name = temp_data.get("name", "מוצר לא ידוע")
+
+        from config.kb import get_edit_product_options_kb
+        context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
+            f"✏️ {t('editing_product', lang)}: {product_name}\n\n{t('choose_edit_action', lang)}",
+            reply_markup=get_edit_product_options_kb(lang)
+        )
+        return EditStates.SELECT_EDIT_ACTION
+
+    elif state == EditStates.EDIT_QUANTITY:
+        # חזרה להזנת כמות
+        context.user_data["collect_order_data"]["current_state"] = EditStates.EDIT_QUANTITY
+        active_product["state"] = EditStates.EDIT_QUANTITY
+
+        product_name = temp_data.get("name", "מוצר לא ידוע")
+        current_quantity = temp_data.get("quantity", 0)
+
+        from config.kb import get_select_quantity_kb
+        context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
+            f"📝 {t('edit_quantity_for', lang)} {product_name}\n\n{t('current_quantity', lang)}: {current_quantity}\n{t('enter_new_quantity', lang)}",
+            reply_markup=get_select_quantity_kb(lang)
+        )
+        return EditStates.EDIT_QUANTITY
+
+    elif state == EditStates.EDIT_PRICE:
+        # חזרה להזנת מחיר
+        context.user_data["collect_order_data"]["current_state"] = EditStates.EDIT_PRICE
+        active_product["state"] = EditStates.EDIT_PRICE
+
+        product_name = temp_data.get("name", "מוצר לא ידוע")
+        current_price = temp_data.get("unit_price", 0)
+
+        from config.kb import get_select_price_kb
+        context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
+            f"💰 {t('edit_price_for', lang)} {product_name}\n\n{t('current_price', lang)}: ₪{current_price}\n{t('enter_new_price', lang)}",
+            reply_markup=get_select_price_kb(lang)
+        )
+        return EditStates.EDIT_PRICE
+
+    logger.error(f"🔄 Unknown edit state: {state}")
     return await restore_order_state(update, context, {
         "state": CollectOrderDataStates.PRODUCT_LIST,
-        "action": "back_to_product_list"
+        "action": "unknown_edit_state"
     })
 
 
@@ -1085,6 +1669,9 @@ states = {
     CollectOrderDataStates.PRODUCT_LIST: [
         CallbackQueryHandler(new_product_name, '^create$'),
         CallbackQueryHandler(collect_product, r'^\d+$'),
+        CallbackQueryHandler(start_edit_product, r'^edit_\d+$'),
+        CallbackQueryHandler(add_more_products, '^add_more$'),
+        CallbackQueryHandler(go_to_confirm, '^confirm_order$'),
     ],
     CollectOrderDataStates.QUANTITY: [
         CallbackQueryHandler(collect_quantity, r'^\d+$'),
@@ -1100,6 +1687,21 @@ states = {
     ],
     CollectOrderDataStates.CONFIRM_OR_NOT: [
         CallbackQueryHandler(confirm_order, '^confirm$')
+    ],
+    EditStates.SELECT_EDIT_ACTION: [
+        CallbackQueryHandler(edit_product_quantity, '^edit_quantity$'),
+        CallbackQueryHandler(edit_product_price, '^edit_price$'),
+        CallbackQueryHandler(delete_product_confirm, '^delete_product$'),
+        CallbackQueryHandler(apply_edit_changes, '^apply_edit$'),
+        CallbackQueryHandler(cancel_edit_changes, '^cancel_edit$'),
+    ],
+    EditStates.EDIT_QUANTITY: [
+        CallbackQueryHandler(apply_quantity_edit, r'^\d+$'),
+        MessageHandler(filters.Regex(r'^\d+$'), apply_quantity_edit),
+    ],
+    EditStates.EDIT_PRICE: [
+        MessageHandler(filters.Regex(r'^\d+(\.\d+)?$'), apply_price_edit),
+        CallbackQueryHandler(apply_price_edit, r'^\d+(\.\d+)?$'),
     ],
     ConversationHandler.TIMEOUT: [TypeHandler(Update, timeout_reached)]
 }
