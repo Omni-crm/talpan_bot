@@ -11,25 +11,39 @@ from funcs.utils import *
 from funcs.bot_funcs import *
 import asyncio
 import datetime
+import logging
 
-def add_order_step_to_history(context, step, action):
-    """הוספת שלב ל-navigation history של הזמנה"""
+def push_navigation_state(context, state_type, state_data):
+    """דוחף מצב חדש למחסנית הניווט"""
+    import logging
+    logger = logging.getLogger(__name__)
+
     if "collect_order_data" not in context.user_data:
+        logger.warning("🔄 push_navigation_state: no collect_order_data")
         return
 
-    if "nav_history" not in context.user_data["collect_order_data"]:
-        context.user_data["collect_order_data"]["nav_history"] = []
+    if "navigation_stack" not in context.user_data["collect_order_data"]:
+        context.user_data["collect_order_data"]["navigation_stack"] = []
 
-    # הוספת השלב החדש
-    context.user_data["collect_order_data"]["nav_history"].append({
-        'step': step,
-        'action': action,
-        'timestamp': datetime.datetime.now()
-    })
+    stack = context.user_data["collect_order_data"]["navigation_stack"]
 
-    # הגבלת גודל ההיסטוריה ל-10 שלבים
-    if len(context.user_data["collect_order_data"]["nav_history"]) > 10:
-        context.user_data["collect_order_data"]["nav_history"].pop(0)
+    # דחוף את המצב הנוכחי
+    new_state = {
+        "type": state_type,
+        "timestamp": datetime.datetime.now(),
+        **state_data
+    }
+    stack.append(new_state)
+
+    # הגבל לגודל מקסימלי
+    if len(stack) > 20:  # יותר מ-20 שלבים אחורה
+        stack.pop(0)
+
+    logger.info(f"🔄 Pushed to navigation stack: {state_type} - {state_data}")
+
+def add_order_step_to_history(context, step, action):
+    """הוספת שלב ל-navigation history של הזמנה - DEPRECATED: השתמש ב-push_navigation_state"""
+    push_navigation_state(context, "order", {"state": step, "action": action})
 
 class DebugConversationHandler(ConversationHandler):
     """ConversationHandler with debug logging"""
@@ -69,11 +83,27 @@ class CollectOrderDataStates:
     USERNAME = 2
     PHONE = 3
     ADDRESS = 4
-    PRODUCT = 5
+    PRODUCT_LIST = 5   # רשימת מוצרים + אפשרות הוספה/עריכה
+    CONFIRMATION = 6   # אישור סופי של ההזמנה
+
+    # מצבים ישנים לתאימות
+    PRODUCT = 5  # זהה ל-PRODUCT_LIST
     QUANTITY = 6
     TOTAL_PRICE = 7
     CONFIRM_OR_NOT = 8
     ADD_MORE_PRODUCTS_OR_CONFIRM = 79
+
+class ProductStates:
+    SELECT_PRODUCT = 10    # בחירת מוצר מהרשימה
+    ENTER_QUANTITY = 11    # הזנת כמות
+    ENTER_PRICE = 12       # הזנת מחיר ליחידה
+    CONFIRM_PRODUCT = 13   # אישור המוצר להזמנה
+
+class EditStates:
+    SELECT_EDIT_ACTION = 20   # בחירת מה לערוך (כמות/מחיר/מחיקה)
+    EDIT_QUANTITY = 21        # עריכת כמות
+    EDIT_PRICE = 22           # עריכת מחיר
+    CONFIRM_EDIT = 23         # אישור השינויים
 
 async def start_collect_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """START function of collecting data for new order."""
@@ -97,19 +127,39 @@ async def start_collect_data(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return ConversationHandler.END
 
     start_msg = await send_message_with_cleanup(update, context, t("enter_client_name", lang), reply_markup=get_cancel_kb(lang))
-    context.user_data["collect_order_data"] = {}
-    context.user_data["collect_order_data"]["start_msg"] = start_msg
-    context.user_data["collect_order_data"]["products"] = []
-    context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.START
-    context.user_data["collect_order_data"]["lang"] = lang
-    # הוספת navigation history פנימי ל-conversation
-    context.user_data["collect_order_data"]["nav_history"] = []
 
-    # הוספת השלב הנוכחי ל-navigation history
-    context.user_data["collect_order_data"]["nav_history"].append({
-        'step': CollectOrderDataStates.START,
-        'action': 'enter_client_name',
-        'timestamp': datetime.datetime.now()
+    # אתחול מבנה הנתונים לפי התכנית
+    context.user_data["collect_order_data"] = {
+        # נתוני לקוח בסיסיים
+        "customer": {
+            "name": None,
+            "username": None,
+            "phone": None,
+            "address": None
+        },
+
+        # רשימת מוצרים
+        "products": [],
+
+        # מצב נוכחי של ההזמנה
+        "current_state": CollectOrderDataStates.NAME,
+
+        # מוצר שנמצא כרגע בעריכה/הוספה (אם קיים)
+        "active_product": None,
+
+        # היסטוריית ניווט
+        "navigation_stack": [],
+
+        # נתונים ישנים לתאימות (זמני)
+        "start_msg": start_msg,
+        "step": CollectOrderDataStates.START,
+        "lang": lang
+    }
+
+    # הוספת השלב הראשון ל-navigation stack
+    push_navigation_state(context, "order", {
+        "state": CollectOrderDataStates.NAME,
+        "action": "enter_client_name"
     })
     
     # שמירת ID לניקוי עתידי
@@ -135,13 +185,17 @@ async def collect_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
             print(f"⚠️ Could not delete message: {e}")
             pass
 
-        context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.USERNAME
-        name = update.message.text[:100]
-        context.user_data["collect_order_data"]["name"] = name
-        print(f"🔧 Name collected: {name}")
+        # שמור את השם במבנה החדש
+        context.user_data["collect_order_data"]["customer"]["name"] = update.message.text[:100]
+        context.user_data["collect_order_data"]["current_state"] = CollectOrderDataStates.USERNAME
 
-        # הוספת השלב הנוכחי ל-navigation history לפני המעבר לשלב הבא
-        add_order_step_to_history(context, CollectOrderDataStates.USERNAME, f'enter_client_username (name: {name})')
+        # הוסף ל-navigation stack
+        push_navigation_state(context, "order", {
+            "state": CollectOrderDataStates.USERNAME,
+            "action": f'enter_client_username (name: {update.message.text[:100]})'
+        })
+
+        logger.info(f"📝 Customer name collected: {update.message.text[:100]}")
 
         # Edit the bot's message, not the user's message
         msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
@@ -176,12 +230,17 @@ async def collect_username(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             username = update.message.text[:36]
             print(f"🔧 Username collected: {username}")
         
-        # Save username and update state
-        context.user_data["collect_order_data"]["username"] = username
-        context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.PHONE
+        # שמור את ה-username במבנה החדש
+        context.user_data["collect_order_data"]["customer"]["username"] = username
+        context.user_data["collect_order_data"]["current_state"] = CollectOrderDataStates.PHONE
 
-        # הוספת השלב הנוכחי ל-navigation history
-        add_order_step_to_history(context, CollectOrderDataStates.PHONE, f'enter_client_phone (username: {username})')
+        # הוסף ל-navigation stack
+        push_navigation_state(context, "order", {
+            "state": CollectOrderDataStates.PHONE,
+            "action": f'enter_client_phone (username: {username})'
+        })
+
+        logger.info(f"📝 Customer username collected: {username}")
 
         # Update message to ask for phone
         msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
@@ -212,12 +271,18 @@ async def collect_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         except:
             pass
 
-        context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.ADDRESS
+        # שמור את הטלפון במבנה החדש
         phone = update.message.text[:36]
-        context.user_data["collect_order_data"]["phone"] = phone
+        context.user_data["collect_order_data"]["customer"]["phone"] = phone
+        context.user_data["collect_order_data"]["current_state"] = CollectOrderDataStates.ADDRESS
 
-        # הוספת השלב הנוכחי ל-navigation history
-        add_order_step_to_history(context, CollectOrderDataStates.ADDRESS, f'enter_client_address (phone: {phone})')
+        # הוסף ל-navigation stack
+        push_navigation_state(context, "order", {
+            "state": CollectOrderDataStates.ADDRESS,
+            "action": f'enter_client_address (phone: {phone})'
+        })
+
+        logger.info(f"📝 Customer phone collected: {phone}")
 
         msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
         from funcs.utils import edit_conversation_message
@@ -250,18 +315,22 @@ async def collect_address(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         else:
             address = update.message.text[:100]
 
-        context.user_data["collect_order_data"]["address"] = address
+        # שמור את הכתובת במבנה החדש
+        context.user_data["collect_order_data"]["customer"]["address"] = address
+        context.user_data["collect_order_data"]["current_state"] = CollectOrderDataStates.PRODUCT_LIST
 
-    context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.PRODUCT
+        # הוסף ל-navigation stack
+        push_navigation_state(context, "order", {
+            "state": CollectOrderDataStates.PRODUCT_LIST,
+            "action": f'choose_product (address: {address})'
+        })
 
-    # הוספת השלב הנוכחי ל-navigation history
-    address = context.user_data["collect_order_data"].get("address", "unknown")
-    add_order_step_to_history(context, CollectOrderDataStates.PRODUCT, f'choose_product (address: {address})')
+        logger.info(f"📝 Customer address collected: {address}")
 
     msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
     context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(t("choose_product", lang), reply_markup=get_products_markup(update.effective_user))
 
-    return CollectOrderDataStates.PRODUCT
+    return CollectOrderDataStates.PRODUCT_LIST
 
 
 async def new_product_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -624,25 +693,22 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return ConversationHandler.END
 
 async def step_back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    print(f"🔧 step_back called")
+    """חזרה חכמה עם טיפול בכל התרחישים"""
+    logger = logging.getLogger(__name__)
+    logger.info("🔄 step_back called - Advanced navigation")
+
     await update.callback_query.answer()
 
     # Check if conversation data exists
     if "collect_order_data" not in context.user_data:
-        print(f"🔧 No conversation data - conversation already ended")
+        logger.warning("🔄 No conversation data - conversation already ended")
         return ConversationHandler.END
 
-    current_step = context.user_data["collect_order_data"]["step"]
-    print(f"🔧 Current step: {current_step}")
-    lang = context.user_data["collect_order_data"]["lang"]
+    stack = context.user_data["collect_order_data"]["navigation_stack"]
 
-    # בדיקה אם יש navigation history פנימי
-    nav_history = context.user_data["collect_order_data"].get("nav_history", [])
-    print(f"🔧 Navigation history: {[h['action'] for h in nav_history]}")
-
-    # If we're at the first steps (START, NAME, or USERNAME), end the conversation and return to main menu
-    if current_step in [CollectOrderDataStates.START, CollectOrderDataStates.NAME, CollectOrderDataStates.USERNAME] or len(nav_history) <= 1:
-        print(f"🔧 At early step ({current_step}) or no history, ending conversation and returning to main menu")
+    if len(stack) <= 1:
+        # אין אחורה - סגור הזמנה וחזור לתפריט ראשי
+        logger.info("🔄 No more steps back - ending conversation")
         msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
         await msg.delete()
         del context.user_data["collect_order_data"]
@@ -653,199 +719,105 @@ async def step_back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
         return ConversationHandler.END
 
-    # חזרה לשלב הקודם ב-navigation history
-    if len(nav_history) > 1:
-        # הוצאת השלב הנוכחי
-        current_history_item = nav_history.pop()
-        print(f"🔧 Popped current step: {current_history_item['action']}")
+    # הוצא את המצב הנוכחי
+    current_state = stack.pop()
+    logger.info(f"🔄 Popped current state: {current_state}")
 
-        # קבלת השלב הקודם
-        previous_history_item = nav_history[-1]
-        previous_step = previous_history_item['step']
-        previous_action = previous_history_item['action']
+    # קבל את המצב הקודם
+    previous_state = stack[-1]
+    logger.info(f"🔄 Going back to: {previous_state}")
 
-        print(f"🔧 Going back to previous step: {previous_step} ({previous_action})")
+    # טפל לפי סוג המצב הקודם
+    if previous_state["type"] == "order":
+        return await restore_order_state(update, context, previous_state)
 
-        # חזרה לשלב הקודם
-        context.user_data["collect_order_data"]["step"] = previous_step
+    elif previous_state["type"] == "product":
+        return await restore_product_state(update, context, previous_state)
 
-        # עדכון ההודעה בהתאם לשלב
-        msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+    elif previous_state["type"] == "edit":
+        return await restore_edit_state(update, context, previous_state)
 
-        if previous_step == CollectOrderDataStates.START:
-            # חזרה לתחילת ההזמנה
-            context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
-                t("enter_client_name", lang),
-                reply_markup=get_cancel_kb(lang)
-            )
-            return CollectOrderDataStates.NAME
+    # אם לא מצא סוג - סגור הזמנה
+    logger.error(f"🔄 Unknown state type: {previous_state}")
+    return ConversationHandler.END
 
-        elif previous_step == CollectOrderDataStates.USERNAME:
-            # חזרה לשם המשתמש
-            context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
-                t("enter_client_username", lang),
-                reply_markup=get_username_kb(lang)
-            )
-            return CollectOrderDataStates.USERNAME
 
-        elif previous_step == CollectOrderDataStates.PHONE:
-            # חזרה לטלפון
-            context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
-                t("enter_client_phone", lang),
-                reply_markup=get_back_cancel_kb(lang)
-            )
-            return CollectOrderDataStates.PHONE
+async def restore_order_state(update, context, state_data):
+    """שחזור מצב הזמנה כללי"""
+    logger = logging.getLogger(__name__)
+    logger.info(f"🔄 Restoring order state: {state_data}")
 
-        elif previous_step == CollectOrderDataStates.ADDRESS:
-            # חזרה לכתובת
-            context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
-                t("enter_client_address", lang),
-                reply_markup=get_back_cancel_kb(lang)
-            )
-            return CollectOrderDataStates.ADDRESS
+    lang = context.user_data["collect_order_data"]["lang"]
+    state = state_data["state"]
+    msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
 
-        elif previous_step == CollectOrderDataStates.PRODUCT:
-            # חזרה לבחירת מוצר
-            from config.kb import get_products_kb
-            context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
-                t("select_product", lang),
-                reply_markup=get_products_kb(lang)
-            )
-            return CollectOrderDataStates.PRODUCT
-
-        elif previous_step == CollectOrderDataStates.QUANTITY:
-            # חזרה לכמות
-            selected_product = context.user_data["collect_order_data"].get("selected_product")
-            if selected_product:
-                context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
-                    t("enter_quantity", lang).format(selected_product.get('name', '')),
-                    reply_markup=get_back_cancel_kb(lang)
-                )
-                return CollectOrderDataStates.QUANTITY
-
-        elif previous_step == CollectOrderDataStates.PRICE:
-            # חזרה למחיר
-            selected_product = context.user_data["collect_order_data"].get("selected_product")
-            quantity = context.user_data["collect_order_data"].get("quantity", 1)
-            if selected_product:
-                context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
-                    t("enter_total_price", lang).format(selected_product.get('name', ''), quantity),
-                    reply_markup=get_back_cancel_kb(lang)
-                )
-                return CollectOrderDataStates.PRICE
-
-        # אם לא מצאנו טיפול ספציפי, נחזור ללוגיקה הקשיחה הישנה
-        print(f"🔧 No specific handling for step {previous_step}, using old logic")
-
-    # Go back one step - OLD LOGIC (למקרה שמשהו השתבש)
-    
-    # Go back one step
-    if current_step == CollectOrderDataStates.PHONE:
-        print(f"🔧 Going back to USERNAME")
-        msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+    if state == CollectOrderDataStates.NAME:
         context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
-            t("enter_client_username", lang), 
-            reply_markup=get_skip_back_cancel_kb(lang)
+            t("enter_client_name", lang),
+            reply_markup=get_cancel_kb(lang)
         )
-        context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.USERNAME
+        context.user_data["collect_order_data"]["current_state"] = CollectOrderDataStates.NAME
+        return CollectOrderDataStates.NAME
+
+    elif state == CollectOrderDataStates.USERNAME:
+        context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
+            t("enter_client_username", lang),
+            reply_markup=get_username_kb(lang)
+        )
+        context.user_data["collect_order_data"]["current_state"] = CollectOrderDataStates.USERNAME
         return CollectOrderDataStates.USERNAME
-    elif current_step == CollectOrderDataStates.ADDRESS:
-        print(f"🔧 Going back to PHONE")
-        msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+
+    elif state == CollectOrderDataStates.PHONE:
         context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
-            t("enter_client_phone", lang), 
+            t("enter_client_phone", lang),
             reply_markup=get_back_cancel_kb(lang)
         )
-        context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.PHONE
+        context.user_data["collect_order_data"]["current_state"] = CollectOrderDataStates.PHONE
         return CollectOrderDataStates.PHONE
-    elif current_step == CollectOrderDataStates.PRODUCT:
-        print(f"🔧 Going back to ADDRESS")
-        msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-        from config.kb import get_back_cancel_kb
+
+    elif state == CollectOrderDataStates.ADDRESS:
         context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
-            t("enter_client_address", lang), 
+            t("enter_client_address", lang),
             reply_markup=get_back_cancel_kb(lang)
         )
-        context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.ADDRESS
+        context.user_data["collect_order_data"]["current_state"] = CollectOrderDataStates.ADDRESS
         return CollectOrderDataStates.ADDRESS
-    elif current_step == CollectOrderDataStates.QUANTITY:
-        print(f"🔧 Going back to PRODUCT")
-        msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-        
-        # Remove the last product since user is going back to choose a different one
-        products = context.user_data["collect_order_data"].get("products", [])
-        if products:
-            removed_product = products.pop()
-            context.user_data["collect_order_data"]["products"] = products
-            print(f"🔧 Removed last product: {removed_product}, {len(products)} products remaining")
-        
-        from config.kb import get_products_markup
+
+    elif state == CollectOrderDataStates.PRODUCT_LIST:
         context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
-            t("choose_product", lang), 
+            t("choose_product", lang),
             reply_markup=get_products_markup(update.effective_user)
         )
-        context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.PRODUCT
-        return CollectOrderDataStates.PRODUCT
-    elif current_step == CollectOrderDataStates.TOTAL_PRICE:
-        print(f"🔧 Going back to QUANTITY")
-        msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-        
-        # Don't remove anything - we're just going back to edit the quantity
-        # The current product is still in the list, we just want to change its quantity
-        products = context.user_data["collect_order_data"].get("products", [])
-        
-        # Show the current product name
-        if products and len(products) > 0:
-            current_product = products[-1]
-            product_name = current_product.get("name", "")
-            prompt = f"{t('choose_or_enter_quantity', lang)}\n\n📦 {product_name}"
-        else:
-            prompt = t("choose_or_enter_quantity", lang)
-        
-        from config.kb import get_select_quantity_kb
-        context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
-            prompt,
-            reply_markup=get_select_quantity_kb(lang)
-        )
-        context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.QUANTITY
-        return CollectOrderDataStates.QUANTITY
-    elif current_step == CollectOrderDataStates.ADD_MORE_PRODUCTS_OR_CONFIRM:
-        print(f"🔧 Going back to TOTAL_PRICE")
-        msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-        
-        # Show previous value if exists
-        products = context.user_data["collect_order_data"].get("products", [])
-        old_value = ""
-        if products and len(products) > 0:
-            old_value = products[-1].get("total_price", "")
-        
-        prompt = t("choose_or_enter_total_price", lang)
-        if old_value:
-            prompt += f"\n\n📝 {t('previous_value', lang)}: {old_value}₪"
-        
-        from config.kb import get_select_price_kb
-        context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
-            prompt,
-            reply_markup=get_select_price_kb(lang)
-        )
-        context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.TOTAL_PRICE
-        return CollectOrderDataStates.TOTAL_PRICE
-    elif current_step == CollectOrderDataStates.CONFIRM_OR_NOT:
-        print(f"🔧 Going back to ADD_MORE_PRODUCTS_OR_CONFIRM")
-        msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-        from config.kb import get_more_product_confirm_kb
-        context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
-            t("add_more_or_confirm", lang), 
-            reply_markup=get_more_product_confirm_kb(lang)
-        )
-        context.user_data["collect_order_data"]["step"] = CollectOrderDataStates.ADD_MORE_PRODUCTS_OR_CONFIRM
-        return CollectOrderDataStates.ADD_MORE_PRODUCTS_OR_CONFIRM
-    
-    print(f"🔧 Unknown step: {current_step}, ending conversation")
-    msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-    await msg.delete()
-    del context.user_data["collect_order_data"]
+        context.user_data["collect_order_data"]["current_state"] = CollectOrderDataStates.PRODUCT_LIST
+        return CollectOrderDataStates.PRODUCT_LIST
+
+    logger.error(f"🔄 Unknown order state: {state}")
     return ConversationHandler.END
+
+
+async def restore_product_state(update, context, state_data):
+    """שחזור מצב הוספת מוצר"""
+    logger = logging.getLogger(__name__)
+    logger.info(f"🔄 Restoring product state: {state_data}")
+
+    # עדיין לא מיושם - יחזור לרשימת מוצרים
+    return await restore_order_state(update, context, {
+        "state": CollectOrderDataStates.PRODUCT_LIST,
+        "action": "back_to_product_list"
+    })
+
+
+async def restore_edit_state(update, context, state_data):
+    """שחזור מצב עריכת מוצר"""
+    logger = logging.getLogger(__name__)
+    logger.info(f"🔄 Restoring edit state: {state_data}")
+
+    # עדיין לא מיושם - יחזור לרשימת מוצרים
+    return await restore_order_state(update, context, {
+        "state": CollectOrderDataStates.PRODUCT_LIST,
+        "action": "back_to_product_list"
+    })
+
 
 async def confirm_order(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.callback_query.answer()
@@ -924,7 +896,7 @@ states = {
         MessageHandler(filters.Regex('^.+$'), collect_address),
         MessageHandler(filters.LOCATION, collect_address),
     ],
-    CollectOrderDataStates.PRODUCT: [
+    CollectOrderDataStates.PRODUCT_LIST: [
         CallbackQueryHandler(new_product_name, '^create$'),
         CallbackQueryHandler(collect_product, r'^\d+$'),
     ],
