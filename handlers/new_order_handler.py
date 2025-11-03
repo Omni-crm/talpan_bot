@@ -170,6 +170,7 @@ async def start_collect_data(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 async def collect_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Collecting name and go to next step @username."""
+    logger = logging.getLogger(__name__)
     print(f"🔧 collect_name called")
     lang = context.user_data["collect_order_data"]["lang"]
     
@@ -1354,6 +1355,20 @@ async def step_back(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if len(stack) <= 1:
         # אין אחורה - סגור הזמנה וחזור לתפריט ראשי
         logger.info("🔄 No more steps back - ending conversation")
+        msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+        await msg.delete()
+        del context.user_data["collect_order_data"]
+
+        # Return to main menu
+        from funcs.bot_funcs import start
+        await start(update, context)
+
+        return ConversationHandler.END
+
+    # אם אנחנו במצב NAME (הראשון) - סיים שיחה במקום לנסות לשחזר
+    current_state_data = stack[-1] if stack else None
+    if current_state_data and current_state_data.get("state") == CollectOrderDataStates.NAME:
+        logger.info("🔄 At first state (NAME) - ending conversation")
         msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
         await msg.delete()
         del context.user_data["collect_order_data"]
