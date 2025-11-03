@@ -60,7 +60,12 @@ async def edit_product_stock(update: Update, context: ContextTypes.DEFAULT_TYPE)
     msg = context.user_data["edit_product_data"]["start_msg"]
     product = context.user_data["edit_product_data"]["product"]
 
-    await msg.edit_text(t("enter_new_stock", lang).format(product.get('name')))
+    # הוספת כפתור חזרה להודעת הטקסט
+    from config.kb import get_cancel_kb
+    await msg.edit_text(
+        t("enter_new_stock", lang).format(product.get('name')),
+        reply_markup=get_cancel_kb(lang)
+    )
 
     return EditProductStates.EDIT_STOCK_END
 
@@ -97,7 +102,12 @@ async def edit_product_name(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     msg = context.user_data["edit_product_data"]["start_msg"]
     product = context.user_data["edit_product_data"]["product"]
 
-    await msg.edit_text(t("enter_new_name", lang).format(product.get('name')))
+    # הוספת כפתור חזרה להודעת הטקסט
+    from config.kb import get_cancel_kb
+    await msg.edit_text(
+        t("enter_new_name", lang).format(product.get('name')),
+        reply_markup=get_cancel_kb(lang)
+    )
 
     return EditProductStates.EDIT_NAME_END
 
@@ -135,7 +145,12 @@ async def edit_product_price(update: Update, context: ContextTypes.DEFAULT_TYPE)
     msg = context.user_data["edit_product_data"]["start_msg"]
     product = context.user_data["edit_product_data"]["product"]
 
-    await msg.edit_text(t("enter_new_price", lang).format(product.get('name'), product.get('price', 0)))
+    # הוספת כפתור חזרה להודעת הטקסט
+    from config.kb import get_cancel_kb
+    await msg.edit_text(
+        t("enter_new_price", lang).format(product.get('name'), product.get('price', 0)),
+        reply_markup=get_cancel_kb(lang)
+    )
 
     return EditProductStates.EDIT_PRICE_END
 
@@ -248,13 +263,16 @@ states = {
         CallbackQueryHandler(back_to_product_list, '^back_to_product_list$'),  # הוספה
     ],
     EditProductStates.EDIT_STOCK_END: [
-        MessageHandler(filters.Regex(r'^\d+$'), edit_product_stock_end)
+        MessageHandler(filters.Regex(r'^\d+$'), edit_product_stock_end),
+        CallbackQueryHandler(cancel, '^cancel$'),  # כפתור ביטול
     ],
     EditProductStates.EDIT_NAME_END: [
-        MessageHandler(filters.TEXT & ~filters.COMMAND, edit_product_name_end)
+        MessageHandler(filters.TEXT & ~filters.COMMAND, edit_product_name_end),
+        CallbackQueryHandler(cancel, '^cancel$'),  # כפתור ביטול
     ],
     EditProductStates.EDIT_PRICE_END: [
-        MessageHandler(filters.Regex(r'^\d+$'), edit_product_price_end)
+        MessageHandler(filters.Regex(r'^\d+$'), edit_product_price_end),
+        CallbackQueryHandler(cancel, '^cancel$'),  # כפתור ביטול
     ],
     ConversationHandler.TIMEOUT: [TypeHandler(Update, timeout_reached)]
 }
