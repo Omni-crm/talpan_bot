@@ -162,17 +162,27 @@ def is_in_conversation(context: ContextTypes.DEFAULT_TYPE) -> bool:
 
     # רשימת כל המפתחות שמציינים conversation פעיל
     conversation_indicators = [
-        'add_product',           # הוספת מוצר חדש
-        'edit_product_data',     # עריכת מוצר קיים
-        'new_order_data',        # יצירת הזמנה חדשה
-        'edit_crude_data',       # עריכת מלאי
-        'template_data',         # עריכת תבנית
-        'session_data',          # ניהול סשנים
-        'create_template_data',  # יצירת תבנית חדשה
-        'send_template_data',    # שליחת תבנית
-        'end_shift_data',        # סיום משמרת
-        'change_links_data',     # שינוי קישורים
-        'make_session_data'      # יצירת סשן
+        'add_product',              # הוספת מוצר חדש
+        'edit_product_data',        # עריכת מוצר קיים
+        'new_order_data',           # יצירת הזמנה חדשה
+        'edit_crude_data',          # עריכת מלאי
+        'template_data',            # עריכת תבנית
+        'session_data',             # ניהול סשנים
+        'create_template_data',     # יצירת תבנית חדשה
+        'send_template_data',       # שליחת תבנית
+        'end_shift_data',           # סיום משמרת
+        'change_links_data',        # שינוי קישורים
+        'make_session_data',        # יצירת סשן
+        'add_staff_data',           # הוספת עובד
+        'auth_data',                # אימות
+        'choose_min_data',          # בחירת דקות
+        'collect_order_data',       # איסוף הזמנה
+        'create_new_shab_data',     # יצירת תבנית חדשה
+        'dealing_template_data',    # טיפול בתבנית
+        'delay_min_data',           # עיכוב דקות
+        'edit_group_link_data',     # עריכת קישור קבוצה
+        'edit_product_with_crude_data', # עריכת מוצר עם חומר גלם
+        'pending_order_with_data'   # הזמנה ממתינה
     ]
 
     for indicator in conversation_indicators:
@@ -779,6 +789,14 @@ def get_previous_menu(context):
         print(f"🔍 Going back to: {menu['menu']}")
         return menu
     print(f"🔍 No previous menu")
+    return None
+
+
+def peek_navigation_history(context):
+    """קבלת התפריט האחרון בהיסטוריה בלי להסיר אותו"""
+    if 'navigation_history' in context.user_data and len(context.user_data['navigation_history']) > 0:
+        menu = context.user_data['navigation_history'][-1]  # peek without pop
+        return menu
     return None
 
 def add_back_button_to_keyboard(keyboard, lang):

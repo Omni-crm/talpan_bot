@@ -1480,13 +1480,17 @@ async def show_menu_edit_crude_stock(update: Update, context: ContextTypes.DEFAU
     """
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
-    
+
     # Clean previous message
     await clean_previous_message(update, context)
-    
+
     # Add to navigation history ONLY if not coming from back button
     if not from_back_button:
         add_to_navigation_history(context, 'stock_menu')
+
+    # הוספה: שמירת מידע על מלאי חומר גלם (גם הוא מלאי)
+    context.user_data['current_inventory_view'] = 'crude_stock'
+    context.user_data['came_from_inventory'] = True  # דגל חשוב גם כאן
 
     inline_markup = get_products_markup_left_edit_stock_crude(lang)
 
@@ -1577,6 +1581,54 @@ async def handle_conversation_back(update: Update, context: ContextTypes.DEFAULT
             # אנחנו ביצירת סשן - חזרה לתפריט סשנים
             logger.debug("🔙 Back from make_session conversation")
             await show_tg_sessions(update, context)
+
+        elif 'add_staff_data' in context.user_data:
+            # אנחנו בהוספת עובד - חזרה לתפריט ניהול
+            logger.debug("🔙 Back from add_staff conversation")
+            await show_admin_action_kb(update, context, from_back_button=True)
+
+        elif 'delay_min_data' in context.user_data:
+            # אנחנו בעיכוב הזמנה - חזרה לתפריט השליח
+            logger.debug("🔙 Back from delay conversation")
+            # צריך למצוא את order_id ולהציג את תפריט הפעולות
+            order_id = context.user_data.get('delay_min_data', {}).get('order_id')
+            lang = context.user_data.get('delay_min_data', {}).get('lang', 'ru')
+            if order_id:
+                try:
+                    from funcs.bot_funcs import form_courier_action_kb
+                    markup = await form_courier_action_kb(order_id, lang)
+                    start_msg = context.user_data.get('delay_min_data', {}).get('start_msg')
+                    if start_msg:
+                        await start_msg.edit_reply_markup(markup)
+                        logger.debug(f"🔙 Restored courier action menu for order {order_id}")
+                    else:
+                        logger.warning("🔙 No start_msg found for delay conversation")
+                except Exception as e:
+                    logger.error(f"🔙 Error restoring courier menu: {e}")
+                    await start(update, context)
+            else:
+                logger.warning("🔙 No order_id found in delay conversation")
+                await start(update, context)
+
+        elif 'collect_order_data' in context.user_data:
+            # אנחנו באיסוף הזמנה - חזרה לתפריט הראשי (ההזמנה לא נשמרה)
+            logger.debug("🔙 Back from collect_order conversation")
+            # ניקוי הנתונים ומעבר לתפריט הראשי
+            start_msg = context.user_data.get('collect_order_data', {}).get('start_msg')
+            if start_msg:
+                try:
+                    await start_msg.delete()
+                    logger.debug("🔙 Deleted collect_order start message")
+                except Exception as e:
+                    logger.debug(f"🔙 Could not delete collect_order start message: {e}")
+
+            # ניקוי הנתונים
+            if 'collect_order_data' in context.user_data:
+                del context.user_data['collect_order_data']
+                logger.debug("🔙 Cleaned collect_order_data")
+
+            # חזרה לתפריט הראשי
+            await start(update, context)
 
         else:
             # conversation לא מזוהה - חזרה לעמוד הבית

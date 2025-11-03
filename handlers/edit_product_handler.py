@@ -29,6 +29,15 @@ async def start_edit_product(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     product = get_product_by_id(product_id)
 
+    # בדיקה אם הגענו ממלאי נוכחי - חשוב לניווט חזרה נכון
+    from funcs.utils import peek_navigation_history
+    last_menu = peek_navigation_history(context)
+    came_from_inventory = (last_menu and last_menu.get('menu') == 'stock_list_menu')
+
+    if came_from_inventory:
+        context.user_data['came_from_inventory'] = True
+        print(f"🔍 Edit product: Came from inventory, setting navigation flag")
+
     # שינוי: שימוש ב-keyboard החדש עם כפתור חזור
     from config.kb import get_edit_product_kb_with_back
     start_msg = await update.effective_message.edit_text(

@@ -304,36 +304,37 @@ async def test_error_handling_in_navigation():
     update.callback_query = AsyncMock()
     update.callback_query.answer = AsyncMock()
     update.callback_query.data = "back"
+    update.effective_user = MagicMock()
+    update.effective_user.id = 12345
 
     context = MagicMock()
-    context.user_data = {}  # ריק - יגרום לשגיאה
+    context.user_data = {}  # ריק - יגרום לניווט לעמוד הבית
 
-    # לכידת לוגים
-    log_stream = StringIO()
-    handler = logging.StreamHandler(log_stream)
-    logger = logging.getLogger('funcs.bot_funcs')
-    logger.addHandler(handler)
-    logger.setLevel(logging.ERROR)
+    # Mock של פונקציות
+    from funcs import bot_funcs
+    bot_funcs.get_user_lang = MagicMock(return_value='he')
+    bot_funcs.get_previous_menu = MagicMock(return_value=None)  # אין היסטוריה
+    bot_funcs.start = AsyncMock()
 
     try:
         # ייבוא הפונקציה
         from funcs.bot_funcs import handle_navigation
 
-        # הרצת הפונקציה - צריכה להתמודד עם שגיאות
+        # הרצת הפונקציה
         await handle_navigation(update, context)
 
         # בדיקות
         update.callback_query.answer.assert_called_once()
-
-        # צריך להיות לוג שגיאה
-        log_output = log_stream.getvalue()
-        assert "Error in handle_conversation_back" in log_output or "start()" in str(context.mock_calls), "לא התמודד עם שגיאה נכון"
+        bot_funcs.start.assert_called_once_with(update, context)
 
         print("✅ התמודדות עם שגיאות עובדת נכון")
         return True
 
-    finally:
-        logger.removeHandler(handler)
+    except Exception as e:
+        print(f"❌ טסט נכשל: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
 
 
 async def run_all_tests():

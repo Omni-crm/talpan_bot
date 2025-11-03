@@ -14,6 +14,8 @@ async def test_cancel_logic():
 
     # יצירת mock objects
     update = MagicMock()
+    update.callback_query = AsyncMock()
+    update.callback_query.answer = AsyncMock()
     context = MagicMock()
 
     # Mock של הודעה
@@ -75,6 +77,8 @@ async def test_cancel_logic_without_inventory_flag():
 
     # יצירת mock objects
     update = MagicMock()
+    update.callback_query = AsyncMock()
+    update.callback_query.answer = AsyncMock()
     context = MagicMock()
 
     # Mock של הודעה - ללא דגל came_from_inventory
