@@ -618,9 +618,6 @@ async def collect_quantity(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     logger = logging.getLogger(__name__)
     lang = context.user_data["collect_order_data"]["lang"]
 
-    if not update.callback_query:
-        await update.effective_message.delete()
-
     # בדוק שיש active_product
     if "active_product" not in context.user_data["collect_order_data"]:
         logger.error("❌ No active_product in collect_quantity")
@@ -631,7 +628,18 @@ async def collect_quantity(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     active_product = context.user_data["collect_order_data"]["active_product"]
 
-    if not update.callback_query:
+    quantity = None
+
+    if update.callback_query:
+        await update.callback_query.answer()
+        # קבלת כמות מכפתור
+        if update.callback_query.data.isdigit():
+            quantity = int(update.callback_query.data)
+        else:
+            logger.warning(f"⚠️ Invalid callback data in collect_quantity: {update.callback_query.data}")
+            return CollectOrderDataStates.QUANTITY
+    else:
+        await update.effective_message.delete()
         # קבלת כמות מההודעה
         try:
             quantity = int(update.message.text[:100])
@@ -646,49 +654,49 @@ async def collect_quantity(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             )
             return CollectOrderDataStates.QUANTITY
 
-        # בדוק מלאי
-        available_stock = active_product["temp_data"]["stock"]
-        if available_stock < quantity:
-            logger.warning(f"⚠️ Not enough stock: requested {quantity}, available {available_stock}")
-            msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-            # הצג הודעת שגיאה עם כפתורים לחזרה או ביטול
-            from config.kb import get_back_cancel_kb
-            await msg.edit_text(
-                t("not_enough_stock", lang) + "\n" +
-                t("available_stock", lang).format(available_stock),
-                reply_markup=get_back_cancel_kb(lang)
-            )
-            return CollectOrderDataStates.QUANTITY
-
-        # עדכן active_product עם הכמות
-        active_product["temp_data"]["quantity"] = quantity
-        active_product["state"] = ProductStates.ENTER_PRICE
-
-        # עדכן מצב נוכחי
-        context.user_data["collect_order_data"]["current_state"] = ProductStates.ENTER_PRICE
-
-        # הוסף ל-navigation stack
-        push_navigation_state(context, "product", {
-            "product_index": active_product["index"],
-            "state": ProductStates.ENTER_PRICE,
-            "action": f'quantity_entered_{quantity}'
-        })
-
-        logger.info(f"📦 Quantity set: {quantity} for product {active_product['temp_data']['name']}")
-
-        # עבור להזנת מחיר
+    # בדוק מלאי
+    available_stock = active_product["temp_data"]["stock"]
+    if available_stock < quantity:
+        logger.warning(f"⚠️ Not enough stock: requested {quantity}, available {available_stock}")
         msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
-        prompt = t("choose_or_enter_total_price", lang)
-        if active_product["temp_data"]["name"]:
-            prompt = f"{t('enter_price_for', lang)} {active_product['temp_data']['name']}"
-
-        from config.kb import get_select_price_kb
-        context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
-            prompt,
-            reply_markup=get_select_price_kb(lang)
+        # הצג הודעת שגיאה עם כפתורים לחזרה או ביטול
+        from config.kb import get_back_cancel_kb
+        await msg.edit_text(
+            t("not_enough_stock", lang) + "\n" +
+            t("available_stock", lang).format(available_stock),
+            reply_markup=get_back_cancel_kb(lang)
         )
+        return CollectOrderDataStates.QUANTITY
 
-        return CollectOrderDataStates.TOTAL_PRICE
+    # עדכן active_product עם הכמות
+    active_product["temp_data"]["quantity"] = quantity
+    active_product["state"] = ProductStates.ENTER_PRICE
+
+    # עדכן מצב נוכחי
+    context.user_data["collect_order_data"]["current_state"] = ProductStates.ENTER_PRICE
+
+    # הוסף ל-navigation stack
+    push_navigation_state(context, "product", {
+        "product_index": active_product["index"],
+        "state": ProductStates.ENTER_PRICE,
+        "action": f'quantity_entered_{quantity}'
+    })
+
+    logger.info(f"📦 Quantity set: {quantity} for product {active_product['temp_data']['name']}")
+
+    # עבור להזנת מחיר
+    msg: TgMessage = context.user_data["collect_order_data"]["start_msg"]
+    prompt = t("choose_or_enter_total_price", lang)
+    if active_product["temp_data"]["name"]:
+        prompt = f"{t('enter_price_for', lang)} {active_product['temp_data']['name']}"
+
+    from config.kb import get_select_price_kb
+    context.user_data["collect_order_data"]["start_msg"] = await msg.edit_text(
+        prompt,
+        reply_markup=get_select_price_kb(lang)
+    )
+
+    return CollectOrderDataStates.TOTAL_PRICE
 async def collect_total_price(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Collecting total_price - Phase 3: Product Addition Completion"""
     logger = logging.getLogger(__name__)

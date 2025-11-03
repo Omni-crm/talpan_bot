@@ -302,8 +302,8 @@ def get_select_price_kb(lang='ru'):
                 InlineKeyboardButton('500', callback_data="500"),
                 InlineKeyboardButton('550', callback_data="550"),
             ],
-            [InlineKeyboardButton('⬅️Back', callback_data="back")],
-            [InlineKeyboardButton('❌Cancel', callback_data="cancel")],
+            [InlineKeyboardButton(t("btn_back", lang), callback_data="back")],
+            [InlineKeyboardButton(t("btn_cancel", lang), callback_data="cancel")],
             [InlineKeyboardButton(t("btn_home", lang), callback_data="home")],
         ],
     )
@@ -321,8 +321,8 @@ def get_select_quantity_kb(lang='ru'):
                 InlineKeyboardButton('50', callback_data="50"),
                 InlineKeyboardButton('60', callback_data="60"),
             ],
-            [InlineKeyboardButton('⬅️Back', callback_data="back")],
-            [InlineKeyboardButton('❌Cancel', callback_data="cancel")],
+            [InlineKeyboardButton(t("btn_back", lang), callback_data="back")],
+            [InlineKeyboardButton(t("btn_cancel", lang), callback_data="cancel")],
             [InlineKeyboardButton(t("btn_home", lang), callback_data="home")],
         ],
     )
@@ -330,9 +330,9 @@ def get_select_quantity_kb(lang='ru'):
 
 def show_tg_session_action_kb(sess_id: str, lang='ru'):
     SESS_ACT_KB = InlineKeyboardMarkup([
-        [InlineKeyboardButton('⬅️ Back', callback_data='back_session_kb')],
-        [InlineKeyboardButton('✅ Make Active', callback_data=f'worker_{sess_id}')],
-        [InlineKeyboardButton('❌ Delete', callback_data=f'del_sess_{sess_id}')],
+        [InlineKeyboardButton(t("btn_back", lang), callback_data='back_session_kb')],
+        [InlineKeyboardButton(t("btn_make_active", lang), callback_data=f'worker_{sess_id}')],
+        [InlineKeyboardButton(t("btn_delete", lang), callback_data=f'del_sess_{sess_id}')],
         [InlineKeyboardButton(t("btn_home", lang), callback_data="home")],
     ])
 
