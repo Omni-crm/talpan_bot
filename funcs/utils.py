@@ -785,8 +785,12 @@ def add_to_navigation_history(context, menu_name, data=None, max_history=5):
 def get_previous_menu(context):
     """קבלת התפריט הקודם"""
     if 'navigation_history' in context.user_data and len(context.user_data['navigation_history']) > 0:
+        print(f"🔍 Navigation history before pop: {context.user_data['navigation_history']}")
         menu = context.user_data['navigation_history'].pop()
+        print(f"🔍 Going back to: {menu['menu']}")
+        print(f"🔍 Navigation history after pop: {context.user_data['navigation_history']}")
         return menu
+    print(f"🔍 No previous menu - navigation_history: {context.user_data.get('navigation_history', 'NOT SET')}")
     return None
 
 
