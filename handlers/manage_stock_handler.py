@@ -91,6 +91,14 @@ async def manage_stock(update: Update, context: ContextTypes.DEFAULT_TYPE, from_
     await update.callback_query.answer()
     lang = get_user_lang(update.effective_user.id)
 
+    # בדיקה אם באנו מ-list_products (אז זה כמו חזרה)
+    came_from_list_products = context.user_data.get('came_from_list_products', False)
+    if came_from_list_products:
+        from_back_button = True
+        # ניקוי הדגל
+        if 'came_from_list_products' in context.user_data:
+            del context.user_data['came_from_list_products']
+
     # הוספה: ניקוי הודעה קודמת ורישום ב-navigation
     from funcs.utils import clean_previous_message, add_to_navigation_history
     await clean_previous_message(update, context)
@@ -266,14 +274,18 @@ async def list_products(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     await clean_previous_message(update, context)
     add_to_navigation_history(context, 'list_products_menu')
 
+    # סימון שאנחנו ב-list_products, כדי שכפתור manage_stock יחזור עם from_back_button=True
+    context.user_data['came_from_list_products'] = True
+
     # לא צריך clean_previous_message כי אנחנו עושים edit_text על ההודעה הקיימת
 
     from db.db import get_all_products
     products = get_all_products()
 
     if not products:
+        # כפתור חזור שקורא ל-manage_stock כמו הכפתור במסך ראשי
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton(t("btn_back", lang), callback_data="back")]
+            [InlineKeyboardButton(t("btn_manage_stock", lang), callback_data="manage_stock")]
         ])
         await update.effective_message.edit_text(
             t("no_products", lang),
@@ -287,9 +299,9 @@ async def list_products(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         for i, p in enumerate(products)
     ])
 
-    # שינוי: רק כפתור חזור (לא ביטול + back + home)
+    # כפתור חזור שקורא ל-manage_stock כמו הכפתור במסך ראשי
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton(t("btn_back", lang), callback_data="back")]
+        [InlineKeyboardButton(t("btn_manage_stock", lang), callback_data="manage_stock")]
     ])
 
     await update.effective_message.edit_text(
