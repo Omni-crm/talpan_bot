@@ -367,7 +367,7 @@ async def collect_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     session["current_step"] = ST_PRODUCT
     print(f"✅ set session.current_step = {ST_PRODUCT}")
 
-    result = 10  # ST_PRODUCT
+    result = 13  # ST_SUMMARY - בואו נבדוק אם הבעיה ספציפית ל-ST_PRODUCT
     print(f"✅ collect_phone returning: {result}")
     return result
 
