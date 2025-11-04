@@ -362,21 +362,10 @@ async def collect_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 
         logger.info(f"📝 Customer phone collected: {phone}")
 
-    # אחרי איסוף פרטי הלקוח - התחל בחירת מוצר
-    session = get_session(context)
-    session["current_step"] = ST_PRODUCT
-    print(f"✅ set session.current_step = {ST_PRODUCT}")
-
-    # בואו ננסה לקרוא ל-show_product ישירות כדי לוודא שהתצוגה עובדת
-    try:
-        await show_product(update, context)
-        print("✅ show_product called successfully")
-    except Exception as e:
-        print(f"❌ show_product failed: {e}")
-
-    result = 10  # ST_PRODUCT - חזרה ל-ST_PRODUCT
-    print(f"✅ collect_phone returning: {result}")
-    return result
+    # אחרי איסוף הטלפון - עבר לכתובת
+    # לפי המסמך: טלפון → כתובת → מוצר
+    print("✅ collect_phone: moving to address collection")
+    return CollectOrderDataStates.ADDRESS
 
 async def collect_address(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Collecting address."""
@@ -406,12 +395,19 @@ async def collect_address(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
         logger.info(f"📝 Customer address collected: {address}")
 
-    # אחרי איסוף פרטי הלקוח - התחל בחירת מוצר
+    # אחרי איסוף הכתובת - התחל בחירת מוצר
     session = get_session(context)
     session["current_step"] = ST_PRODUCT
     print(f"✅ set session.current_step = {ST_PRODUCT}")
 
-    result = 10  # ST_PRODUCT
+    # הצג את בחירת המוצר
+    try:
+        await show_product(update, context)
+        print("✅ show_product called successfully from collect_address")
+    except Exception as e:
+        print(f"❌ show_product failed from collect_address: {e}")
+
+    result = ST_PRODUCT  # 10
     print(f"✅ collect_address returning: {result}")
     return result
 
