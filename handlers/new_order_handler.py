@@ -345,11 +345,15 @@ async def collect_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     print("🔧 collect_phone called")  # לוג חובה לפי ChatGPT
     lang = context.user_data["collect_order_data"]["lang"]
     
+    # collect_phone אמור לקבל רק MessageHandler (טקסט), לא CallbackQuery
+    # CallbackQuery של back/cancel מטופל ב-fallbacks
     if update.callback_query:
+        print("⚠️ collect_phone received callback_query - this shouldn't happen")
         await update.callback_query.answer()
-        # אם זה callback query, זה כנראה כפתור "חזור" או "ביטול"
         return CollectOrderDataStates.PHONE
-    else:
+    
+    # טיפול בהודעה רגילה
+    if update.message:
         # מחיקת הודעת המשתמש
         try:
             await update.effective_message.delete()
@@ -361,6 +365,28 @@ async def collect_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         context.user_data["collect_order_data"]["customer"]["phone"] = phone
 
         logger.info(f"📝 Customer phone collected: {phone}")
+
+        # ערוך את ההודעה ולבקש כתובת
+        from config.kb import get_back_cancel_kb
+        from config.translations import t
+        
+        try:
+            if "start_msg" in context.user_data["collect_order_data"]:
+                await context.user_data["collect_order_data"]["start_msg"].edit_text(
+                    t("enter_client_address", lang),
+                    reply_markup=get_back_cancel_kb(lang)
+                )
+                print("✅ Edited message to ask for address")
+            else:
+                # אם אין start_msg, שלח הודעה חדשה
+                msg = await update.message.reply_text(
+                    t("enter_client_address", lang),
+                    reply_markup=get_back_cancel_kb(lang)
+                )
+                context.user_data["collect_order_data"]["start_msg"] = msg
+                print("✅ Sent new message to ask for address")
+        except Exception as e:
+            print(f"❌ Failed to update message for address: {e}")
 
     # אחרי איסוף הטלפון - עבר לכתובת
     # לפי המסמך: טלפון → כתובת → מוצר
