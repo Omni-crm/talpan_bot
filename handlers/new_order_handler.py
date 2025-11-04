@@ -367,7 +367,14 @@ async def collect_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     session["current_step"] = ST_PRODUCT
     print(f"✅ set session.current_step = {ST_PRODUCT}")
 
-    result = 13  # ST_SUMMARY - בואו נבדוק אם הבעיה ספציפית ל-ST_PRODUCT
+    # בואו ננסה לקרוא ל-show_product ישירות כדי לוודא שהתצוגה עובדת
+    try:
+        await show_product(update, context)
+        print("✅ show_product called successfully")
+    except Exception as e:
+        print(f"❌ show_product failed: {e}")
+
+    result = 10  # ST_PRODUCT - חזרה ל-ST_PRODUCT
     print(f"✅ collect_phone returning: {result}")
     return result
 
