@@ -1706,7 +1706,7 @@ def check_pending_order(update: Update) -> bool:
     # This is a filter function for the entry point
     return False  # We'll handle this differently
 
-NEW_ORDER_HANDLER = DebugConversationHandler(
+NEW_ORDER_HANDLER = ConversationHandler(
     entry_points=[
         CallbackQueryHandler(start_collect_data, '^new$'),
         # Add entry point for resuming order after product creation
